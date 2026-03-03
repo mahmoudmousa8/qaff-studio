@@ -13,7 +13,7 @@ COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
 # Install deps
-RUN npm ci --production=false
+RUN npm install --production=false
 
 # Copy remaining source
 COPY . .
