@@ -45,17 +45,17 @@ echo -e "  ✅ Production build ready."
 echo -e "\n${CYAN}[4/5] Updating Admin Master Panel files...${NC}"
 if [ -d "$ADMIN_DIR" ]; then
     # Smart copy: update admin files without touching /data database
-    rsync -avq --exclude='data' --exclude='node_modules' "$PROJECT_DIR/qaff-admin/" "$ADMIN_DIR/"
+    sudo rsync -avq --exclude='data' --exclude='node_modules' "$PROJECT_DIR/qaff-admin/" "$ADMIN_DIR/"
     cd "$ADMIN_DIR"
-    npm install --production 2>&1 | tail -3
+    sudo npm install --production 2>&1 | tail -3
     cd "$PROJECT_DIR"
     echo -e "  ✅ Admin panel code updated (data preserved)."
 else
     echo -e "  ${YELLOW}Admin panel not found at $ADMIN_DIR. Creating...${NC}"
     sudo cp -r "$PROJECT_DIR/qaff-admin/." "$ADMIN_DIR/"
-    mkdir -p "$ADMIN_DIR/data/logs"
+    sudo mkdir -p "$ADMIN_DIR/data/logs"
     cd "$ADMIN_DIR"
-    npm install --production 2>&1 | tail -3
+    sudo npm install --production 2>&1 | tail -3
     cd "$PROJECT_DIR"
 fi
 
