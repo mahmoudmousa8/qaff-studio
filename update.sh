@@ -51,7 +51,7 @@ echo -e "\n${CYAN}[4/5] Updating Admin Master Panel files...${NC}"
 if [ -d "$ADMIN_DIR" ]; then
     sudo rsync -av --exclude='data' --exclude='node_modules' "$PROJECT_DIR/qaff-admin/" "$ADMIN_DIR/" 2>&1 | grep -E "(sending|created|is uptodate)" || true
     cd "$ADMIN_DIR"
-    npm install --production 2>&1 | tail -3
+    sudo npm install --production 2>&1 | tail -3
     cd "$PROJECT_DIR"
     echo -e "  ✅ Admin panel updated (data preserved)."
 else
@@ -61,7 +61,7 @@ else
     sudo chown -R "$(whoami):$(whoami)" "$ADMIN_DIR"
     mkdir -p "$ADMIN_DIR/data/logs"
     cd "$ADMIN_DIR"
-    npm install --production 2>&1 | tail -3
+    sudo npm install --production 2>&1 | tail -3
     cd "$PROJECT_DIR"
     echo -e "  ✅ Admin panel created."
 fi
