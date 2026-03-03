@@ -42,7 +42,7 @@ echo -e "\n${CYAN}[3/5] Building the Next.js application...${NC}"
 pkill -f "next build" 2>/dev/null || true
 sleep 1
 # Remove lock file if it exists (from interrupted builds)
-rm -f "$PROJECT_DIR/.next/lock"
+sudo rm -f "$PROJECT_DIR/.next/lock"
 # Run build
 npm run build 2>&1 | tail -5
 echo -e "  ✅ Production build ready."
