@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Qaff Studio — GitHub Private Repo Smart Updater
-# Run: chmod +x update.sh && ./update.sh
+# Run: ./update.sh  (no sudo needed)
 #
 
 set -euo pipefail
@@ -21,51 +21,73 @@ echo -e "${BOLD}═════════════════════�
 
 # Ensure we are in the project directory
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo -e "${YELLOW}Project directory $PROJECT_DIR not found. Please clone it first.${NC}"
+    echo -e "${YELLOW}Project directory $PROJECT_DIR not found. Run install.sh first.${NC}"
     exit 1
 fi
 
 cd "$PROJECT_DIR"
 
 echo -e "${CYAN}[1/5] Fetching latest updates from GitHub...${NC}"
-# Stash any accidental local changes (except for ignored data/env files)
 git stash 2>/dev/null || true
 git fetch origin main
 git pull origin main
 echo -e "  ✅ Code updated to latest commit."
 
 echo -e "\n${CYAN}[2/5] Installing new dependencies...${NC}"
-sudo npm install --production=false 2>&1 | tail -3
+npm install --production=false 2>&1 | tail -3
 echo -e "  ✅ Dependencies installed."
 
 echo -e "\n${CYAN}[3/5] Building the Next.js application...${NC}"
-sudo npm run build 2>&1 | tail -5
+# Kill any stuck next build process
+pkill -f "next build" 2>/dev/null || true
+sleep 1
+# Remove lock file if it exists (from interrupted builds)
+rm -f "$PROJECT_DIR/.next/lock"
+# Run build
+npm run build 2>&1 | tail -5
 echo -e "  ✅ Production build ready."
 
 echo -e "\n${CYAN}[4/5] Updating Admin Master Panel files...${NC}"
 if [ -d "$ADMIN_DIR" ]; then
-    # Smart copy: update admin files without touching /data database
-    sudo rsync -avq --exclude='data' --exclude='node_modules' "$PROJECT_DIR/qaff-admin/" "$ADMIN_DIR/"
+    sudo rsync -av --exclude='data' --exclude='node_modules' "$PROJECT_DIR/qaff-admin/" "$ADMIN_DIR/" 2>&1 | grep -E "(sending|created|is uptodate)" || true
     cd "$ADMIN_DIR"
-    sudo npm install --production 2>&1 | tail -3
+    npm install --production 2>&1 | tail -3
     cd "$PROJECT_DIR"
-    echo -e "  ✅ Admin panel code updated (data preserved)."
+    echo -e "  ✅ Admin panel updated (data preserved)."
 else
     echo -e "  ${YELLOW}Admin panel not found at $ADMIN_DIR. Creating...${NC}"
-    sudo cp -r "$PROJECT_DIR/qaff-admin/." "$ADMIN_DIR/"
-    sudo mkdir -p "$ADMIN_DIR/data/logs"
+    sudo mkdir -p "$ADMIN_DIR"
+    sudo rsync -av --exclude='data' --exclude='node_modules' "$PROJECT_DIR/qaff-admin/" "$ADMIN_DIR/" 2>&1 | tail -3
+    sudo chown -R "$(whoami):$(whoami)" "$ADMIN_DIR"
+    mkdir -p "$ADMIN_DIR/data/logs"
     cd "$ADMIN_DIR"
-    sudo npm install --production 2>&1 | tail -3
+    npm install --production 2>&1 | tail -3
     cd "$PROJECT_DIR"
+    echo -e "  ✅ Admin panel created."
 fi
 
-echo -e "\n${CYAN}[5/5] Restarting services with zero client downtime...${NC}"
-# Restart main app
-pm2 restart ecosystem.config.cjs --update-env 2>/dev/null || pm2 start ecosystem.config.cjs 2>/dev/null || true
-# Restart admin panel
-pm2 restart "$ADMIN_DIR/ecosystem.admin.cjs" --update-env 2>/dev/null || pm2 start "$ADMIN_DIR/ecosystem.admin.cjs" 2>/dev/null || true
+echo -e "\n${CYAN}[5/5] Restarting services (zero client downtime)...${NC}"
+# Reload main app (graceful, no stream interruption)
+pm2 reload ecosystem.config.cjs --update-env 2>/dev/null || \
+pm2 restart ecosystem.config.cjs --update-env 2>/dev/null || \
+pm2 start ecosystem.config.cjs 2>/dev/null || true
 
+# Reload admin panel
+ADMIN_ECOSYSTEM="$ADMIN_DIR/ecosystem.admin.cjs"
+if [ -f "$ADMIN_ECOSYSTEM" ]; then
+    pm2 reload "$ADMIN_ECOSYSTEM" --update-env 2>/dev/null || \
+    pm2 restart "$ADMIN_ECOSYSTEM" --update-env 2>/dev/null || \
+    pm2 start "$ADMIN_ECOSYSTEM" 2>/dev/null || true
+fi
+
+pm2 save 2>/dev/null || true
+
+SERVER_IP=$(hostname -I | awk '{print $1}')
 echo -e "\n${BOLD}════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  🎉 Update Complete!${NC}"
 echo -e "  Client streams were NOT interrupted."
-echo -e "${BOLD}════════════════════════════════════════════${NC}\n"
+echo -e "${BOLD}════════════════════════════════════════════${NC}"
+echo -e ""
+echo -e "  🎛️  Admin Panel:  ${BOLD}http://${SERVER_IP}:4000${NC}"
+echo -e "  📡  Main App:     ${BOLD}http://${SERVER_IP}:3000${NC}"
+echo -e ""
