@@ -41,8 +41,8 @@ echo -e "\n${CYAN}[3/5] Building the Next.js application...${NC}"
 # Kill any stuck next build process
 pkill -f "next build" 2>/dev/null || true
 sleep 1
-# Remove lock file if it exists (from interrupted builds)
-sudo rm -f "$PROJECT_DIR/.next/lock"
+# Remove the entire .next folder to prevent any root-owned cache/lock permission issues
+sudo rm -rf "$PROJECT_DIR/.next"
 # Run build
 npm run build 2>&1 | tail -5
 echo -e "  ✅ Production build ready."
