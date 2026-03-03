@@ -34,7 +34,7 @@ git pull origin main
 echo -e "  ✅ Code updated to latest commit."
 
 echo -e "\n${CYAN}[2/5] Installing new dependencies...${NC}"
-npm install --production=false 2>&1 | tail -3
+sudo npm install --production=false 2>&1 | tail -3
 echo -e "  ✅ Dependencies installed."
 
 echo -e "\n${CYAN}[3/5] Building the Next.js application...${NC}"
