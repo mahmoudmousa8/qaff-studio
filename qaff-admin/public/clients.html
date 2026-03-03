@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qaff Admin — إدارة العملاء</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #0f1117;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #e2e8f0;
+        }
+
+        nav {
+            background: #1a1d27;
+            border-bottom: 1px solid #2d3148;
+            padding: 0 24px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        nav h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #7c3aed;
+        }
+
+        nav .links a {
+            color: #94a3b8;
+            text-decoration: none;
+            margin-right: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        nav .links a.active {
+            color: #e2e8f0;
+        }
+
+        nav .logout {
+            background: none;
+            border: 1px solid #3d4263;
+            color: #94a3b8;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        .top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        h2 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .btn-create {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            border: none;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-create:hover {
+            opacity: .9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #1a1d27;
+            border: 1px solid #2d3148;
+            border-radius: 14px;
+            overflow: hidden;
+        }
+
+        thead th {
+            padding: 14px 16px;
+            text-align: right;
+            font-size: 12px;
+            font-weight: 700;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            background: #14172280;
+            border-bottom: 1px solid #2d3148;
+        }
+
+        tbody tr {
+            border-bottom: 1px solid #1e2235;
+            transition: background .15s;
+        }
+
+        tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        tbody tr:hover {
+            background: #1e2235;
+        }
+
+        tbody td {
+            padding: 14px 16px;
+            font-size: 14px;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 6px;
+        }
+
+        .status-running {
+            background: #14532d40;
+            color: #4ade80;
+        }
+
+        .status-stopped {
+            background: #7f1d1d40;
+            color: #f87171;
+        }
+
+        .status-suspended {
+            background: #78350f40;
+            color: #fbbf24;
+        }
+
+        .actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+            transition: opacity .15s;
+        }
+
+        .btn-sm:hover {
+            opacity: .8;
+        }
+
+        .btn-start {
+            background: #14532d;
+            color: #4ade80;
+        }
+
+        .btn-stop {
+            background: #7f1d1d;
+            color: #f87171;
+        }
+
+        .btn-suspend {
+            background: #78350f;
+            color: #fbbf24;
+        }
+
+        .btn-resume {
+            background: #1e3a5f;
+            color: #60a5fa;
+        }
+
+        .btn-pass {
+            background: #2d1b69;
+            color: #a78bfa;
+        }
+
+        .btn-slots {
+            background: #1e2235;
+            color: #94a3b8;
+            border: 1px solid #3d4263;
+        }
+
+        .btn-delete {
+            background: #450a0a;
+            color: #fca5a5;
+        }
+
+        .port {
+            font-family: monospace;
+            font-size: 13px;
+            color: #60a5fa;
+            font-weight: 700;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 60px;
+            color: #475569;
+        }
+
+        /* Modal */
+        .modal-bg {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, .75);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-bg.show {
+            display: flex;
+        }
+
+        .modal {
+            background: #1a1d27;
+            border: 1px solid #2d3148;
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 460px;
+        }
+
+        .modal h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 24px;
+        }
+
+        .form-row {
+            margin-bottom: 16px;
+        }
+
+        .form-row label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 6px;
+        }
+
+        .form-row input {
+            width: 100%;
+            height: 44px;
+            background: #0f1117;
+            border: 1px solid #2d3148;
+            border-radius: 8px;
+            padding: 0 14px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+        }
+
+        .form-row input:focus {
+            border-color: #7c3aed;
+        }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .modal-btns button {
+            flex: 1;
+            height: 44px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: #fff;
+        }
+
+        .btn-cancel {
+            background: #2d3148;
+            color: #94a3b8;
+        }
+
+        .url-box {
+            margin-top: 16px;
+            background: #0f1117;
+            border: 1px solid #2d3148;
+            border-radius: 8px;
+            padding: 14px 16px;
+            font-family: monospace;
+            font-size: 14px;
+            color: #4ade80;
+            word-break: break-all;
+            display: none;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1d27;
+            border: 1px solid #4ade80;
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-size: 14px;
+            color: #4ade80;
+            display: none;
+            z-index: 200;
+        }
+
+        .toast.error {
+            border-color: #f87171;
+            color: #f87171;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #ffffff44;
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin .6s linear infinite;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <h1>🎛️ Qaff Admin</h1>
+        <div class="links">
+            <a href="/">Dashboard</a>
+            <a href="/clients" class="active">العملاء</a>
+        </div>
+        <button class="logout" onclick="logout()">خروج</button>
+    </nav>
+
+    <main>
+        <div class="top">
+            <h2>إدارة العملاء</h2>
+            <button class="btn-create" onclick="openCreateModal()">+ إنشاء عميل جديد</button>
+        </div>
+
+        <div id="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>الاسم</th>
+                        <th>البورت / الرابط</th>
+                        <th>Slots</th>
+                        <th>التخزين</th>
+                        <th>الحالة</th>
+                        <th>تاريخ الإنشاء</th>
+                        <th>الإجراءات</th>
+                    </tr>
+                </thead>
+                <tbody id="clients-tbody">
+                    <tr>
+                        <td colspan="8" class="empty">جاري التحميل...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <!-- Create Client Modal -->
+    <div class="modal-bg" id="createModal">
+        <div class="modal">
+            <h3>➕ إنشاء عميل جديد</h3>
+            <div class="form-row">
+                <label>اسم العميل</label>
+                <input type="text" id="c-name" placeholder="client_ahmed">
+            </div>
+            <div class="grid2">
+                <div class="form-row">
+                    <label>عدد Slots</label>
+                    <input type="number" id="c-slots" value="50" min="1">
+                </div>
+                <div class="form-row">
+                    <label>المساحة (GB)</label>
+                    <input type="number" id="c-storage" value="20" min="1">
+                </div>
+            </div>
+            <div class="form-row">
+                <label>كلمة السر</label>
+                <input type="password" id="c-pass" placeholder="كلمة سر العميل">
+            </div>
+            <div class="url-box" id="created-url"></div>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeCreate()">إلغاء</button>
+                <button class="btn-primary" id="createBtn" onclick="createClient()">إنشاء</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Password Modal -->
+    <div class="modal-bg" id="passModal">
+        <div class="modal">
+            <h3>🔑 تغيير كلمة سر العميل</h3>
+            <input type="hidden" id="p-client-id">
+            <div class="form-row">
+                <label>كلمة السر الجديدة</label>
+                <input type="password" id="p-pass" placeholder="كلمة سر جديدة">
+            </div>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closePassModal()">إلغاء</button>
+                <button class="btn-primary" onclick="changePass()">حفظ</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Slots Modal -->
+    <div class="modal-bg" id="slotsModal">
+        <div class="modal">
+            <h3>✏️ تعديل عدد Slots</h3>
+            <input type="hidden" id="s-client-id">
+            <div class="form-row">
+                <label>عدد Slots الجديد</label>
+                <input type="number" id="s-slots" min="1">
+            </div>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeSlotsModal()">إلغاء</button>
+                <button class="btn-primary" onclick="updateSlots()">حفظ</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const T = () => localStorage.getItem('qaff_admin_token')
+        const H = (body) => {
+            const h = { 'Authorization': 'Bearer ' + T() }
+            if (body) h['Content-Type'] = 'application/json'
+            return h
+        }
+        const ip = location.hostname
+
+        if (!T()) location.href = '/login'
+
+        async function loadClients() {
+            const res = await fetch('/api/clients', { headers: H() })
+            if (res.status === 401) { location.href = '/login'; return }
+            const data = await res.json()
+            const tbody = document.getElementById('clients-tbody')
+            if (!data.clients || !data.clients.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty">لا يوجد عملاء بعد. أنشئ أول عميل!</td></tr>'
+                return
+            }
+            tbody.innerHTML = data.clients.map(c => {
+                const statusLabel = { running: 'نشط', stopped: 'موقوف', suspended: 'معلق' }[c.status] || c.status
+                const statusClass = { running: 'status-running', stopped: 'status-stopped', suspended: 'status-suspended' }[c.status] || ''
+                const url = `http://${ip}:${c.port}`
+                const btns = []
+                if (c.status === 'stopped') btns.push(`<button class="btn-sm btn-start" onclick="action(${c.id},'start')">▶ تشغيل</button>`)
+                if (c.status === 'running') btns.push(`<button class="btn-sm btn-stop" onclick="action(${c.id},'stop')">⏸ إيقاف</button>`)
+                if (c.status === 'running') btns.push(`<button class="btn-sm btn-suspend" onclick="action(${c.id},'suspend')">🚫 تعليق</button>`)
+                if (c.status === 'suspended') btns.push(`<button class="btn-sm btn-resume" onclick="action(${c.id},'resume')">▶ استئناف</button>`)
+                btns.push(`<button class="btn-sm btn-pass" onclick="openPassModal(${c.id})">🔑 كلمة السر</button>`)
+                btns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ Slots</button>`)
+                btns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${c.name}')">🗑 حذف</button>`)
+                return `<tr>
+        <td style="color:#475569;font-weight:700">${c.id}</td>
+        <td style="font-weight:700">${c.name}</td>
+        <td><span class="port">${c.port}</span><br><a href="${url}" target="_blank" style="color:#475569;font-size:11px;text-decoration:none">${url}</a></td>
+        <td><span style="font-weight:700;color:#a78bfa">${c.slots}</span></td>
+        <td>${c.storage_gb} GB</td>
+        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
+        <td style="font-size:12px;color:#475569">${c.created_at?.slice(0, 16) || '—'}</td>
+        <td><div class="actions">${btns.join('')}</div></td>
+      </tr>`
+            }).join('')
+        }
+
+        async function action(id, act) {
+            const method = act === 'delete' ? 'DELETE' : 'POST'
+            const url = act === 'delete' ? `/api/clients/${id}` : `/api/clients/${id}/${act}`
+            const res = await fetch(url, { method, headers: H() })
+            const d = await res.json()
+            if (d.success) { showToast('✅ تم بنجاح'); loadClients() }
+            else showToast(d.error || 'خطأ', true)
+        }
+
+        async function deleteClient(id, name) {
+            if (!confirm(`هل أنت متأكد من حذف العميل "${name}" بالكامل؟\nسيتم حذف كل بياناته.`)) return
+            action(id, 'delete')
+        }
+
+        function openCreateModal() {
+            document.getElementById('createModal').classList.add('show')
+            document.getElementById('created-url').style.display = 'none'
+            document.getElementById('createBtn').textContent = 'إنشاء'
+        }
+        function closeCreate() {
+            document.getElementById('createModal').classList.remove('show')
+            document.getElementById('c-name').value = ''
+            document.getElementById('c-pass').value = ''
+        }
+
+        async function createClient() {
+            const name = document.getElementById('c-name').value.trim()
+            const slots = document.getElementById('c-slots').value
+            const storage = document.getElementById('c-storage').value
+            const pass = document.getElementById('c-pass').value
+            if (!name || !pass) { showToast('الاسم وكلمة السر مطلوبان', true); return }
+            const btn = document.getElementById('createBtn')
+            btn.innerHTML = '<span class="spinner"></span> يتم الإنشاء...'
+            btn.disabled = true
+            const res = await fetch('/api/clients', {
+                method: 'POST', headers: H(true),
+                body: JSON.stringify({ name, slots, storage_gb: storage, password: pass })
+            })
+            const d = await res.json()
+            btn.disabled = false; btn.textContent = 'إنشاء'
+            if (d.success) {
+                const urlBox = document.getElementById('created-url')
+                urlBox.textContent = `✅ تم الإنشاء! الرابط: ${d.url}`
+                urlBox.style.display = 'block'
+                loadClients()
+                setTimeout(closeCreate, 4000)
+            } else showToast(d.error || 'فشل الإنشاء', true)
+        }
+
+        function openPassModal(id) {
+            document.getElementById('p-client-id').value = id
+            document.getElementById('passModal').classList.add('show')
+        }
+        function closePassModal() {
+            document.getElementById('passModal').classList.remove('show')
+            document.getElementById('p-pass').value = ''
+        }
+        async function changePass() {
+            const id = document.getElementById('p-client-id').value
+            const pass = document.getElementById('p-pass').value
+            if (!pass || pass.length < 4) { showToast('كلمة المرور قصيرة جداً', true); return }
+            const res = await fetch(`/api/clients/${id}/password`, {
+                method: 'PUT', headers: H(true), body: JSON.stringify({ newPassword: pass })
+            })
+            const d = await res.json()
+            if (d.success) { closePassModal(); showToast('✅ تم تغيير كلمة السر'); loadClients() }
+            else showToast(d.error || 'خطأ', true)
+        }
+
+        function openSlotsModal(id, current) {
+            document.getElementById('s-client-id').value = id
+            document.getElementById('s-slots').value = current
+            document.getElementById('slotsModal').classList.add('show')
+        }
+        function closeSlotsModal() {
+            document.getElementById('slotsModal').classList.remove('show')
+        }
+        async function updateSlots() {
+            const id = document.getElementById('s-client-id').value
+            const slots = document.getElementById('s-slots').value
+            const res = await fetch(`/api/clients/${id}/slots`, {
+                method: 'PUT', headers: H(true), body: JSON.stringify({ slots })
+            })
+            const d = await res.json()
+            if (d.success) { closeSlotsModal(); showToast('✅ تم تحديث Slots'); loadClients() }
+            else showToast(d.error || 'خطأ', true)
+        }
+
+        function logout() { localStorage.removeItem('qaff_admin_token'); location.href = '/login' }
+        function showToast(msg, err = false) {
+            const t = document.getElementById('toast')
+            t.textContent = msg; t.className = 'toast' + (err ? ' error' : '')
+            t.style.display = 'block'
+            setTimeout(() => { t.style.display = 'none' }, 3500)
+        }
+
+        loadClients()
+        setInterval(loadClients, 15000)
+    </script>
+</body>
+
+</html>

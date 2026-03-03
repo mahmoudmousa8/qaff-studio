@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qaff Admin — تسجيل الدخول</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: #0f1117;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    color: #e2e8f0;
+  }
+  .card {
+    background: #1a1d27; border: 1px solid #2d3148;
+    border-radius: 16px; padding: 48px 40px; width: 100%; max-width: 420px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  .logo { text-align: center; margin-bottom: 32px; }
+  .logo h1 { font-size: 28px; font-weight: 800; color: #7c3aed; letter-spacing: -0.5px; }
+  .logo p { font-size: 13px; color: #64748b; margin-top: 6px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: #94a3b8; margin-bottom: 8px; }
+  input[type="password"] {
+    width: 100%; height: 48px; background: #0f1117; border: 1px solid #2d3148;
+    border-radius: 10px; padding: 0 16px; color: #e2e8f0; font-size: 16px;
+    letter-spacing: 2px; outline: none; transition: border-color .2s;
+  }
+  input:focus { border-color: #7c3aed; }
+  button {
+    width: 100%; height: 48px; margin-top: 20px;
+    background: linear-gradient(135deg, #7c3aed, #6d28d9);
+    border: none; border-radius: 10px; color: #fff;
+    font-size: 16px; font-weight: 700; cursor: pointer;
+    transition: opacity .2s;
+  }
+  button:hover { opacity: .9; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  .error { color: #f87171; font-size: 13px; margin-top: 12px; text-align: center; display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <h1>🎛️ Qaff Admin</h1>
+    <p>Master Control Panel</p>
+  </div>
+  <label>كلمة المرور</label>
+  <input type="password" id="pass" placeholder="••••••••" autofocus>
+  <button id="btn" onclick="login()">دخول</button>
+  <p class="error" id="err">كلمة المرور غير صحيحة</p>
+</div>
+<script>
+  document.getElementById('pass').addEventListener('keydown', e => { if (e.key === 'Enter') login() })
+  async function login() {
+    const pass = document.getElementById('pass').value
+    const btn = document.getElementById('btn')
+    const err = document.getElementById('err')
+    if (!pass) return
+    btn.disabled = true; btn.textContent = 'جاري التحقق...'
+    err.style.display = 'none'
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pass })
+      })
+      const data = await res.json()
+      if (data.token) {
+        localStorage.setItem('qaff_admin_token', data.token)
+        location.href = '/'
+      } else {
+        err.textContent = data.error || 'كلمة المرور غير صحيحة'
+        err.style.display = 'block'
+      }
+    } catch { err.textContent = 'خطأ في الاتصال'; err.style.display = 'block' }
+    btn.disabled = false; btn.textContent = 'دخول'
+  }
+</script>
+</body>
+</html>

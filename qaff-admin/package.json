@@ -1,0 +1,18 @@
+{
+    "name": "qaff-admin",
+    "version": "1.0.0",
+    "description": "Qaff Admin Master Panel",
+    "main": "server.js",
+    "type": "commonjs",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node --watch server.js"
+    },
+    "dependencies": {
+        "bcryptjs": "^2.4.3",
+        "better-sqlite3": "^9.4.3",
+        "dockerode": "^4.0.2",
+        "express": "^4.18.3",
+        "jsonwebtoken": "^9.0.2"
+    }
+}

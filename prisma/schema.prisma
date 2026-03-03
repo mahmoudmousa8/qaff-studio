@@ -1,0 +1,48 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model StreamSlot {
+  id           String   @id @default(cuid())
+  slotIndex    Int      @unique
+  channelName  String   @default("")
+  outputType   String   @default("youtube")
+  streamKey    String   @default("")
+  rtmpServer   String   @default("rtmp://a.rtmp.youtube.com/live2")
+  filePath     String   @default("")
+  schedStart   String   @default("")
+  schedStop    String   @default("")
+  daily        Boolean  @default(false)
+  weekly       Boolean  @default(false)
+  isScheduled  Boolean  @default(false)
+  nextRunTime  String   @default("")
+  status       String   @default("Stopped")
+  isRunning    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model SystemLog {
+  id        String   @id @default(cuid())
+  message   String
+  timestamp DateTime @default(now())
+}
+
+model AppSettings {
+  id          String @id @default(cuid())
+  autoSave    Boolean @default(true)
+  slotsCount  Int     @default(50)
+}
+
+model AdminUser {
+  id           Int    @id @default(1)
+  passwordHash String
+}

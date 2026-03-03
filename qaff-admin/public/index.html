@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qaff Admin — Dashboard</title>
+    <style>
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            background: #0f1117;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #e2e8f0;
+        }
+
+        nav {
+            background: #1a1d27;
+            border-bottom: 1px solid #2d3148;
+            padding: 0 24px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        nav h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #7c3aed;
+        }
+
+        nav .links a {
+            color: #94a3b8;
+            text-decoration: none;
+            margin-right: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        nav .links a:hover,
+        nav .links a.active {
+            color: #e2e8f0;
+        }
+
+        nav .logout {
+            background: none;
+            border: 1px solid #3d4263;
+            color: #94a3b8;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        nav .logout:hover {
+            color: #f87171;
+            border-color: #f87171;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        h2 {
+            font-size: 22px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            color: #f1f5f9;
+        }
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: #1a1d27;
+            border: 1px solid #2d3148;
+            border-radius: 14px;
+            padding: 24px 20px;
+        }
+
+        .card .label {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            margin-bottom: 12px;
+        }
+
+        .card .val {
+            font-size: 36px;
+            font-weight: 800;
+            color: #f1f5f9;
+        }
+
+        .card .sub {
+            font-size: 12px;
+            color: #64748b;
+            margin-top: 6px;
+        }
+
+        .card.green .val {
+            color: #4ade80;
+        }
+
+        .card.red .val {
+            color: #f87171;
+        }
+
+        .card.yellow .val {
+            color: #fbbf24;
+        }
+
+        .card.purple .val {
+            color: #a78bfa;
+        }
+
+        .logs {
+            background: #1a1d27;
+            border: 1px solid #2d3148;
+            border-radius: 14px;
+            padding: 24px;
+        }
+
+        .logs h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 16px;
+            color: #f1f5f9;
+        }
+
+        .log-item {
+            display: flex;
+            gap: 16px;
+            padding: 10px 0;
+            border-bottom: 1px solid #1e2235;
+            font-size: 13px;
+        }
+
+        .log-item:last-child {
+            border-bottom: none;
+        }
+
+        .log-ts {
+            color: #475569;
+            min-width: 150px;
+            font-family: monospace;
+        }
+
+        .log-action {
+            color: #7c3aed;
+            font-weight: 600;
+            min-width: 180px;
+        }
+
+        .log-detail {
+            color: #94a3b8;
+        }
+
+        .btn-change-pass {
+            margin-top: 20px;
+            background: none;
+            border: 1px solid #3d4263;
+            color: #94a3b8;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .btn-change-pass:hover {
+            border-color: #7c3aed;
+            color: #a78bfa;
+        }
+
+        .modal-bg {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-bg.show {
+            display: flex;
+        }
+
+        .modal {
+            background: #1a1d27;
+            border: 1px solid #2d3148;
+            border-radius: 16px;
+            padding: 32px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .modal h3 {
+            font-size: 18px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .modal input {
+            width: 100%;
+            height: 44px;
+            background: #0f1117;
+            border: 1px solid #2d3148;
+            border-radius: 8px;
+            padding: 0 14px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+            margin-bottom: 12px;
+        }
+
+        .modal input:focus {
+            border-color: #7c3aed;
+        }
+
+        .modal .btns {
+            display: flex;
+            gap: 10px;
+            margin-top: 8px;
+        }
+
+        .modal .btns button {
+            flex: 1;
+            height: 42px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #7c3aed, #6d28d9);
+            color: #fff;
+        }
+
+        .btn-cancel {
+            background: #2d3148;
+            color: #94a3b8;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1d27;
+            border: 1px solid #2d3148;
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-size: 14px;
+            color: #4ade80;
+            display: none;
+            z-index: 200;
+        }
+    </style>
+</head>
+
+<body>
+    <nav>
+        <h1>🎛️ Qaff Admin</h1>
+        <div class="links">
+            <a href="/" class="active">Dashboard</a>
+            <a href="/clients">العملاء</a>
+        </div>
+        <button class="logout" onclick="logout()">تسجيل الخروج</button>
+    </nav>
+    <main>
+        <h2>لوحة التحكم</h2>
+        <div class="cards" id="cards">
+            <div class="card purple">
+                <div class="label">إجمالي العملاء</div>
+                <div class="val" id="total">—</div>
+            </div>
+            <div class="card green">
+                <div class="label">نشط</div>
+                <div class="val" id="running">—</div>
+            </div>
+            <div class="card red">
+                <div class="label">موقوف</div>
+                <div class="val" id="stopped">—</div>
+            </div>
+            <div class="card yellow">
+                <div class="label">إجمالي Slots</div>
+                <div class="val" id="slots">—</div>
+            </div>
+            <div class="card">
+                <div class="label">التخزين المخصص</div>
+                <div class="val" id="alloc">—</div>
+                <div class="sub" id="diskfree"></div>
+            </div>
+        </div>
+
+        <button class="btn-change-pass" onclick="showChangePass()">🔑 تغيير كلمة سر الأدمن</button>
+
+        <div style="margin-top: 32px;">
+            <div class="logs">
+                <h3>📋 آخر العمليات</h3>
+                <div id="logs-list">
+                    <div style="color:#64748b;font-size:13px;">جاري التحميل...</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Change Password Modal -->
+    <div class="modal-bg" id="passModal">
+        <div class="modal">
+            <h3>🔑 تغيير كلمة سر الأدمن</h3>
+            <input type="password" id="newPass" placeholder="كلمة المرور الجديدة">
+            <input type="password" id="newPass2" placeholder="تأكيد كلمة المرور">
+            <div class="btns">
+                <button class="btn-cancel" onclick="closeModal()">إلغاء</button>
+                <button class="btn-primary" onclick="changeAdminPass()">حفظ</button>
+            </div>
+        </div>
+    </div>
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const T = () => localStorage.getItem('qaff_admin_token')
+        const H = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + T() })
+
+        async function load() {
+            const res = await fetch('/api/dashboard', { headers: H() })
+            if (res.status === 401) { location.href = '/login'; return }
+            const d = await res.json()
+            document.getElementById('total').textContent = d.clients.total
+            document.getElementById('running').textContent = d.clients.running
+            document.getElementById('stopped').textContent = d.clients.stopped + d.clients.suspended
+            document.getElementById('slots').textContent = d.slots.total
+            document.getElementById('alloc').textContent = d.storage.allocated_gb + ' GB'
+            document.getElementById('diskfree').textContent = `متاح: ${d.storage.disk_free_gb}GB / ${d.storage.disk_total_gb}GB`
+
+            const logsEl = document.getElementById('logs-list')
+            if (!d.logs || !d.logs.length) {
+                logsEl.innerHTML = '<div style="color:#64748b;font-size:13px;">لا توجد سجلات بعد</div>'
+            } else {
+                logsEl.innerHTML = d.logs.map(l => `
+        <div class="log-item">
+          <span class="log-ts">${l.timestamp}</span>
+          <span class="log-action">${l.action}</span>
+          <span class="log-detail">${l.details || ''}</span>
+        </div>`).join('')
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('qaff_admin_token')
+            location.href = '/login'
+        }
+        function showChangePass() { document.getElementById('passModal').classList.add('show') }
+        function closeModal() {
+            document.getElementById('passModal').classList.remove('show')
+            document.getElementById('newPass').value = ''
+            document.getElementById('newPass2').value = ''
+        }
+        async function changeAdminPass() {
+            const p1 = document.getElementById('newPass').value
+            const p2 = document.getElementById('newPass2').value
+            if (!p1 || p1.length < 6) { alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return }
+            if (p1 !== p2) { alert('كلمات المرور غير متطابقة'); return }
+            const res = await fetch('/api/admin/password', { method: 'PUT', headers: H(), body: JSON.stringify({ newPassword: p1 }) })
+            const d = await res.json()
+            if (d.success) { closeModal(); showToast('✅ تم تغيير كلمة المرور بنجاح') }
+            else alert(d.error)
+        }
+        function showToast(msg) {
+            const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'
+            setTimeout(() => { t.style.display = 'none' }, 3000)
+        }
+
+        if (!T()) location.href = '/login'
+        else load()
+        setInterval(load, 10000)
+    </script>
+</body>
+
+</html>

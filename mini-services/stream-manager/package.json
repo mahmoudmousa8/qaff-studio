@@ -1,0 +1,9 @@
+{
+  "name": "stream-manager",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot run index.ts"
+  },
+  "dependencies": {}
+}

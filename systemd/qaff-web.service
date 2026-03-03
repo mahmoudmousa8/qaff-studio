@@ -1,0 +1,27 @@
+[Unit]
+Description=Qaff Studio Web App
+Documentation=https://github.com/qaff-studio
+After=network.target qaff-stream-manager.service
+Wants=qaff-stream-manager.service
+
+[Service]
+Type=simple
+User=qaff
+Group=qaff
+WorkingDirectory=/opt/qaff-studio
+EnvironmentFile=/opt/qaff-studio/.env
+ExecStart=/usr/bin/node .next/standalone/server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=qaff-web
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/qaff-studio/data
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

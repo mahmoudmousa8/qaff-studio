@@ -1,0 +1,26 @@
+[Unit]
+Description=Qaff Stream Manager (FFmpeg controller)
+Documentation=https://github.com/qaff-studio
+After=network.target
+
+[Service]
+Type=simple
+User=qaff
+Group=qaff
+WorkingDirectory=/opt/qaff-studio/mini-services/stream-manager
+EnvironmentFile=/opt/qaff-studio/.env
+ExecStart=/usr/bin/bun run index.ts
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=qaff-stream-manager
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/qaff-studio/data
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

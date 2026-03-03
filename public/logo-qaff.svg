@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <!-- Background circle -->
+  <circle cx="50" cy="50" r="48" fill="#0ea5e9" fill-opacity="0.15"/>
+  <!-- Qaff letter ق stylized -->
+  <path
+    d="M28 60 C28 60 26 42 38 33 C50 24 65 26 72 35 C79 44 76 58 67 65 C62 68 56 69 50 69 L50 76 C50 81 45 83 41 80 L32 73"
+    stroke="#0ea5e9"
+    stroke-width="5.5"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+  />
+  <!-- Two dots of ق -->
+  <circle cx="40" cy="85" r="4" fill="#0ea5e9"/>
+  <circle cx="54" cy="85" r="4" fill="#0ea5e9"/>
+</svg>
