@@ -778,7 +778,7 @@
                 tbody.innerHTML = '<tr><td colspan="10" class="empty">لا يوجد عملاء بعد. أنشئ أول عميل!</td></tr>'
                 return
             }
-            tbody.innerHTML = data.clients.map(c => {
+            tbody.innerHTML = data.clients.map((c, index) => {
                 const statusLabel = { running: 'نشط', stopped: 'موقوف', suspended: 'معلق' }[c.status] || c.status
                 const statusClass = { running: 'status-running', stopped: 'status-stopped', suspended: 'status-suspended' }[c.status] || ''
                 const url = `http://${ip}:${c.port}`
@@ -812,7 +812,7 @@
                 return `<tr>
         <td>
             <div style="display:flex; flex-direction:column; gap:4px">
-                <span style="color:#475569;font-weight:700">#${c.id} - ${c.name}</span>
+                <span style="color:#475569;font-weight:700">#${index + 1} - ${c.name}</span>
                 <span class="status-badge ${statusClass}" style="width:fit-content">${statusLabel}</span>
             </div>
         </td>
