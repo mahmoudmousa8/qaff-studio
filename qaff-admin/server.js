@@ -295,10 +295,27 @@ app.put('/api/clients/:id/slots', auth.requireAuth, async (req, res) => {
     try {
         db.updateClientSlots.run(parseInt(slots), client.id)
         db.addLog('client_slots_updated', client.id, `Slots: ${slots}`)
-        // Restart container to apply new TOTAL_SLOTS env
-        await docker.restartContainer(client.container_id).catch(() => { })
+
+        // Extract original password hash to recreate container seamlessly
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+
+        await docker.stopContainer(client.container_id).catch(() => { })
+        await docker.deleteClientContainer(client.container_id, null) // keep volume
+
+        const { containerId } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: parseInt(slots),
+            storageGb: client.storage_gb,
+            passwordHash,
+        })
+        db.updateClientContainer.run(containerId, client.id)
+        db.updateClientStatus.run('running', client.id)
+
         res.json({ success: true })
     } catch (e) {
+        console.error('[update_slots] error:', e)
         res.status(500).json({ error: e.message })
     }
 })

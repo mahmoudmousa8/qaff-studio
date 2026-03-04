@@ -153,6 +153,21 @@ async function getContainerStatus(containerId) {
 }
 
 /**
+ * Extract password hash from existing container environment
+ */
+async function getContainerPasswordHash(containerId) {
+    try {
+        const c = docker.getContainer(containerId)
+        const info = await c.inspect()
+        const env = info.Config.Env || []
+        const passEnv = env.find(e => e.startsWith('ADMIN_PASSWORD_HASH='))
+        return passEnv ? passEnv.split('=')[1] : ''
+    } catch {
+        return ''
+    }
+}
+
+/**
  * List all qaff-managed containers
  */
 async function listManagedContainers() {
@@ -180,6 +195,7 @@ module.exports = {
     unpauseContainer,
     deleteClientContainer,
     getContainerStatus,
+    getContainerPasswordHash,
     listManagedContainers,
     restartContainer,
 }
