@@ -29,29 +29,8 @@ docker build -t "$IMAGE_NAME" .
 # because the Admin Panel hard-checks for "qaff-studio:latest" when creating clients
 docker tag "$IMAGE_NAME" qaff-studio:latest 2>/dev/null || true
 
-# --- 3. Generate docker-compose.yml dynamically ---
-echo "Generating docker-compose.yml..."
-cat <<EOF > docker-compose.yml
-services:
-  app:
-    image: ${IMAGE_NAME}
-    container_name: ${CONTAINER_NAME}
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-EOF
+# --- 3. Clean up dangling images to save space ---
+echo "Cleaning up dangling images..."
+docker image prune -f 2>/dev/null || true
 
-# --- 4. Stop & Remove old container ---
-echo "Stopping and removing old container..."
-docker stop "$CONTAINER_NAME" 2>/dev/null || true
-docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
-
-# --- 5. Run new container via standard Docker (or you can use docker compose up -d) ---
-echo "Running new container..."
-docker run -d \
-    --name "$CONTAINER_NAME" \
-    --restart unless-stopped \
-    -p 3000:3000 \
-    "$IMAGE_NAME"
-
-echo "Done! Application is running on port 3000."
+echo "Done! The base Docker Image is built and ready for the Admin Panel."

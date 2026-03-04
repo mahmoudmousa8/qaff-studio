@@ -222,11 +222,7 @@ echo -e "  💡 Create your first client from the Admin Panel!"
 echo -e "  💡 Each client gets their own Docker container on a unique port."
 echo -e ""
 
-echo -e "\n${GREEN}[10/10] Starting main application...${NC}"
-if [ -f "./deploy.sh" ]; then
-  chmod +x ./deploy.sh
-  ./deploy.sh
-else
-  echo -e "  ${YELLOW}deploy.sh not found. You can start the main app manually using docker.${NC}"
-fi
+echo -e "\n${GREEN}[10/10] Finalizing...${NC}"
+echo -e "  ✅ Qaff Admin Panel is the ONLY service spun up by default now."
+echo -e "  ✅ Use the Admin Panel to install your first client instance."
 echo -e "\n${BOLD}✅ All done!${NC}\n"

@@ -211,17 +211,31 @@ app.post('/api/clients/:id/stop', auth.requireAuth, async (req, res) => {
     }
 })
 
-// ── Client: suspend (pause) ───────────────────────────────
+// ── Client: suspend (HTML interceptor) ───────────────────────────────
 app.post('/api/clients/:id/suspend', auth.requireAuth, async (req, res) => {
     const client = db.getClientById.get(req.params.id)
     if (!client) return res.status(404).json({ error: 'Client not found' })
 
     try {
-        await docker.pauseContainer(client.container_id)
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        await docker.stopContainer(client.container_id).catch(() => { })
+        await docker.deleteClientContainer(client.container_id, null) // keep volume
+
+        const { containerId } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: client.storage_gb,
+            passwordHash,
+            isSuspended: true
+        })
+        db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('suspended', client.id)
         db.addLog('client_suspended', client.id, null)
         res.json({ success: true })
     } catch (e) {
+        console.error('[suspend] error:', e)
         res.status(500).json({ error: e.message })
     }
 })
@@ -232,11 +246,25 @@ app.post('/api/clients/:id/resume', auth.requireAuth, async (req, res) => {
     if (!client) return res.status(404).json({ error: 'Client not found' })
 
     try {
-        await docker.unpauseContainer(client.container_id)
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        await docker.stopContainer(client.container_id).catch(() => { })
+        await docker.deleteClientContainer(client.container_id, null) // keep volume
+
+        const { containerId } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: client.storage_gb,
+            passwordHash,
+            isSuspended: false
+        })
+        db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('running', client.id)
         db.addLog('client_resumed', client.id, null)
         res.json({ success: true })
     } catch (e) {
+        console.error('[resume] error:', e)
         res.status(500).json({ error: e.message })
     }
 })
@@ -347,6 +375,27 @@ function getServerIp() {
     }
     return 'localhost'
 }
+
+// ── Auto-Suspension Cron (Runs every hour) ────────────────
+setInterval(async () => {
+    try {
+        const clients = db.getAllClients.all().filter(c => c.status === 'running' && c.renewal_date);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (const client of clients) {
+            const renewal = new Date(client.renewal_date);
+            if (renewal <= today) {
+                console.log(`[Cron] Auto-suspending expired client: ${client.name} (ID: ${client.id})`);
+                await docker.pauseContainer(client.container_id).catch(e => console.error(e));
+                db.updateClientStatus.run('suspended', client.id);
+                db.addLog('client_auto_suspended', client.id, `Automatically suspended due to passed renewal date: ${client.renewal_date}`);
+            }
+        }
+    } catch (err) {
+        console.error('[Cron] Error running auto-suspension loop:', err);
+    }
+}, 1000 * 60 * 60); // Check every 60 minutes
 
 // ── Start ──────────────────────────────────────────────────
 async function start() {

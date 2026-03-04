@@ -28,4 +28,15 @@ if [ -n "$TOTAL_SLOTS" ]; then
   " 2>/dev/null || true
 fi
 
-exec node .next/standalone/server.js
+if [ "$QAFF_SUSPENDED" = "true" ]; then
+  echo "Container is SUSPENDED. Booting lightweight HTTP responder..."
+  exec node -e "
+    const http = require('http');
+    http.createServer((req, res) => {
+      res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end('<html dir=\"rtl\"><body style=\"display:flex;justify-content:center;align-items:center;height:100px;margin-top:20vh;background:#0f1117;color:#f87171;font-family:sans-serif;font-size:2rem;font-weight:bold;text-align:center;line-height:1.5\">عفواً، هذه اللوحة متوقفة مؤقتاً.<br>يرجى التواصل مع الدعم الفني.</body></html>');
+    }).listen(3000, () => console.log('Suspension server running on 3000'));
+  "
+else
+  exec node .next/standalone/server.js
+fi
