@@ -1,23 +1,37 @@
 import { NextResponse } from 'next/server'
-import { statfsSync } from 'fs'
+import { statSync, readdirSync } from 'fs'
 import { existsSync } from 'fs'
+import path from 'path'
 import { VIDEOS_DIR, APP_DATA_DIR } from '@/lib/paths'
 
-function getDiskUsage(dir: string) {
+function getDirectorySize(dirPath: string): number {
+    let size = 0
+    if (!existsSync(dirPath)) return 0
     try {
-        if (!existsSync(dir)) {
-            return { total: 0, used: 0, free: 0, usedPercent: 0, freePercent: 0 }
+        const files = readdirSync(dirPath)
+        for (let i = 0; i < files.length; i++) {
+            const filePath = path.join(dirPath, files[i])
+            const stats = statSync(filePath)
+            if (stats.isDirectory()) {
+                size += getDirectorySize(filePath)
+            } else {
+                size += stats.size
+            }
         }
-        const stats = statfsSync(dir)
-        const total = stats.bsize * stats.blocks
-        const free = stats.bsize * stats.bavail
-        const used = total - free
-        const usedPercent = total > 0 ? Math.round((used / total) * 100) : 0
-        const freePercent = total > 0 ? Math.round((free / total) * 100) : 0
-        return { total, used, free, usedPercent, freePercent }
-    } catch {
-        return { total: 0, used: 0, free: 0, usedPercent: 0, freePercent: 0 }
-    }
+    } catch { }
+    return size
+}
+
+function getDiskUsage(dir: string) {
+    const used = getDirectorySize(dir)
+    const maxGB = parseInt(process.env.MAX_STORAGE_GB || '10', 10)
+    const total = maxGB * 1024 * 1024 * 1024
+    const free = Math.max(0, total - used)
+
+    const usedPercent = total > 0 ? Math.round((used / total) * 100) : 0
+    const freePercent = total > 0 ? Math.round((free / total) * 100) : 0
+
+    return { total, used, free, usedPercent, freePercent }
 }
 
 function formatBytes(bytes: number): string {

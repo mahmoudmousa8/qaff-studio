@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
 const DEFAULT_RTMP = "rtmp://a.rtmp.youtube.com/live2"
+const TOTAL_SLOTS = parseInt(process.env.TOTAL_SLOTS || '50', 10)
 
-// Read slots limit from environment (set per-container by Docker admin panel)
-// Falls back to 1000 for non-Docker / dev installs
-const TOTAL_SLOTS = parseInt(process.env.TOTAL_SLOTS || '1000', 10)
 
 // GET - Fetch slots with pagination
 export async function GET(request: NextRequest) {
@@ -27,6 +25,7 @@ export async function GET(request: NextRequest) {
           rtmpServer: DEFAULT_RTMP,
           outputType: 'youtube',
         })
+
       }
 
       if (slotsToCreate.length > 0) {
@@ -53,7 +52,7 @@ export async function GET(request: NextRequest) {
 
     const total = await db.streamSlot.count()
 
-    return NextResponse.json({ slots, total, maxSlots: TOTAL_SLOTS })
+    return NextResponse.json({ slots, total })
   } catch (error) {
     console.error('Error fetching slots:', error)
     return NextResponse.json({ error: 'Failed to fetch slots' }, { status: 500 })

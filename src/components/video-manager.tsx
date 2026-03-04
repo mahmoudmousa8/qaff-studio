@@ -598,7 +598,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
           <HardDrive className={`w-4 h-4 shrink-0 ${storageInfo.warning ? 'text-red-500' : 'text-muted-foreground'}`} />
           <div className="flex-1">
             <div className="flex justify-between text-xs text-muted-foreground mb-0.5">
-              <span>Used: <strong>{storageInfo.used}</strong> / {storageInfo.total}</span>
+              <span>Used: <strong>{storageInfo.used}</strong> | Free: <strong>{storageInfo.free}</strong></span>
             </div>
             <div className="w-full bg-muted rounded-full h-1.5">
               <div

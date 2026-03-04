@@ -584,7 +584,7 @@ export default function Home() {
           {storageInfo && (
             <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground">
               <HardDrive className="w-3.5 h-3.5" />
-              <span>{t('storage')}: {storageInfo.used} / {storageInfo.total}</span>
+              <span>{t('storage')}: {storageInfo.used} {t('used')} | {storageInfo.free} {t('free')}</span>
               <div className="flex-1 max-w-[200px] h-1.5 bg-muted rounded-full overflow-hidden">
                 <div
                   className={`h-full rounded-full transition-all ${storageInfo.percent > 90 ? 'bg-red-500' : storageInfo.percent > 70 ? 'bg-amber-500' : 'bg-green-500'}`}

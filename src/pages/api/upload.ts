@@ -1,8 +1,26 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { createWriteStream, existsSync, unlinkSync, mkdirSync } from 'fs'
+import { createWriteStream, existsSync, unlinkSync, mkdirSync, statSync, readdirSync } from 'fs'
 import path from 'path'
 import Busboy from 'busboy'
 import { VIDEOS_DIR } from '@/lib/paths'
+
+function getDirectorySize(dirPath: string): number {
+    let size = 0
+    if (!existsSync(dirPath)) return 0
+    try {
+        const files = readdirSync(dirPath)
+        for (let i = 0; i < files.length; i++) {
+            const filePath = path.join(dirPath, files[i])
+            const stats = statSync(filePath)
+            if (stats.isDirectory()) {
+                size += getDirectorySize(filePath)
+            } else {
+                size += stats.size
+            }
+        }
+    } catch { }
+    return size
+}
 
 export const config = {
     api: {
@@ -21,6 +39,14 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' })
+    }
+
+    const currentStorageUsed = getDirectorySize(VIDEOS_DIR)
+    const maxGB = parseInt(process.env.MAX_STORAGE_GB || '10', 10)
+    const maxStorageBytes = maxGB * 1024 * 1024 * 1024
+
+    if (currentStorageUsed >= maxStorageBytes) {
+        return res.status(403).json({ error: `Storage limit exceeded (${maxGB}GB). Please delete old videos.` })
     }
 
     const contentType = req.headers['content-type'] || ''
@@ -145,6 +171,11 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             // Track bytes for progress/reporting
             file.on('data', (chunk) => {
                 bytesWritten += chunk.length
+                if (currentStorageUsed + bytesWritten > maxStorageBytes) {
+                    file.pause()
+                    writeStream.destroy()
+                    sendError(413, `Upload aborted: storage limit exceeded (${maxGB}GB)`)
+                }
             })
 
             // If busboy emits a size-limit truncation event, the file field
