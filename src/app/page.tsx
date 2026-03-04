@@ -941,13 +941,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Website Link Details */}
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-sm text-muted-foreground">
-                {t('footerMoreInfo')} <a href="https://streamer.qaff.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">https://streamer.qaff.net</a>
-              </span>
-            </div>
-
+            {/* Removed Website Link Details */}
           </div>
         </div>
       </footer>
