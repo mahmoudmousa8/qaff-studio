@@ -60,6 +60,7 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, p
             `DATABASE_URL=file:/data/app.db`,
             `NODE_ENV=production`,
             `HOSTNAME=0.0.0.0`,
+            `TZ=Africa/Cairo`,
         ],
         ExposedPorts: { '3000/tcp': {} },
         HostConfig: {

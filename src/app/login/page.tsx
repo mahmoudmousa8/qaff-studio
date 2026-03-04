@@ -12,6 +12,8 @@ export default function LoginPage() {
     const [isDarkMode, setIsDarkMode] = useState(false)
     const [locale, setLocaleState] = useState<Locale>('ar')
 
+    const dir = locale === 'ar' ? 'rtl' : 'ltr'
+
     useEffect(() => {
         // Only read, do NOT re-apply the class (layout.tsx inline script already did it)
         setIsDarkMode(document.documentElement.classList.contains('dark'))
@@ -146,7 +148,7 @@ export default function LoginPage() {
 
                 <div className="mt-8 flex flex-col items-center justify-center gap-3 w-full border-t border-border pt-6 text-center">
                     {/* Copyright & WhatsApp Group */}
-                    <div className="flex items-center justify-center gap-2">
+                    <div className={`flex items-center justify-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
                         <span className="text-sm font-semibold text-foreground/80">{t('footerText')}</span>
                         <div className="flex items-center gap-2">
                             <a href="https://wa.me/201012656551" target="_blank" rel="noopener noreferrer"

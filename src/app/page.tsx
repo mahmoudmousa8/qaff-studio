@@ -922,7 +922,7 @@ export default function Home() {
           <div className="flex flex-col items-center justify-center gap-3 px-4 text-center w-full">
 
             {/* Copyright & WhatsApp Group */}
-            <div className="flex items-center justify-center gap-2">
+            <div className={`flex items-center justify-center gap-2 ${dir === 'rtl' ? 'flex-row-reverse' : 'flex-row'}`}>
               <span className="text-sm font-semibold text-foreground/80">{t('footerText')}</span>
               <div className="flex items-center gap-1.5">
                 <a href="https://wa.me/201012656551" target="_blank" rel="noopener noreferrer"
