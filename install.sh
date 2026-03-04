@@ -202,9 +202,9 @@ echo -e "  ✅ Admin panel ready at /opt/qaff-admin"
 # ════════════════════════════════════════════
 cd "$ADMIN_DIR"
 echo -e "\n${GREEN}Starting Admin Panel via PM2...${NC}"
-pm2 delete qaff-admin 2>/dev/null || true
-pm2 start server.js --name "qaff-admin" 2>/dev/null || true
-pm2 save 2>/dev/null || true
+sudo pm2 delete qaff-admin 2>/dev/null || true
+sudo pm2 start server.js --name "qaff-admin" 2>/dev/null || true
+sudo pm2 save 2>/dev/null || true
 echo -e "  ✅ Admin panel started on port 4000"
 cd "$PROJECT_DIR"
 # ════════════════════════════════════════════

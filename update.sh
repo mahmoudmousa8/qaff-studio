@@ -76,15 +76,15 @@ else
 fi
 
 # Reload admin panel safely
-if pm2 show qaff-admin &>/dev/null; then
-    pm2 reload qaff-admin --update-env 2>/dev/null || pm2 restart qaff-admin 2>/dev/null || true
+if sudo pm2 show qaff-admin &>/dev/null; then
+    sudo pm2 reload qaff-admin --update-env 2>/dev/null || sudo pm2 restart qaff-admin 2>/dev/null || true
 else
     cd "$ADMIN_DIR"
-    pm2 start server.js --name "qaff-admin" 2>/dev/null || true
+    sudo pm2 start server.js --name "qaff-admin" 2>/dev/null || true
     cd "$PROJECT_DIR"
 fi
 
-pm2 save 2>/dev/null || true
+sudo pm2 save 2>/dev/null || true
 
 SERVER_IP=$(hostname -I | awk '{print $1}')
 echo -e "\n${BOLD}════════════════════════════════════════════${NC}"

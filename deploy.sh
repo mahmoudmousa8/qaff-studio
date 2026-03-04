@@ -29,7 +29,12 @@ docker build -t "$IMAGE_NAME" .
 # because the Admin Panel hard-checks for "qaff-studio:latest" when creating clients
 docker tag "$IMAGE_NAME" qaff-studio:latest 2>/dev/null || true
 
-# --- 3. Clean up dangling images to save space ---
+# --- 3. Clean up legacy Ghost Container (Port 3000 default) ---
+echo "Checking for legacy automatic root containers to remove..."
+docker stop "$CONTAINER_NAME" 2>/dev/null || true
+docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+
+# --- 4. Clean up dangling images to save space ---
 echo "Cleaning up dangling images..."
 docker image prune -f 2>/dev/null || true
 
