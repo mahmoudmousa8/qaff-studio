@@ -38,5 +38,9 @@ if [ "$QAFF_SUSPENDED" = "true" ]; then
     }).listen(3000, () => console.log('Suspension server running on 3000'));
   "
 else
+  echo "Booting Stream Manager Daemon (Port 3002) in background..."
+  NODE_ENV=production tsx /app/mini-services/stream-manager/index.ts &
+  
+  echo "Booting Next.js Web Server (Port 3000)..."
   exec node .next/standalone/server.js
 fi

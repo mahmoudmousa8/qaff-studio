@@ -21,6 +21,9 @@ COPY . .
 # Generate Prisma client
 RUN npx prisma generate
 
+# Install TSX globally to run the Stream Manager
+RUN npm install -g tsx
+
 # Build Next.js
 RUN npm run build
 
