@@ -23,6 +23,9 @@ node_modules
 # misc
 .DS_Store
 *.pem
+*.rar
+*.zip
+/standalone/
 
 # debug
 npm-debug.log*

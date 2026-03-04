@@ -41,11 +41,20 @@ db.exec(`
     details    TEXT,
     timestamp  TEXT DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT
+  );
 `)
 
 // Safe migrations
 try { db.exec("ALTER TABLE clients ADD COLUMN whatsapp TEXT;") } catch (e) { }
 try { db.exec("ALTER TABLE clients ADD COLUMN renewal_date TEXT;") } catch (e) { }
+try { db.exec("ALTER TABLE clients ADD COLUMN password TEXT;") } catch (e) { }
+try { db.exec("ALTER TABLE clients ADD COLUMN reset_answer TEXT;") } catch (e) { }
+try { db.exec("ALTER TABLE clients ADD COLUMN reset_failures INTEGER DEFAULT 0;") } catch (e) { }
+try { db.exec("ALTER TABLE clients ADD COLUMN reset_lockout_until TEXT;") } catch (e) { }
 
 // ── Admin ─────────────────────────────────────────────────
 const getAdmin = db.prepare('SELECT * FROM admin WHERE id = 1')
@@ -61,8 +70,8 @@ const getClientById = db.prepare('SELECT * FROM clients WHERE id = ?')
 const getClientByPort = db.prepare('SELECT * FROM clients WHERE port = ?')
 
 const createClient = db.prepare(`
-  INSERT INTO clients (name, container_id, container_name, port, slots, storage_gb, volume_name, status, whatsapp, renewal_date)
-  VALUES (@name, @container_id, @container_name, @port, @slots, @storage_gb, @volume_name, 'running', @whatsapp, @renewal_date)
+  INSERT INTO clients (name, container_id, container_name, port, slots, storage_gb, volume_name, status, whatsapp, renewal_date, password, reset_answer)
+  VALUES (@name, @container_id, @container_name, @port, @slots, @storage_gb, @volume_name, 'running', @whatsapp, @renewal_date, @password, @reset_answer)
 `)
 
 const updateClientStatus = db.prepare(`
@@ -79,6 +88,22 @@ const updateClientSlots = db.prepare(`
 
 const updateClientInfo = db.prepare(`
   UPDATE clients SET whatsapp = ?, renewal_date = ?, updated_at = datetime('now') WHERE id = ?
+`)
+
+const updateClientSecurity = db.prepare(`
+  UPDATE clients SET password = ?, reset_answer = ?, reset_failures = 0, reset_lockout_until = NULL, updated_at = datetime('now') WHERE id = ?
+`)
+
+const updateClientPassword = db.prepare(`
+  UPDATE clients SET password = ?, updated_at = datetime('now') WHERE id = ?
+`)
+
+const updateClientResetAnswer = db.prepare(`
+  UPDATE clients SET reset_answer = ?, updated_at = datetime('now') WHERE id = ?
+`)
+
+const updateClientLockout = db.prepare(`
+  UPDATE clients SET reset_failures = ?, reset_lockout_until = ?, updated_at = datetime('now') WHERE id = ?
 `)
 
 const deleteClient = db.prepare('DELETE FROM clients WHERE id = ?')
@@ -105,11 +130,25 @@ function addLog(action, clientId, details) {
   insertLog.run(action, clientId || null, details || null)
 }
 
+// ── Settings ────────────────────────────────────────────────
+const getSetting = db.prepare('SELECT value FROM settings WHERE key = ?')
+const upsertSetting = db.prepare(`
+  INSERT INTO settings (key, value) VALUES (?, ?)
+  ON CONFLICT(key) DO UPDATE SET value = excluded.value
+`)
+
+function getSettingValue(key, defaultVal = '') {
+  const row = getSetting.get(key)
+  return row ? row.value : defaultVal
+}
+
 module.exports = {
+  db,
   getAdmin, upsertAdmin,
   getAllClients, getClientById, getClientByPort,
   createClient, updateClientStatus, updateClientContainer,
-  updateClientSlots, updateClientInfo, deleteClient,
+  updateClientSlots, updateClientInfo, updateClientSecurity, updateClientPassword, updateClientResetAnswer, updateClientLockout, deleteClient,
   getNextAvailablePort,
   addLog, getLogs,
+  getSettingValue, upsertSetting,
 }

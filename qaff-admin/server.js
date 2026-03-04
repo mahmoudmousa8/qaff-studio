@@ -9,6 +9,15 @@ const db = require('./db')
 const auth = require('./auth')
 const docker = require('./docker')
 
+function generateRandomString(length = 10) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
 const app = express()
 const PORT = process.env.ADMIN_PORT || 4000
 
@@ -63,6 +72,26 @@ app.put('/api/admin/password', auth.requireAuth, async (req, res) => {
     res.json({ success: true })
 })
 
+// ── Admin: password reset question (global setting) ───────
+app.get('/api/settings/reset-question', auth.requireAuth, (req, res) => {
+    const question = db.getSettingValue('reset_question', '')
+    res.json({ question })
+})
+
+app.put('/api/settings/reset-question', auth.requireAuth, (req, res) => {
+    const { question } = req.body
+    if (!question || !question.trim()) return res.status(400).json({ error: 'Question text is required' })
+    db.upsertSetting.run('reset_question', question.trim())
+    db.addLog('admin_changed_reset_question', null, 'Password reset question updated')
+    res.json({ success: true })
+})
+
+// ── Internal: get reset question (no auth — for client containers) ───
+app.get('/api/internal/reset-question', (req, res) => {
+    const question = db.getSettingValue('reset_question', '')
+    res.json({ question })
+})
+
 // ── Dashboard stats ───────────────────────────────────────
 app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
     const clients = db.getAllClients.all()
@@ -110,12 +139,16 @@ app.get('/api/clients', auth.requireAuth, async (req, res) => {
 
 // ── Clients: create ───────────────────────────────────────
 app.post('/api/clients', auth.requireAuth, async (req, res) => {
-    const { name, slots, storage_gb, password, whatsapp, renewalDate } = req.body
+    const { name, slots, storage_gb, password, whatsapp, renewalDate, reset_answer } = req.body
 
-    if (!name || !slots || !storage_gb || !password) {
-        return res.status(400).json({ error: 'name, slots, storage_gb, password are required' })
+    if (!name || !slots || !storage_gb) {
+        return res.status(400).json({ error: 'name, slots, storage_gb are required' })
     }
-    if (password.length < 4) return res.status(400).json({ error: 'Client password must be at least 4 chars' })
+
+    const finalPassword = password || generateRandomString(10);
+    const finalResetAnswer = reset_answer || generateRandomString(5);
+
+    if (finalPassword.length < 4) return res.status(400).json({ error: 'Client password must be at least 4 chars' })
 
     // Check name uniqueness
     const existing = db.getAllClients.all().find(c => c.name === name)
@@ -132,7 +165,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     }
 
     // Hash client password
-    const passwordHash = await auth.hashPassword(password)
+    const passwordHash = await auth.hashPassword(finalPassword)
 
     const info = db.createClient.run({
         name,
@@ -143,7 +176,9 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
         storage_gb: parseInt(storage_gb),
         volume_name: null,
         whatsapp: whatsapp || null,
-        renewal_date: renewalDate || null
+        renewal_date: renewalDate || null,
+        password: finalPassword,
+        reset_answer: finalResetAnswer
     })
     const clientId = info.lastInsertRowid
 
@@ -295,6 +330,8 @@ app.put('/api/clients/:id/password', auth.requireAuth, async (req, res) => {
     if (!newPassword || newPassword.length < 4) return res.status(400).json({ error: 'Password too short' })
 
     try {
+        db.updateClientPassword.run(newPassword, client.id)
+
         // Stop → re-create with new password hash
         const passwordHash = await auth.hashPassword(newPassword)
         await docker.stopContainer(client.container_id).catch(() => { })
@@ -465,6 +502,85 @@ setInterval(async () => {
     }
 }, 1000 * 60 * 60); // Check every 60 minutes
 
+// ── Client: admin override security code ──────────────────
+app.put('/api/clients/:id/security-code', auth.requireAuth, async (req, res) => {
+    const client = db.getClientById.get(req.params.id)
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+
+    const { resetAnswer } = req.body
+    if (!resetAnswer) return res.status(400).json({ error: 'resetAnswer is required' })
+
+    try {
+        db.updateClientResetAnswer.run(resetAnswer, client.id)
+        db.addLog('admin_changed_security_code', client.id, 'Reset answer updated manually by admin')
+        res.json({ success: true })
+    } catch (e) {
+        console.error('[security code override error]:', e)
+        res.status(500).json({ error: e.message })
+    }
+})
+
+// ── Client: internal change password (from container) ─────
+app.post('/api/internal/change-password', async (req, res) => {
+    const { clientId, resetAnswer, newPassword } = req.body
+    if (!clientId || !resetAnswer || !newPassword) return res.status(400).json({ error: 'Missing fields' })
+
+    const client = db.getClientById.get(clientId)
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+
+    // Check lockout
+    if (client.reset_lockout_until && new Date(client.reset_lockout_until) > new Date()) {
+        return res.status(403).json({ error: 'Account locked out. Try again later.' })
+    }
+
+    if (client.reset_answer !== resetAnswer) {
+        const failures = (client.reset_failures || 0) + 1
+        if (failures >= 5) {
+            const lockoutDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            db.updateClientLockout.run(failures, lockoutDate, client.id)
+            return res.status(403).json({ error: 'Account locked due to 5 failed attempts. Please try again after 24 hours.' })
+        } else {
+            db.updateClientLockout.run(failures, null, client.id)
+            return res.status(401).json({ error: 'Incorrect reset answer' })
+        }
+    }
+
+    try {
+        const newPasswordHash = await auth.hashPassword(newPassword)
+        db.updateClientSecurity.run(newPassword, client.reset_answer, client.id)
+        db.addLog('client_changed_password', client.id, 'Client successfully changed their own password')
+
+        // Asynchronously recreate container
+        if (client.container_id) {
+            (async () => {
+                try {
+                    await docker.stopContainer(client.container_id).catch(() => { })
+                    await docker.deleteClientContainer(client.container_id, null)
+                    const { containerId } = await docker.createClientContainer({
+                        clientId: client.id,
+                        name: client.name,
+                        port: client.port,
+                        slots: client.slots,
+                        storageGb: client.storage_gb,
+                        passwordHash: newPasswordHash,
+                        isSuspended: client.status === 'suspended',
+                        renewalDate: client.renewal_date || ''
+                    })
+                    db.updateClientContainer.run(containerId, client.id)
+                } catch (err) {
+                    console.error('[Internal Password Change] Failed to recreate container:', err)
+                }
+            })()
+        }
+
+        res.json({ success: true })
+    } catch (e) {
+        console.error('[internal change pw error]:', e)
+        res.status(500).json({ error: 'Internal server error' })
+    }
+})
+
+// ── Logs ──────────────────────────────────────────────────
 // ── Start ──────────────────────────────────────────────────
 async function start() {
     await auth.initAdminPassword('Admin123@')

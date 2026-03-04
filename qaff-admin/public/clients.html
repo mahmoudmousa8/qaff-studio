@@ -57,6 +57,7 @@
             font-weight: 800;
             background: linear-gradient(135deg, #a855f7, #3b82f6);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             letter-spacing: -0.5px;
         }
@@ -184,9 +185,10 @@
         }
 
         tbody td {
-            padding: 18px 20px;
-            font-size: 15px;
+            padding: 12px 14px;
+            font-size: 14px;
             font-weight: 600;
+            white-space: nowrap;
         }
 
         .status-badge {
@@ -220,19 +222,21 @@
 
         .actions {
             display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
+            gap: 6px;
+            flex-wrap: nowrap;
+            align-items: center;
         }
 
         .btn-sm {
             font-family: 'Cairo', sans-serif;
-            padding: 8px 14px;
-            border-radius: 8px;
-            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
             font-weight: 700;
             cursor: pointer;
             border: 1px solid transparent;
             transition: all 0.2s;
+            white-space: nowrap;
         }
 
         .btn-sm:hover {
@@ -287,6 +291,16 @@
 
         .btn-pass:hover {
             background: rgba(139, 92, 246, 0.2);
+        }
+
+        .btn-code {
+            background: rgba(236, 72, 153, 0.1);
+            color: #ec4899;
+            border-color: rgba(236, 72, 153, 0.2);
+        }
+
+        .btn-code:hover {
+            background: rgba(236, 72, 153, 0.2);
         }
 
         .btn-slots {
@@ -518,25 +532,23 @@
             <button class="btn-create" onclick="openCreateModal()">+ إنشاء عميل جديد</button>
         </div>
 
-        <div id="table-wrap">
+        <div id="table-wrap" style="overflow-x: auto; padding-bottom: 8px;">
             <table>
                 <thead>
                     <tr>
-                        <th>#</th>
-                        <th>الاسم</th>
+                        <th>الرقم</th>
                         <th>واتساب</th>
-                        <th>البورت / الرابط</th>
-                        <th>Slots</th>
+                        <th>تاريخ الإنشاء</th>
+                        <th>الرابط</th>
+                        <th>البثوث</th>
                         <th>التخزين</th>
                         <th>التجديد</th>
-                        <th>الحالة</th>
-                        <th>تاريخ الإنشاء</th>
                         <th>الإجراءات</th>
                     </tr>
                 </thead>
                 <tbody id="clients-tbody">
                     <tr>
-                        <td colspan="10" class="empty">جاري التحميل...</td>
+                        <td colspan="8" class="empty">جاري التحميل...</td>
                     </tr>
                 </tbody>
             </table>
@@ -571,9 +583,15 @@
                     <input type="date" id="c-ren">
                 </div>
             </div>
-            <div class="form-row">
-                <label>كلمة السر</label>
-                <input type="password" id="c-pass" placeholder="كلمة سر العميل">
+            <div class="grid2">
+                <div class="form-row">
+                    <label>كلمة السر (تُولد تلقائياً)</label>
+                    <input type="text" id="c-pass" placeholder="اختياري...">
+                </div>
+                <div class="form-row">
+                    <label>إجابة سؤال الأمان (تُولد تلقائياً)</label>
+                    <input type="text" id="c-reset" placeholder="اختياري...">
+                </div>
             </div>
             <div class="url-box" id="created-url"></div>
             <div class="modal-btns">
@@ -586,15 +604,31 @@
     <!-- Change Password Modal -->
     <div class="modal-bg" id="passModal">
         <div class="modal">
-            <h3>🔑 تغيير كلمة سر العميل</h3>
+            <h3>🔑 تغيير كلمة السر</h3>
             <input type="hidden" id="p-client-id">
             <div class="form-row">
-                <label>كلمة السر الجديدة</label>
-                <input type="password" id="p-pass" placeholder="كلمة سر جديدة">
+                <label>كلمة السر الحالية أو الجديدة</label>
+                <input type="text" id="p-pass" placeholder="أدخل كلمة سر جديدة">
             </div>
             <div class="modal-btns">
                 <button class="btn-cancel" onclick="closePassModal()">إلغاء</button>
-                <button class="btn-primary" onclick="changePass()">حفظ</button>
+                <button class="btn-primary" onclick="changePassword()">حفظ وإعادة تشغيل</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Change Security Code Modal -->
+    <div class="modal-bg" id="codeModal">
+        <div class="modal">
+            <h3>🛡️ مسح وتغيير رمز الأمان</h3>
+            <input type="hidden" id="c-client-id">
+            <div class="form-row">
+                <label>إجابة سؤال الأمان (5 أحرف/أرقام)</label>
+                <input type="text" id="c-reset-val" placeholder="رمز جديد مكون من 5 أحرف">
+            </div>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeCodeModal()">إلغاء</button>
+                <button class="btn-primary" onclick="changeSecurityCode()">حفظ رمز الأمان</button>
             </div>
         </div>
     </div>
@@ -670,7 +704,7 @@
                     const today = new Date()
                     today.setHours(0, 0, 0, 0)
                     if (rDate <= today) {
-                        renHtml = `<span style="color:#f87171;font-weight:700">${c.renewal_date}<br><span style="font-size:11px">⚠️ منتهي الصلاحية</span></span>`
+                        renHtml = `<span style="color:#f87171;font-weight:700">${c.renewal_date}<br><span style="font-size:11px">⚠️ منتهى</span></span>`
                     } else {
                         renHtml = `<span style="color:#e2e8f0">${c.renewal_date}</span>`
                     }
@@ -681,20 +715,30 @@
                 if (c.status === 'running') btns.push(`<button class="btn-sm btn-stop" onclick="action(${c.id},'stop')">⏸ إيقاف</button>`)
                 if (c.status === 'running') btns.push(`<button class="btn-sm btn-suspend" onclick="action(${c.id},'suspend')">🚫 تعليق</button>`)
                 if (c.status === 'suspended') btns.push(`<button class="btn-sm btn-resume" onclick="action(${c.id},'resume')">▶ استئناف</button>`)
-                btns.push(`<button class="btn-sm btn-pass" onclick="openPassModal(${c.id})">🔑 كلمة السر</button>`)
+                btns.push(`<button class="btn-sm btn-pass" onclick="openPassModal(${c.id},'${c.password || ''}')">🔑 كلمة السر</button>`)
+                btns.push(`<button class="btn-sm btn-code" onclick="openCodeModal(${c.id},'${c.reset_answer || ''}')">🛡️ رمز الأمان</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ Slots</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
                 btns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${c.name}')">🗑 حذف</button>`)
+
                 return `<tr>
-        <td style="color:#475569;font-weight:700">${c.id}</td>
-        <td style="font-weight:700">${c.name}</td>
+        <td>
+            <div style="display:flex; flex-direction:column; gap:4px">
+                <span style="color:#475569;font-weight:700">#${c.id} - ${c.name}</span>
+                <span class="status-badge ${statusClass}" style="width:fit-content">${statusLabel}</span>
+            </div>
+        </td>
         <td>${wa}</td>
-        <td><span class="port">${c.port}</span><br><a href="${url}" target="_blank" style="color:#475569;font-size:11px;text-decoration:none">${url}</a></td>
-        <td><span style="font-weight:700;color:#a78bfa">${c.slots}</span></td>
+        <td style="font-size:12px;color:#475569">${c.created_at?.slice(0, 16) || '—'}</td>
+        <td>
+            <div style="display:flex; flex-direction:column; gap:2px">
+                <span class="port" style="width:fit-content">${c.port}</span>
+                <a href="${url}" target="_blank" style="color:#475569;font-size:11px;text-decoration:none">${url}</a>
+            </div>
+        </td>
+        <td><span style="font-weight:800;color:#a78bfa">${c.slots}</span></td>
         <td>${c.storage_gb} GB</td>
         <td>${renHtml}</td>
-        <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
-        <td style="font-size:12px;color:#475569">${c.created_at?.slice(0, 16) || '—'}</td>
         <td><div class="actions">${btns.join('')}</div></td>
       </tr>`
             }).join('')
@@ -723,6 +767,7 @@
             document.getElementById('createModal').classList.remove('show')
             document.getElementById('c-name').value = ''
             document.getElementById('c-pass').value = ''
+            document.getElementById('c-reset').value = ''
             document.getElementById('c-wa').value = ''
             document.getElementById('c-ren').value = ''
         }
@@ -734,13 +779,14 @@
             const wa = document.getElementById('c-wa').value.trim()
             const ren = document.getElementById('c-ren').value
             const pass = document.getElementById('c-pass').value
-            if (!name || !pass) { showToast('الاسم وكلمة السر مطلوبان', true); return }
+            const reset = document.getElementById('c-reset').value
+            if (!name) { showToast('الاسم مطلوب', true); return }
             const btn = document.getElementById('createBtn')
             btn.innerHTML = '<span class="spinner"></span> يتم الإنشاء...'
             btn.disabled = true
             const res = await fetch('/api/clients', {
                 method: 'POST', headers: H(true),
-                body: JSON.stringify({ name, slots, storage_gb: storage, password: pass, whatsapp: wa, renewalDate: ren })
+                body: JSON.stringify({ name, slots, storage_gb: storage, password: pass, whatsapp: wa, renewalDate: ren, reset_answer: reset })
             })
             const d = await res.json()
             btn.disabled = false; btn.textContent = 'إنشاء'
@@ -753,23 +799,43 @@
             } else showToast(d.error || 'فشل الإنشاء', true)
         }
 
-        function openPassModal(id) {
+        function openPassModal(id, pass) {
             document.getElementById('p-client-id').value = id
+            document.getElementById('p-pass').value = pass
             document.getElementById('passModal').classList.add('show')
         }
         function closePassModal() {
             document.getElementById('passModal').classList.remove('show')
-            document.getElementById('p-pass').value = ''
         }
-        async function changePass() {
+        async function changePassword() {
             const id = document.getElementById('p-client-id').value
             const pass = document.getElementById('p-pass').value
-            if (!pass || pass.length < 4) { showToast('كلمة المرور قصيرة جداً', true); return }
+            if (!pass || pass.length < 4) { showToast('يجب إدخال كلمة مرور (4+ أحرف)', true); return }
             const res = await fetch(`/api/clients/${id}/password`, {
                 method: 'PUT', headers: H(true), body: JSON.stringify({ newPassword: pass })
             })
             const d = await res.json()
-            if (d.success) { closePassModal(); showToast('✅ تم تغيير كلمة السر'); loadClients() }
+            if (d.success) { closePassModal(); showToast('✅ تم حفظ كلمة المرور وإعادة تشغيل الحاوية'); loadClients() }
+            else showToast(d.error || 'خطأ', true)
+        }
+
+        function openCodeModal(id, reset) {
+            document.getElementById('c-client-id').value = id
+            document.getElementById('c-reset-val').value = reset
+            document.getElementById('codeModal').classList.add('show')
+        }
+        function closeCodeModal() {
+            document.getElementById('codeModal').classList.remove('show')
+        }
+        async function changeSecurityCode() {
+            const id = document.getElementById('c-client-id').value
+            const reset = document.getElementById('c-reset-val').value
+            if (!reset) { showToast('يجب توافر رمز الأمان', true); return }
+            const res = await fetch(`/api/clients/${id}/security-code`, {
+                method: 'PUT', headers: H(true), body: JSON.stringify({ resetAnswer: reset })
+            })
+            const d = await res.json()
+            if (d.success) { closeCodeModal(); showToast('✅ تم تحديث رمز الأمان'); loadClients() }
             else showToast(d.error || 'خطأ', true)
         }
 
