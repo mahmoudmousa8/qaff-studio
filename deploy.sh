@@ -38,4 +38,15 @@ docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 echo "Cleaning up dangling images..."
 docker image prune -f 2>/dev/null || true
 
+# --- 5. Sync Admin Panel and Restart PM2 ---
+echo "Syncing Qaff Admin Panel updates to /opt/qaff-admin..."
+ADMIN_DIR="/opt/qaff-admin"
+if [ -d "$ADMIN_DIR" ]; then
+    sudo rsync -av --exclude='data' --exclude='node_modules' "$PWD/qaff-admin/" "$ADMIN_DIR/" 2>/dev/null || true
+    if sudo pm2 show qaff-admin &>/dev/null; then
+        sudo pm2 reload qaff-admin --update-env 2>/dev/null || true
+    fi
+    echo "  ✅ Admin Panel synced and PM2 service reloaded."
+fi
+
 echo "Done! The base Docker Image is built and ready for the Admin Panel."

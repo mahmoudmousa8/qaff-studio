@@ -187,7 +187,6 @@ export default function LogsPage() {
                             <Image src="/logo-icon.png" alt="Qaff Logo" width={24} height={24} className="brightness-0 invert opacity-50 dark:opacity-80" />
                             <div className="flex flex-col">
                                 <span className="text-sm font-semibold text-foreground/80">{t('footerText')}</span>
-                                <span className="text-xs text-muted-foreground mt-0.5">{t('footerMoreInfo')} <span className="text-primary group-hover:underline">{t('footerLink')}</span></span>
                             </div>
                         </a>
                         <a href="https://wa.me/201012656551" target="_blank" rel="noopener noreferrer"
