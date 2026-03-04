@@ -110,7 +110,7 @@ app.get('/api/clients', auth.requireAuth, async (req, res) => {
 
 // ── Clients: create ───────────────────────────────────────
 app.post('/api/clients', auth.requireAuth, async (req, res) => {
-    const { name, slots, storage_gb, password } = req.body
+    const { name, slots, storage_gb, password, whatsapp, renewalDate } = req.body
 
     if (!name || !slots || !storage_gb || !password) {
         return res.status(400).json({ error: 'name, slots, storage_gb, password are required' })
@@ -134,7 +134,6 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     // Hash client password
     const passwordHash = await auth.hashPassword(password)
 
-    // Create DB record first to get ID
     const info = db.createClient.run({
         name,
         container_id: null,
@@ -143,6 +142,8 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
         slots: parseInt(slots),
         storage_gb: parseInt(storage_gb),
         volume_name: null,
+        whatsapp: whatsapp || null,
+        renewal_date: renewalDate || null
     })
     const clientId = info.lastInsertRowid
 
@@ -168,7 +169,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
         const serverIp = getServerIp()
         res.json({
             success: true,
-            client: { id: clientId, name, port, slots, storage_gb, status: 'running' },
+            client: { id: clientId, name, port, slots, storage_gb, status: 'running', whatsapp: whatsapp || null, renewal_date: renewalDate || null },
             url: `http://${serverIp}:${port}`,
         })
     } catch (err) {
@@ -316,6 +317,22 @@ app.put('/api/clients/:id/slots', auth.requireAuth, async (req, res) => {
         res.json({ success: true })
     } catch (e) {
         console.error('[update_slots] error:', e)
+        res.status(500).json({ error: e.message })
+    }
+})
+
+// ── Client: update info (whatsapp, renewal) ────────────────
+app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
+    const client = db.getClientById.get(req.params.id)
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+    const { whatsapp, renewalDate } = req.body
+
+    try {
+        db.updateClientInfo.run(whatsapp || null, renewalDate || null, client.id)
+        db.addLog('client_info_updated', client.id, `WhatsApp: ${whatsapp}, Renewal: ${renewalDate}`)
+        res.json({ success: true })
+    } catch (e) {
+        console.error('[update_info] error:', e)
         res.status(500).json({ error: e.message })
     }
 })
