@@ -149,6 +149,34 @@
             box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
         }
 
+        .btn-update-all {
+            background: linear-gradient(135deg, #10b981, #059669);
+            border: none;
+            color: #fff;
+            padding: 12px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            font-family: 'Cairo', sans-serif;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-update-all:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.5);
+        }
+
+        .btn-update-all:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
         table {
             width: 100%;
             border-collapse: separate;
@@ -809,6 +837,13 @@
                 btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
                 btns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${c.name}')">🗑 حذف</button>`)
 
+                // Escape simple quotes for the copy info
+                const safeName = (c.name || '').replace(/'/g, "\\'")
+                const safePass = (c.password || '').replace(/'/g, "\\'")
+                const safeWa = (c.whatsapp || '').replace(/'/g, "\\'")
+                const safeRen = (c.renewal_date || '').replace(/'/g, "\\'")
+                btns.push(`<button class="btn-sm btn-slots" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;" onclick="copyClientInfo('${url}','${safePass}','${c.reset_answer || ''}','${c.slots}','${c.storage_gb}','${safeRen}')">📋 نسخ البيانات</button>`)
+
                 return `<tr>
         <td>
             <div style="display:flex; flex-direction:column; gap:4px">
@@ -987,6 +1022,59 @@
             const d = await res.json()
             if (d.success) { closeStorageModal(); showToast('✅ تم تحديث المساحة وإعادة التشغيل'); loadClients() }
             else showToast(d.error || 'خطأ', true)
+        }
+
+        async function updateAllPanels() {
+            if (!confirm('هل أنت متأكد من تحديث كافة اللوحات للنسخة الأحدث؟\n\nتنبيه: هذا سيمر على جميع العملاء وسيقوم تفريغ وبناء الحاويات من جديد. البثوث النشطة حالياً ستتوقف وتحتاج لضغط زر التشغيل من العميل.')) return;
+            const btn = document.getElementById('updateAllBtn')
+            const originalHtml = btn.innerHTML
+            btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span> جاري التحديث الشامل...'
+            btn.disabled = true
+
+            try {
+                const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H() })
+                const d = await res.json()
+                if (d.success) {
+                    showToast(`✅ اكتمل! تم تحديث ${d.upgraded} لوحة بنجاح. فشل: ${d.failed}`)
+                    loadClients()
+                } else {
+                    showToast(d.error || 'خطأ غير معروف', true)
+                }
+            } catch (e) {
+                showToast('حدث خطأ بالاتصال', true)
+            } finally {
+                btn.innerHTML = originalHtml
+                btn.disabled = false
+            }
+        }
+
+        function copyClientInfo(url, pass, reset, slots, storage, ren) {
+            const text =
+                `رابط اللوحة: ${url}
+كلمة المرور: ${pass || 'غير محددة'}
+رمز الأمان: ${reset || 'غير محدد'}
+عدد البثوث: ${slots}
+مساحة التخزين: ${storage} جيجابايت
+موعد التجديد القادم: ${ren || 'غير محدد'}`;
+
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text)
+                    .then(() => showToast('📋 تم نسخ بيانات العميل!'))
+                    .catch(() => showToast('❌ تعذر النسخ', true));
+            } else {
+                // Fallback for older browsers
+                const ta = document.createElement("textarea");
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                try {
+                    document.execCommand('copy');
+                    showToast('📋 تم نسخ بيانات العميل!');
+                } catch (err) {
+                    showToast('❌ تعذر النسخ', true);
+                }
+                document.body.removeChild(ta);
+            }
         }
 
         function logout() { localStorage.removeItem('qaff_admin_token'); location.href = '/login' }

@@ -479,6 +479,53 @@ app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
     }
 })
 
+// ── Clients: update all containers ──────────────────────────
+app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
+    try {
+        const clients = db.getAllClients.all()
+        let upgraded = 0
+        let failed = 0
+
+        for (const client of clients) {
+            if (!client.container_id) continue;
+
+            try {
+                // Read original hash
+                const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null)
+                if (!passwordHash) { failed++; continue; }
+
+                // Stop & Remove matching exact existing schema logic
+                await docker.stopContainer(client.container_id).catch(() => { })
+                await docker.deleteClientContainer(client.container_id, null) // keep volume
+
+                // Recreate with qaff-studio:latest
+                const { containerId } = await docker.createClientContainer({
+                    clientId: client.id,
+                    name: client.name,
+                    port: client.port,
+                    slots: client.slots,
+                    storageGb: client.storage_gb,
+                    passwordHash,
+                    renewalDate: client.renewal_date || '',
+                    isSuspended: client.status === 'suspended'
+                })
+
+                db.updateClientContainer.run(containerId, client.id)
+                upgraded++;
+            } catch (err) {
+                console.error(`[bulk update] failed to upgrade client ${client.id}:`, err)
+                failed++;
+            }
+        }
+
+        db.addLog('bulk_update', null, `Bulk updated ${upgraded} client containers. Failed: ${failed}`)
+        res.json({ success: true, upgraded, failed })
+    } catch (e) {
+        console.error('[bulk update] fatal error:', e)
+        res.status(500).json({ error: e.message })
+    }
+})
+
 // ── Server: System Stats (Admin Only) ─────────────────────
 app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
     try {
