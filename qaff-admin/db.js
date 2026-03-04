@@ -41,7 +41,6 @@ db.exec(`
     details    TEXT,
     timestamp  TEXT DEFAULT (datetime('now'))
   );
-  );
 `)
 
 // Safe migrations
