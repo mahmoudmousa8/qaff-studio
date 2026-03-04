@@ -510,14 +510,16 @@ export default function Home() {
 
   return (
     <div className="h-screen flex flex-col overflow-hidden bg-background" dir="ltr">
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Header Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/* â€•â€•â€• Header â€•â€•â€• */}
       <header className="border-b bg-card shrink-0 z-50">
         <div className="px-4 py-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
-              <Image src="/logo-icon.png?v=1" unoptimized alt="Qaff Studio" width={32} height={32} priority className="object-contain dark:hidden" />
-              <Image src="/logo-white.png?v=1" unoptimized alt="Qaff Studio" width={32} height={32} priority className="object-contain hidden dark:block" />
-              <h1 className="text-lg font-bold text-primary">Qaff Studio</h1>
+              <a href="https://streamer.qaff.net" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                <Image src="/logo-icon.png?v=1" unoptimized alt="Qaff Studio" width={32} height={32} priority className="object-contain dark:hidden" />
+                <Image src="/logo-white.png?v=1" unoptimized alt="Qaff Studio" width={32} height={32} priority className="object-contain hidden dark:block" />
+                <h1 className="text-lg font-bold text-primary">Qaff Studio</h1>
+              </a>
               <Badge className="bg-green-500 text-white text-xs">
                 <Play className="w-3 h-3 mr-1" />
                 {stats.streaming} {t('active')}
@@ -617,7 +619,7 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Main Content Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/* â€•â€•â€• Main Content â€•â€•â€• */}
       <main className="flex-1 flex flex-col overflow-hidden px-4 py-2 gap-2">
         <Card className="flex-1 flex flex-col overflow-hidden">
           <CardHeader className="py-2 px-4 shrink-0">
@@ -893,11 +895,18 @@ export default function Home() {
         </Card>
       </main >
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Footer Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
-      < footer className="border-t bg-card py-2 shrink-0" >
-        <div className="px-4">
-          <div className="flex items-center justify-center text-sm text-muted-foreground gap-4 font-medium">
-            <span className="text-sm font-semibold text-foreground/80">{t('footerText')}</span>
+      {/* â€•â€•â€• Footer â€•â€•â€• */}
+      <footer className="border-t bg-card/50 py-3 shrink-0 mt-auto shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+        <div className="container overflow-x-auto">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-4 min-w-[500px]">
+            <a href="https://streamer.qaff.net" target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+              <Image src="/logo-icon.png" alt="Qaff Logo" width={24} height={24} className="brightness-0 invert opacity-50 dark:opacity-80" />
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-foreground/80">{t('footerText')}</span>
+                <span className="text-xs text-muted-foreground mt-0.5">{t('footerMoreInfo')} <span className="text-primary group-hover:underline">{t('footerLink')}</span></span>
+              </div>
+            </a>
             <a href="https://wa.me/201012656551" target="_blank" rel="noopener noreferrer"
               className="flex items-center gap-2 text-green-500 hover:text-green-400 transition-colors font-bold">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -907,9 +916,9 @@ export default function Home() {
             </a>
           </div>
         </div>
-      </footer >
+      </footer>
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â Per-Channel Logs Dialog Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/* Ã¢â€¢Â Ã¢â€¢Â Ã¢â€¢Â  Per-Channel Logs Dialog Ã¢â€¢Â Ã¢â€¢Â Ã¢â€¢Â  */}
       < Dialog open={!!channelLogs
       } onOpenChange={(open) => !open && closeChannelLogs()}>
         <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col" dir={dir}>

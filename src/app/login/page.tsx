@@ -92,23 +92,25 @@ export default function LoginPage() {
                           Logos: CSS dark: variants react to the 'dark' class already set
                           by layout.tsx before first paint — no JS needed for logo switching.
                         */}
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                            src="/logo-icon.png?v=2"
-                            alt="Qaff Streamer"
-                            width={64}
-                            height={64}
-                            className="object-contain dark:hidden"
-                        />
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                            src="/logo-white.png?v=2"
-                            alt="Qaff Streamer"
-                            width={64}
-                            height={64}
-                            className="object-contain hidden dark:block"
-                        />
-                        <h1 className="text-2xl font-bold text-primary">Qaff Streamer</h1>
+                        <a href="https://streamer.qaff.net" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-3 hover:opacity-80 transition-opacity">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src="/logo-icon.png?v=2"
+                                alt="Qaff Streamer"
+                                width={64}
+                                height={64}
+                                className="object-contain dark:hidden"
+                            />
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src="/logo-white.png?v=2"
+                                alt="Qaff Streamer"
+                                width={64}
+                                height={64}
+                                className="object-contain hidden dark:block"
+                            />
+                            <h1 className="text-2xl font-bold text-primary">Qaff Streamer</h1>
+                        </a>
                         <p className="text-sm text-muted-foreground">{t('loginTitle')}</p>
                     </div>
 
@@ -143,8 +145,9 @@ export default function LoginPage() {
 
 
                 <div className="mt-8 flex flex-col items-center gap-3">
-                    <p className="text-center text-xs text-muted-foreground font-medium">
-                        {t('footerText')}
+                    <p className="text-center text-xs text-muted-foreground font-medium flex flex-col gap-1 items-center">
+                        <span>{t('footerMoreInfo')} <a href="https://streamer.qaff.net" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{t('footerLink')}</a></span>
+                        <span>{t('footerText')}</span>
                     </p>
                     <a
                         href="https://wa.me/201012656551"

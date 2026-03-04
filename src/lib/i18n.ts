@@ -134,6 +134,8 @@ const translations = {
         // Footer
         footerText: 'Qaff Media © All Rights Reserved - For Sales',
         footerContact: '01202406944',
+        footerMoreInfo: 'For more, please visit our website',
+        footerLink: 'https://streamer.qaff.net',
 
         // Theme & Confirms
         theme: 'Theme',
@@ -331,6 +333,8 @@ const translations = {
         // Footer
         footerText: 'قاف ميديا © جميع الحقوق محفوظة - للمبيعات تواصل معنا',
         footerContact: '01202406944',
+        footerMoreInfo: 'للمزيد يرجى زيارة موقعنا',
+        footerLink: 'https://streamer.qaff.net',
 
         // Theme & Confirms
         theme: 'المظهر',
