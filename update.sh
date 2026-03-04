@@ -37,15 +37,20 @@ echo -e "\n${CYAN}[2/5] Installing new dependencies...${NC}"
 sudo npm install --production=false 2>&1 | tail -3
 echo -e "  ✅ Dependencies installed."
 
-echo -e "\n${CYAN}[3/5] Building the Next.js application...${NC}"
+echo -e "\n${CYAN}[3/5] Building the Next.js application & Docker image...${NC}"
 # Kill any stuck next build process
 pkill -f "next build" 2>/dev/null || true
 sleep 1
 # Remove the entire .next folder to prevent any root-owned cache/lock permission issues
 sudo rm -rf "$PROJECT_DIR/.next"
-# Run build
+# Build Next.js
 npm run build 2>&1 | tail -5
 echo -e "  ✅ Production build ready."
+
+# Rebuild Docker image so new client containers use latest code
+echo -e "  🐳 Rebuilding Docker image..."
+docker build -t qaff-studio:latest "$PROJECT_DIR" 2>&1 | tail -3
+echo -e "  ✅ Docker image updated."
 
 echo -e "\n${CYAN}[4/5] Updating Admin Master Panel files...${NC}"
 if [ -d "$ADMIN_DIR" ]; then

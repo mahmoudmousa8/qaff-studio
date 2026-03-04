@@ -171,6 +171,7 @@ else
   echo -e "  ✅ App admin password already set"
 fi
 
+sudo rm -rf "$PROJECT_DIR/.next"
 npm run build 2>&1 | tail -5
 echo -e "  ✅ Production build complete"
 
@@ -192,24 +193,31 @@ mkdir -p "$ADMIN_DIR/data/logs"
 
 # Install admin panel dependencies
 cd "$ADMIN_DIR"
-npm install --production 2>&1 | tail -3
+sudo npm install --production 2>&1 | tail -3
 echo -e "  ✅ Admin panel dependencies installed"
-
 echo -e "  ✅ Admin panel ready at /opt/qaff-admin"
 
 # ════════════════════════════════════════════
-# Done
+# Start Admin Panel via PM2
+# ════════════════════════════════════════════
+cd "$PROJECT_DIR"
+echo -e "\n${GREEN}Starting Admin Panel via PM2...${NC}"
+pm2 delete qaff-admin 2>/dev/null || true
+pm2 start "$ADMIN_DIR/ecosystem.admin.cjs" 2>/dev/null || true
+pm2 save 2>/dev/null || true
+echo -e "  ✅ Admin panel started on port 4000"
+
+# ════════════════════════════════════════════
+# Done — user manages clients via Admin Panel
 # ════════════════════════════════════════════
 SERVER_IP=$(hostname -I | awk '{print $1}')
 echo -e "\n${BOLD}════════════════════════════════════════════${NC}"
 echo -e "${GREEN}  ✅ Installation complete!${NC}"
 echo -e "${BOLD}════════════════════════════════════════════${NC}"
 echo -e ""
-echo -e "  Next step:         ${BOLD}./deploy.sh${NC}"
-echo -e ""
 echo -e "  🎛️  Admin Panel:    ${BOLD}http://${SERVER_IP}:4000${NC}"
 echo -e "  🔑  Admin Password: ${BOLD}Admin123@${NC}"
 echo -e ""
-echo -e "  📡  Main App:       ${BOLD}http://${SERVER_IP}:3000${NC}"
-echo -e "  🔑  App Password:   ${BOLD}Admin${NC}"
+echo -e "  💡 Create your first client from the Admin Panel!"
+echo -e "  💡 Each client gets their own Docker container on a unique port."
 echo -e ""
