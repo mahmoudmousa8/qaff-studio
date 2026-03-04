@@ -18,9 +18,12 @@ node_modules
 /out/
 
 # production
-/build
 /standalone/
 /qaff-admin/data/
+/data/
+/prisma/data/
+*.db
+*.db-journal
 
 # misc
 .DS_Store
