@@ -37,7 +37,7 @@ echo -e "\n${CYAN}[2/5] Installing new dependencies...${NC}"
 sudo npm install --production=false 2>&1 | tail -3
 echo -e "  ✅ Dependencies installed."
 
-echo -e "\n${CYAN}[3/5] Building the Next.js application & Docker image...${NC}"
+echo -e "\n${CYAN}[3/5] Building the Next.js application...${NC}"
 # Kill any stuck next build process
 pkill -f "next build" 2>/dev/null || true
 sleep 1
@@ -46,11 +46,6 @@ sudo rm -rf "$PROJECT_DIR/.next"
 # Build Next.js
 npm run build 2>&1 | tail -5
 echo -e "  ✅ Production build ready."
-
-# Rebuild Docker image so new client containers use latest code
-echo -e "  🐳 Rebuilding Docker image..."
-docker build -t qaff-studio:latest "$PROJECT_DIR" 2>&1 | tail -3
-echo -e "  ✅ Docker image updated."
 
 echo -e "\n${CYAN}[4/5] Updating Admin Master Panel files...${NC}"
 if [ -d "$ADMIN_DIR" ]; then
@@ -72,17 +67,21 @@ else
 fi
 
 echo -e "\n${CYAN}[5/5] Restarting services (zero client downtime)...${NC}"
-# Reload main app (graceful, no stream interruption)
-pm2 reload ecosystem.config.cjs --update-env 2>/dev/null || \
-pm2 restart ecosystem.config.cjs --update-env 2>/dev/null || \
-pm2 start ecosystem.config.cjs 2>/dev/null || true
+# Rebuild Docker image and start main app using deploy script
+if [ -f "./deploy.sh" ]; then
+    chmod +x ./deploy.sh
+    ./deploy.sh
+else
+    echo -e "  ${YELLOW}deploy.sh not found. Could not automatically restart main app.${NC}"
+fi
 
-# Reload admin panel
-ADMIN_ECOSYSTEM="$ADMIN_DIR/ecosystem.admin.cjs"
-if [ -f "$ADMIN_ECOSYSTEM" ]; then
-    pm2 reload "$ADMIN_ECOSYSTEM" --update-env 2>/dev/null || \
-    pm2 restart "$ADMIN_ECOSYSTEM" --update-env 2>/dev/null || \
-    pm2 start "$ADMIN_ECOSYSTEM" 2>/dev/null || true
+# Reload admin panel safely
+if pm2 show qaff-admin &>/dev/null; then
+    pm2 reload qaff-admin --update-env 2>/dev/null || pm2 restart qaff-admin 2>/dev/null || true
+else
+    cd "$ADMIN_DIR"
+    pm2 start server.js --name "qaff-admin" 2>/dev/null || true
+    cd "$PROJECT_DIR"
 fi
 
 pm2 save 2>/dev/null || true

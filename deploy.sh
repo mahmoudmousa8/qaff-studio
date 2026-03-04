@@ -25,6 +25,10 @@ echo "Building Image: $IMAGE_NAME"
 # --- 2. Build Docker Image ---
 docker build -t "$IMAGE_NAME" .
 
+# Make sure qaff-studio:latest always explicitly points to whatever this image is
+# because the Admin Panel hard-checks for "qaff-studio:latest" when creating clients
+docker tag "$IMAGE_NAME" qaff-studio:latest 2>/dev/null || true
+
 # --- 3. Generate docker-compose.yml dynamically ---
 echo "Generating docker-compose.yml..."
 cat <<EOF > docker-compose.yml

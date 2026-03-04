@@ -200,13 +200,13 @@ echo -e "  ✅ Admin panel ready at /opt/qaff-admin"
 # ════════════════════════════════════════════
 # Start Admin Panel via PM2
 # ════════════════════════════════════════════
-cd "$PROJECT_DIR"
+cd "$ADMIN_DIR"
 echo -e "\n${GREEN}Starting Admin Panel via PM2...${NC}"
 pm2 delete qaff-admin 2>/dev/null || true
-pm2 start "$ADMIN_DIR/ecosystem.admin.cjs" 2>/dev/null || true
+pm2 start server.js --name "qaff-admin" 2>/dev/null || true
 pm2 save 2>/dev/null || true
 echo -e "  ✅ Admin panel started on port 4000"
-
+cd "$PROJECT_DIR"
 # ════════════════════════════════════════════
 # Done — user manages clients via Admin Panel
 # ════════════════════════════════════════════
@@ -221,3 +221,12 @@ echo -e ""
 echo -e "  💡 Create your first client from the Admin Panel!"
 echo -e "  💡 Each client gets their own Docker container on a unique port."
 echo -e ""
+
+echo -e "\n${GREEN}[10/10] Starting main application...${NC}"
+if [ -f "./deploy.sh" ]; then
+  chmod +x ./deploy.sh
+  ./deploy.sh
+else
+  echo -e "  ${YELLOW}deploy.sh not found. You can start the main app manually using docker.${NC}"
+fi
+echo -e "\n${BOLD}✅ All done!${NC}\n"
