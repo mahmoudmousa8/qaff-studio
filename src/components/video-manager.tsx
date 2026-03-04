@@ -1155,8 +1155,8 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
 
               <p className="font-semibold text-amber-500 mb-2">🔹 Bitrate</p>
               <ul className="space-y-1 list-disc list-inside">
-                <li>Bitrate Encoding: <strong>CBR</strong></li>
-                <li>Target Bitrate: <strong>2500 Kbps (2.5 Mbps)</strong></li>
+                <li>Bitrate Encoding: <strong>CBR أو VBR</strong></li>
+                <li>Target Bitrate: <strong>1000 - 2500 Kbps (1 - 2.5 Mbps)</strong></li>
                 <li>Key Frame Distance: <strong>50</strong> <span className="text-muted-foreground text-xs">(25fps × 2 ثانية = 50)</span></li>
               </ul>
             </div>

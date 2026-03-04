@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Qaff Streamer",
-  description: "Professional Video Streaming Management System",
+  description: "Manage your live streams efficiently with Qaff Streamer.",
   icons: {
     icon: "/logo-icon.png",
     shortcut: "/logo-icon.png",

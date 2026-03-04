@@ -132,7 +132,7 @@ const translations = {
         copied: 'Copied!',
 
         // Footer
-        footerText: 'Qaff Media © All Rights Reserved - For Sales',
+        footerText: 'Qaff Digital © - For Sales',
         footerContact: '01202406944',
         footerMoreInfo: 'For more, please visit our website',
         footerLink: 'https://streamer.qaff.net',
@@ -331,7 +331,7 @@ const translations = {
         copied: 'تم النسخ!',
 
         // Footer
-        footerText: 'قاف ميديا © جميع الحقوق محفوظة - للمبيعات تواصل معنا',
+        footerText: 'قاف ديجيتال © للمبيعات تواصل معنا',
         footerContact: '01202406944',
         footerMoreInfo: 'للمزيد يرجى زيارة موقعنا',
         footerLink: 'https://streamer.qaff.net',

@@ -516,9 +516,9 @@ export default function Home() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <a href="https://streamer.qaff.net" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                <Image src="/logo-icon.png?v=1" unoptimized alt="Qaff Studio" width={32} height={32} priority className="object-contain dark:hidden" />
-                <Image src="/logo-white.png?v=1" unoptimized alt="Qaff Studio" width={32} height={32} priority className="object-contain hidden dark:block" />
-                <h1 className="text-lg font-bold text-primary">Qaff Studio</h1>
+                <Image src="/logo-icon.png?v=1" unoptimized alt="Qaff Streamer" width={32} height={32} priority className="object-contain dark:hidden" />
+                <Image src="/logo-white.png?v=1" unoptimized alt="Qaff Streamer" width={32} height={32} priority className="object-contain hidden dark:block" />
+                <h1 className="text-lg font-bold text-primary">Qaff Streamer</h1>
               </a>
               <Badge className="bg-green-500 text-white text-xs">
                 <Play className="w-3 h-3 mr-1" />
