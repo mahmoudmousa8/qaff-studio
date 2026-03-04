@@ -1,79 +1,53 @@
 #!/usr/bin/env bash
-#
-# Qaff Studio — Deploy Script
-# Builds Next.js, rebuilds Docker image, starts containers
-# Run: ./deploy.sh
-#
+set -e
 
-set -euo pipefail
-
-BOLD="\033[1m"
-GREEN="\033[0;32m"
-YELLOW="\033[0;33m"
-RED="\033[0;31m"
-NC="\033[0m"
-
-PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ADMIN_DIR="/opt/qaff-admin"
-MAIN_CONTAINER="qaff-studio"
-MAIN_IMAGE="qaff-studio:latest"
-
-echo -e "${BOLD}════════════════════════════════════════════${NC}"
-echo -e "${BOLD}  Qaff Studio — Deploy${NC}"
-echo -e "${BOLD}════════════════════════════════════════════${NC}\n"
-
-cd "$PROJECT_DIR"
-
-# ── 1. Build Next.js ──────────────────────────────────────────
-echo -e "${GREEN}[1/4]${NC} Building production bundle..."
-pkill -f "next build" 2>/dev/null || true
-sleep 1
-sudo rm -rf "$PROJECT_DIR/.next"
-npm run build 2>&1 | tail -5
-echo -e "  ✅ Build complete"
-
-# ── 2. Rebuild Docker image ───────────────────────────────────
-echo -e "\n${GREEN}[2/4]${NC} Rebuilding Docker image..."
-docker build -t "$MAIN_IMAGE" "$PROJECT_DIR" 2>&1 | tail -5
-echo -e "  ✅ Docker image ${MAIN_IMAGE} ready"
-
-# ── 3. Start/restart main container on port 3000 ────────────
-echo -e "\n${GREEN}[3/4]${NC} Starting main app container on port 3000..."
-# Stop & remove old container (ignore errors if not exists)
-docker stop "$MAIN_CONTAINER" 2>/dev/null || true
-docker rm   "$MAIN_CONTAINER" 2>/dev/null || true
-# Run fresh container
-docker run -d \
-    --name "$MAIN_CONTAINER" \
-    --restart unless-stopped \
-    -p 3000:3000 \
-    -v qaff_main_data:/data \
-    "$MAIN_IMAGE"
-echo -e "  ✅ Main app container started on port 3000"
-
-# ── 4. Start/restart Admin Panel via PM2 on port 4000 ────────
-echo -e "\n${GREEN}[4/4]${NC} Restarting Admin Panel via PM2..."
-if [ -f "$ADMIN_DIR/ecosystem.admin.cjs" ]; then
-    pm2 reload  "$ADMIN_DIR/ecosystem.admin.cjs" --update-env 2>/dev/null || \
-    pm2 restart "$ADMIN_DIR/ecosystem.admin.cjs" --update-env 2>/dev/null || \
-    pm2 start   "$ADMIN_DIR/ecosystem.admin.cjs" 2>/dev/null
-    pm2 save 2>/dev/null || true
-    echo -e "  ✅ Admin panel running on port 4000"
-else
-    echo -e "  ${RED}Admin panel not found — run install.sh first${NC}"
+# --- 1. Detect Project Name ---
+PROJECT_NAME=""
+# Try from package.json first
+if [ -f "package.json" ]; then
+    PROJECT_NAME=$(grep -m 1 '"name"' package.json | cut -d '"' -f 4 | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')
+fi
+# Fallback to current directory name
+if [ -z "$PROJECT_NAME" ]; then
+    PROJECT_NAME=$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9_-]//g')
+fi
+# Final fallback
+if [ -z "$PROJECT_NAME" ]; then
+    PROJECT_NAME="auto-app"
 fi
 
-pm2 save 2>/dev/null || true
+IMAGE_NAME="${PROJECT_NAME}:latest"
+CONTAINER_NAME="${PROJECT_NAME}_container"
 
-# ── Summary ───────────────────────────────────────────────────
-SERVER_IP=$(hostname -I | awk '{print $1}')
-echo -e "\n${BOLD}════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✅ Deployment complete!${NC}"
-echo -e "${BOLD}════════════════════════════════════════════${NC}"
-echo -e ""
-echo -e "  📡  Main App:       ${BOLD}http://${SERVER_IP}:3000${NC}"
-echo -e "  🎛️  Admin Panel:    ${BOLD}http://${SERVER_IP}:4000${NC}"
-echo -e "  🔑  Admin Password: ${BOLD}Admin123@${NC}"
-echo -e ""
-echo -e "  💡 Verify: docker ps | pm2 status"
-echo -e ""
+echo "Detected Project Name: $PROJECT_NAME"
+echo "Building Image: $IMAGE_NAME"
+
+# --- 2. Build Docker Image ---
+docker build -t "$IMAGE_NAME" .
+
+# --- 3. Generate docker-compose.yml dynamically ---
+echo "Generating docker-compose.yml..."
+cat <<EOF > docker-compose.yml
+services:
+  app:
+    image: ${IMAGE_NAME}
+    container_name: ${CONTAINER_NAME}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+EOF
+
+# --- 4. Stop & Remove old container ---
+echo "Stopping and removing old container..."
+docker stop "$CONTAINER_NAME" 2>/dev/null || true
+docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
+
+# --- 5. Run new container via standard Docker (or you can use docker compose up -d) ---
+echo "Running new container..."
+docker run -d \
+    --name "$CONTAINER_NAME" \
+    --restart unless-stopped \
+    -p 3000:3000 \
+    "$IMAGE_NAME"
+
+echo "Done! Application is running on port 3000."

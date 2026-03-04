@@ -1,0 +1,15 @@
+FROM node:18-alpine
+WORKDIR /app
+
+# Install dependencies first (for faster caching)
+COPY package.json package-lock.json* ./
+RUN npm install
+
+# Copy all files
+COPY . .
+
+# Try to build (Next.js/React), ignore error if it's just a backend without build step
+RUN npm run build 2>/dev/null || true
+
+EXPOSE 3000
+CMD ["npm", "start"]
