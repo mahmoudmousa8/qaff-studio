@@ -917,10 +917,9 @@ export default function Home() {
         </Card>
       </main >
 
-      {/* â€•â€•â€• Footer â€•â€•â€• */}
-      <footer className="border-t bg-card/50 py-4 shrink-0 mt-auto shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
-        <div className="container overflow-x-auto overflow-y-hidden">
-          <div className="flex flex-col items-center justify-center gap-3 px-4 text-center">
+      <footer className="w-full border-t bg-card/50 py-4 shrink-0 mt-auto shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+        <div className="container mx-auto w-full overflow-hidden">
+          <div className="flex flex-col items-center justify-center gap-3 px-4 text-center w-full">
 
             {/* Copyright & WhatsApp Group */}
             <div className="flex items-center justify-center gap-2">
