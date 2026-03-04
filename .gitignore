@@ -19,6 +19,8 @@ node_modules
 
 # production
 /build
+/standalone/
+/qaff-admin/data/
 
 # misc
 .DS_Store

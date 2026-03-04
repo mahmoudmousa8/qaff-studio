@@ -161,9 +161,9 @@
         }
 
         thead th {
-            padding: 16px 20px;
-            text-align: right;
-            font-size: 13px;
+            padding: 12px 6px;
+            text-align: center;
+            font-size: 11px;
             font-weight: 700;
             color: var(--text-muted);
             text-transform: uppercase;
@@ -185,10 +185,13 @@
         }
 
         tbody td {
-            padding: 12px 14px;
-            font-size: 14px;
+            padding: 8px 6px;
+            font-size: 11px;
             font-weight: 600;
-            white-space: nowrap;
+            color: var(--text-main);
+            text-align: center;
+            vertical-align: middle;
+            white-space: normal;
         }
 
         .status-badge {
@@ -222,16 +225,19 @@
 
         .actions {
             display: flex;
-            gap: 6px;
-            flex-wrap: nowrap;
+            gap: 4px;
+            flex-wrap: wrap;
             align-items: center;
+            justify-content: center;
+            max-width: 170px;
+            margin: 0 auto;
         }
 
         .btn-sm {
             font-family: 'Cairo', sans-serif;
-            padding: 6px 12px;
+            padding: 4px 6px;
             border-radius: 6px;
-            font-size: 12px;
+            font-size: 10px;
             font-weight: 700;
             cursor: pointer;
             border: 1px solid transparent;
@@ -819,9 +825,9 @@
         <td>${wa}</td>
         <td style="font-size:12px;color:#475569">${c.created_at?.slice(0, 16) || '—'}</td>
         <td>
-            <div style="display:flex; flex-direction:column; gap:2px">
-                <span class="port" style="width:fit-content">${c.port}</span>
-                <a href="${url}" target="_blank" style="color:#475569;font-size:11px;text-decoration:none">${url}</a>
+            <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                <span class="port" style="width:fit-content; font-size:12px; padding:2px 8px;">${c.port}</span>
+                <a href="${url}" target="_blank" style="color:#8b5cf6;font-size:11px;text-decoration:underline;">🔗 فتح</a>
             </div>
         </td>
         <td><span style="font-weight:800;color:#a78bfa">${c.slots}</span></td>

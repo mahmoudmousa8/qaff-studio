@@ -3,6 +3,7 @@
 const express = require('express')
 const path = require('path')
 const os = require('os')
+const fs = require('fs')
 const { execSync } = require('child_process')
 
 const db = require('./db')
@@ -60,17 +61,7 @@ app.post('/api/login', async (req, res) => {
     res.json({ token })
 })
 
-// ── Admin: change own password ────────────────────────────
-app.put('/api/admin/password', auth.requireAuth, async (req, res) => {
-    const { newPassword } = req.body
-    if (!newPassword || newPassword.length < 6) {
-        return res.status(400).json({ error: 'Password must be at least 6 characters' })
-    }
-    const hash = await auth.hashPassword(newPassword)
-    db.upsertAdmin.run(hash)
-    db.addLog('admin_password_changed', null, 'Admin password changed')
-    res.json({ success: true })
-})
+// ── Admin Password route removed per user request ───────────
 
 // ── Admin: password reset question (global setting) ───────
 app.get('/api/settings/reset-question', auth.requireAuth, (req, res) => {
@@ -93,6 +84,44 @@ app.get('/api/internal/reset-question', (req, res) => {
 })
 
 // ── Dashboard stats ───────────────────────────────────────
+function getCpuUsage() {
+    return new Promise(res => {
+        const start = os.cpus()
+        setTimeout(() => {
+            const end = os.cpus()
+            let idleDiff = 0, totalDiff = 0
+            for (let i = 0; i < start.length; i++) {
+                const s = start[i].times, e = end[i].times
+                const sTotal = Object.values(s).reduce((a, b) => a + b, 0)
+                const eTotal = Object.values(e).reduce((a, b) => a + b, 0)
+                idleDiff += (e.idle - s.idle)
+                totalDiff += (eTotal - sTotal)
+            }
+            res(totalDiff === 0 ? 0 : Math.round(100 - (idleDiff / totalDiff) * 100))
+        }, 100)
+    })
+}
+
+function getNetworkUsage() {
+    try {
+        const data = fs.readFileSync('/proc/net/dev', 'utf8')
+        const lines = data.split('\n')
+        let rx = 0, tx = 0
+        for (let i = 2; i < lines.length; i++) {
+            const line = lines[i].trim()
+            if (!line) continue
+            const parts = line.split(/\s+/)
+            const interfaceName = parts[0].replace(':', '')
+            if (interfaceName === 'lo') continue
+            rx += parseInt(parts[1] || 0)
+            tx += parseInt(parts[9] || 0)
+        }
+        return { rx, tx }
+    } catch {
+        return { rx: 0, tx: 0 }
+    }
+}
+
 app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
     const clients = db.getAllClients.all()
     const totalSlots = clients.reduce((s, c) => s + c.slots, 0)
@@ -107,6 +136,18 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
         diskFree = parseInt(out[3])
     } catch { }
 
+    // RAM Info
+    const totalMem = os.totalmem()
+    const freeMem = os.freemem()
+    const usedMem = totalMem - freeMem
+    const memUsagePercent = Math.round((usedMem / totalMem) * 100)
+
+    // CPU Info
+    const cpuUsagePercent = await getCpuUsage()
+
+    // Network Info
+    const net = getNetworkUsage()
+
     const logs = db.getLogs.all()
 
     res.json({
@@ -118,6 +159,15 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
         },
         slots: { total: totalSlots },
         storage: { allocated_gb: totalStorage, disk_total_gb: diskTotal, disk_used_gb: diskUsed, disk_free_gb: diskFree },
+        system: {
+            cpu_percent: cpuUsagePercent,
+            ram_total: totalMem,
+            ram_used: usedMem,
+            ram_free: freeMem,
+            ram_percent: memUsagePercent,
+            net_rx: net.rx,
+            net_tx: net.tx
+        },
         logs: logs.slice(0, 20),
     })
 })

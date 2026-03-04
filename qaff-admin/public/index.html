@@ -185,23 +185,6 @@
             color: #94a3b8;
         }
 
-        .btn-change-pass {
-            margin-top: 20px;
-            background: none;
-            border: 1px solid #3d4263;
-            color: #94a3b8;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 600;
-        }
-
-        .btn-change-pass:hover {
-            border-color: #7c3aed;
-            color: #a78bfa;
-        }
-
         .modal-bg {
             display: none;
             position: fixed;
@@ -324,9 +307,21 @@
                 <div class="val" id="alloc">—</div>
                 <div class="sub" id="diskfree"></div>
             </div>
+            <div class="card">
+                <div class="label">المعالج CPU</div>
+                <div class="val" id="cpu">—</div>
+            </div>
+            <div class="card">
+                <div class="label">الرامات RAM</div>
+                <div class="val" id="ram">—</div>
+                <div class="sub" id="ramfree"></div>
+            </div>
+            <div class="card">
+                <div class="label">البيانات (الشبكة)</div>
+                <div class="val" style="font-size:24px; margin-top:10px" id="network">—</div>
+                <div class="sub" id="netfree"></div>
+            </div>
         </div>
-
-        <button class="btn-change-pass" onclick="showChangePass()">🔑 تغيير كلمة سر الأدمن</button>
 
         <!-- Reset Question Management -->
         <div
@@ -358,18 +353,6 @@
         </div>
     </main>
 
-    <!-- Change Password Modal -->
-    <div class="modal-bg" id="passModal">
-        <div class="modal">
-            <h3>🔑 تغيير كلمة سر الأدمن</h3>
-            <input type="password" id="newPass" placeholder="كلمة المرور الجديدة">
-            <input type="password" id="newPass2" placeholder="تأكيد كلمة المرور">
-            <div class="btns">
-                <button class="btn-cancel" onclick="closeModal()">إلغاء</button>
-                <button class="btn-primary" onclick="changeAdminPass()">حفظ</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Reset Question Modal -->
     <div class="modal-bg" id="questionModal">
@@ -413,28 +396,29 @@
           <span class="log-detail">${l.details || ''}</span>
         </div>`).join('')
             }
+
+            if (d.system) {
+                document.getElementById('cpu').textContent = d.system.cpu_percent + '%'
+                const toGB = (b) => (b / 1024 / 1024 / 1024).toFixed(1)
+                document.getElementById('ram').textContent = d.system.ram_percent + '%'
+                document.getElementById('ramfree').textContent = `متاح: ${toGB(d.system.ram_free)}GB / ${toGB(d.system.ram_total)}GB`
+
+                const formatBytes = (bytes) => {
+                    if (bytes === 0) return '0 B'
+                    const k = 1024, dm = 2, sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+                    const i = Math.floor(Math.log(bytes) / Math.log(k))
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
+                }
+                document.getElementById('network').innerHTML = `<span style="color:#a78bfa">صادر: ${formatBytes(d.system.net_tx)}</span>`
+                document.getElementById('netfree').textContent = `وارد: ${formatBytes(d.system.net_rx)}`
+            }
         }
 
         function logout() {
             localStorage.removeItem('qaff_admin_token')
             location.href = '/login'
         }
-        function showChangePass() { document.getElementById('passModal').classList.add('show') }
-        function closeModal() {
-            document.getElementById('passModal').classList.remove('show')
-            document.getElementById('newPass').value = ''
-            document.getElementById('newPass2').value = ''
-        }
-        async function changeAdminPass() {
-            const p1 = document.getElementById('newPass').value
-            const p2 = document.getElementById('newPass2').value
-            if (!p1 || p1.length < 6) { alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return }
-            if (p1 !== p2) { alert('كلمات المرور غير متطابقة'); return }
-            const res = await fetch('/api/admin/password', { method: 'PUT', headers: H(), body: JSON.stringify({ newPassword: p1 }) })
-            const d = await res.json()
-            if (d.success) { closeModal(); showToast('✅ تم تغيير كلمة المرور بنجاح') }
-            else alert(d.error)
-        }
+
         function showToast(msg) {
             const t = document.getElementById('toast'); t.textContent = msg; t.style.display = 'block'
             setTimeout(() => { t.style.display = 'none' }, 3000)
