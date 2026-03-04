@@ -15,18 +15,12 @@ interface LogEntry {
     timestamp: string
 }
 
-interface LiveStats {
-    ramPercent: number
-    bitrateMbps: number
-}
-
 export default function LogsPage() {
     const router = useRouter()
     const [logs, setLogs] = useState<LogEntry[]>([])
     const [loading, setLoading] = useState(true)
     const [locale, setLocaleState] = useState<Locale>('en')
     const [isDarkMode, setIsDarkMode] = useState(false)
-    const [liveStats, setLiveStats] = useState<LiveStats>({ ramPercent: 0, bitrateMbps: 0 })
     const logViewportRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
@@ -57,22 +51,6 @@ export default function LogsPage() {
         }
     }
 
-    const fetchLiveStats = async () => {
-        try {
-            const [ramRes, bitrateRes] = await Promise.all([
-                fetch('/api/stats/ram'),
-                fetch('/api/stats/bitrate')
-            ])
-            const [ramData, bitrateData] = await Promise.all([
-                ramRes.json(), bitrateRes.json()
-            ])
-            setLiveStats({
-                ramPercent: ramData.usedPercent || 0,
-                bitrateMbps: bitrateData.bitrateMbps || 0,
-            })
-        } catch { }
-    }
-
     const clearLogs = async () => {
         try {
             const res = await fetch('/api/logs', { method: 'DELETE' })
@@ -85,10 +63,8 @@ export default function LogsPage() {
 
     useEffect(() => {
         fetchLogs()
-        fetchLiveStats()
         const logsInterval = setInterval(fetchLogs, 5000)
-        const statsInterval = setInterval(fetchLiveStats, 3000)
-        return () => { clearInterval(logsInterval); clearInterval(statsInterval) }
+        return () => { clearInterval(logsInterval) }
     }, [])
 
     const switchLocale = () => {
@@ -155,27 +131,6 @@ export default function LogsPage() {
                             <Trash2 className="w-3.5 h-3.5 mr-1" />
                             {t('delete') || 'Clear'}
                         </Button>
-                    </div>
-                </div>
-
-                {/* Live Stats Bar — RAM + Network */}
-                <div className="flex items-center gap-4 px-4 py-1.5 border-t bg-muted/30 text-xs" dir="ltr">
-                    <div className="flex items-center gap-1.5">
-                        <HardDrive className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="font-semibold text-foreground">{t('ramUsage')}</span>
-                        <Badge className={`text-white text-[10px] px-1.5 py-0 ${liveStats.ramPercent > 85 ? 'bg-red-500' : liveStats.ramPercent > 65 ? 'bg-amber-500' : 'bg-green-500'}`}>
-                            {liveStats.ramPercent}%
-                        </Badge>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                        <Wifi className="w-3.5 h-3.5 text-muted-foreground" />
-                        <span className="font-semibold text-foreground">{t('dataRate')}</span>
-                        <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">
-                            {liveStats.bitrateMbps > 0 ? `${liveStats.bitrateMbps.toFixed(2)} Mbps` : '— Mbps'}
-                        </Badge>
-                    </div>
-                    <div className="ml-auto">
-                        <RefreshCw className="w-3 h-3 text-muted-foreground animate-spin" style={{ animationDuration: '3s' }} />
                     </div>
                 </div>
             </header>

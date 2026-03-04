@@ -155,6 +155,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
             slots: parseInt(slots),
             storageGb: parseInt(storage_gb),
             passwordHash,
+            renewalDate: renewalDate || ''
         })
 
         db.updateClientContainer.run(containerId, clientId)
@@ -228,7 +229,8 @@ app.post('/api/clients/:id/suspend', auth.requireAuth, async (req, res) => {
             slots: client.slots,
             storageGb: client.storage_gb,
             passwordHash,
-            isSuspended: true
+            isSuspended: true,
+            renewalDate: client.renewal_date || ''
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('suspended', client.id)
@@ -257,7 +259,8 @@ app.post('/api/clients/:id/resume', auth.requireAuth, async (req, res) => {
             slots: client.slots,
             storageGb: client.storage_gb,
             passwordHash,
-            isSuspended: false
+            isSuspended: false,
+            renewalDate: client.renewal_date || ''
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('running', client.id)
@@ -304,6 +307,8 @@ app.put('/api/clients/:id/password', auth.requireAuth, async (req, res) => {
             slots: client.slots,
             storageGb: client.storage_gb,
             passwordHash,
+            renewalDate: client.renewal_date || '',
+            isSuspended: client.status === 'suspended'
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('running', client.id)
@@ -338,6 +343,8 @@ app.put('/api/clients/:id/slots', auth.requireAuth, async (req, res) => {
             slots: parseInt(slots),
             storageGb: client.storage_gb,
             passwordHash,
+            renewalDate: client.renewal_date || '',
+            isSuspended: client.status === 'suspended'
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('running', client.id)
@@ -358,9 +365,70 @@ app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
     try {
         db.updateClientInfo.run(whatsapp || null, renewalDate || null, client.id)
         db.addLog('client_info_updated', client.id, `WhatsApp: ${whatsapp}, Renewal: ${renewalDate}`)
+
+        // Extract original password hash to recreate container seamlessly for new env vars
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        await docker.stopContainer(client.container_id).catch(() => { })
+        await docker.deleteClientContainer(client.container_id, null) // keep volume
+
+        const { containerId } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: client.storage_gb,
+            passwordHash,
+            renewalDate: renewalDate || '',
+            isSuspended: client.status === 'suspended'
+        })
+        db.updateClientContainer.run(containerId, client.id)
+        db.updateClientStatus.run(client.status, client.id)
+
         res.json({ success: true })
     } catch (e) {
         console.error('[update_info] error:', e)
+        res.status(500).json({ error: e.message })
+    }
+})
+
+// ── Server: System Stats (Admin Only) ─────────────────────
+app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
+    try {
+        const clients = db.getAllClients.all()
+        let totalAllocatedSlots = 0
+        let totalRunningSlots = 0
+        let totalClients = clients.length
+        let runningClients = 0
+
+        clients.forEach(c => {
+            totalAllocatedSlots += c.slots
+            if (c.status === 'running') {
+                totalRunningSlots += c.slots
+                runningClients++
+            }
+        })
+
+        const totalMem = os.totalmem()
+        const freeMem = os.freemem()
+        const usedMem = totalMem - freeMem
+
+        let diskTotal = 0, diskUsed = 0
+        try {
+            if (os.platform() !== 'win32') {
+                const df = require('child_process').execSync("df -B1 / | tail -1").toString().trim().split(/\s+/)
+                diskTotal = parseInt(df[1], 10)
+                diskUsed = parseInt(df[2], 10)
+            }
+        } catch (e) { console.error('Disk read error:', e) }
+
+        res.json({
+            success: true,
+            ram: { total: totalMem, used: usedMem, free: freeMem },
+            disk: { total: diskTotal, used: diskUsed, free: diskTotal - diskUsed },
+            slots: { totalAllocated: totalAllocatedSlots, activeRunning: totalRunningSlots },
+            clients: { total: totalClients, running: runningClients }
+        })
+    } catch (e) {
         res.status(500).json({ error: e.message })
     }
 })

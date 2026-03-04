@@ -196,6 +196,9 @@ const translations = {
         noLogs: 'No logs yet',
         channelLogs: 'Channel Logs',
         liveStats: 'Live Stats',
+        renewalPrefix: 'Renewal in',
+        renewalDaysSuffix: 'days',
+        renewalExpired: 'Subscription Expired',
     },
     ar: {
         // Videos Manager
@@ -390,6 +393,9 @@ const translations = {
         noLogs: 'لا توجد سجلات بعد',
         channelLogs: 'سجلات القناة',
         liveStats: 'إحصائيات مباشرة',
+        renewalPrefix: 'متبقي',
+        renewalDaysSuffix: 'أيام',
+        renewalExpired: 'انتهى الاشتراك',
     }
 } as const
 

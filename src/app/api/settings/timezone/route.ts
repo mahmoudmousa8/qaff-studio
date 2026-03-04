@@ -45,23 +45,15 @@ export async function POST(request: NextRequest) {
 
         writeFileSync(envPath, envContent.trim() + '\n')
 
-        // 2. Try to change system time via timedatectl (Ubuntu) - ignore if fails
-        try {
-            await execAsync(`sudo timedatectl set-timezone ${timezone}`).catch(() => { })
-        } catch { }
-
-        // 3. Restart PM2 to apply env changes
-        try {
-            // Command runs asynchronously, API will return before restart is complete
-            execAsync('pm2 restart all --update-env').catch(() => { })
-        } catch { }
-
-        // Give PM2 a tiny delay before responding, just in case
-        await new Promise(r => setTimeout(r, 500))
+        // 2. Restart Container by escaping the Node process 
+        // Docker's restart=always policy will instantly catch the exit and cleanly rebuild the environment
+        setTimeout(() => {
+            process.exit(0)
+        }, 1000)
 
         return NextResponse.json({
             success: true,
-            message: `Timezone updated to ${timezone}. Server restarting to apply changes...`
+            message: `Timezone updated to ${timezone}. Container restarting to apply changes...`
         })
     } catch (error: any) {
         return NextResponse.json({ error: error.message }, { status: 500 })

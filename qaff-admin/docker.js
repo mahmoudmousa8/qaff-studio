@@ -31,9 +31,10 @@ async function imageExists() {
  * @param {number} opts.storageGb
  * @param {string} opts.passwordHash  — bcrypt hash
  * @param {boolean} opts.isSuspended
+ * @param {string} opts.renewalDate
  * @returns {{ containerId, containerName, volumeName }}
  */
-async function createClientContainer({ clientId, name, port, slots, storageGb, passwordHash, isSuspended = false }) {
+async function createClientContainer({ clientId, name, port, slots, storageGb, passwordHash, isSuspended = false, renewalDate = '' }) {
     const containerName = `${CONTAINER_PREFIX}${clientId}`
     const volumeName = `${VOLUME_PREFIX}${clientId}`
 
@@ -53,6 +54,7 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, p
             `MAX_STORAGE_GB=${storageGb}`,
             `ADMIN_PASSWORD_HASH=${passwordHash}`,
             `QAFF_SUSPENDED=${isSuspended ? 'true' : 'false'}`,
+            `QAFF_RENEWAL_DATE=${renewalDate}`,
             `DATABASE_URL=file:/data/app.db`,
             `NODE_ENV=production`,
             `HOSTNAME=0.0.0.0`,

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { ToasterClient } from "@/components/toaster-client";
+import { Toaster } from "@/components/ui/toaster";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -38,6 +38,7 @@ export default function RootLayout({
                 if (localStorage.getItem('qaff-theme') === 'light') {
                   document.documentElement.classList.remove('dark');
                 } else {
+                  // Default to dark if not explicitly light
                   document.documentElement.classList.add('dark');
                 }
               } catch (_) {}
@@ -49,7 +50,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground transition-colors duration-200`}
       >
         {children}
-        <ToasterClient />
+        <Toaster />
       </body>
     </html>
   );

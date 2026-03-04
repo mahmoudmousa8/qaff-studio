@@ -113,7 +113,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalSlots, setTotalSlots] = useState(0)
-  const [stats, setStats] = useState({ streaming: 0, scheduled: 0, stopped: 0, configured: 0, dailyCount: 0, weeklyCount: 0 })
+  const [stats, setStats] = useState({ streaming: 0, scheduled: 0, stopped: 0, configured: 0, dailyCount: 0, weeklyCount: 0, renewalDate: null as string | null })
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; action: string; onConfirm: () => void } | null>(null)
   const [videoSelectorSlot, setVideoSelectorSlot] = useState<number | null>(null)
   const [videosManagerOpen, setVideosManagerOpen] = useState(false)
@@ -485,6 +485,18 @@ export default function Home() {
   const totalPages = Math.ceil(totalSlots / SLOTS_PER_PAGE)
   const dir = locale === 'ar' ? 'rtl' : 'ltr'
 
+  const getDaysRemaining = (dateString?: string | null) => {
+    if (!dateString) return null
+    // Compare strictly the dates removing times
+    const d1 = new Date(dateString)
+    d1.setHours(0, 0, 0, 0)
+    const d2 = new Date()
+    d2.setHours(0, 0, 0, 0)
+    const diffTime = d1.getTime() - d2.getTime()
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  }
+  const daysRemaining = getDaysRemaining(stats.renewalDate)
+
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
@@ -514,6 +526,15 @@ export default function Home() {
                 <Calendar className="w-3 h-3 mr-1" />
                 {stats.scheduled} {t('scheduled')}
               </Badge>
+              {stats.renewalDate && (
+                <Badge className={`${(daysRemaining ?? 0) <= 0 ? 'bg-red-600 animate-pulse' : (daysRemaining ?? 0) <= 5 ? 'bg-red-500 hover:bg-red-600' : 'bg-blue-600 hover:bg-blue-700'} text-white text-xs transition-colors cursor-default`}>
+                  <AlertCircle className="w-3 h-3 mr-1" />
+                  {(daysRemaining ?? 0) > 0
+                    ? `${t('renewalPrefix')} ${daysRemaining} ${t('renewalDaysSuffix')}`
+                    : t('renewalExpired')
+                  }
+                </Badge>
+              )}
             </div>
 
             <div className="flex items-center gap-1.5 flex-wrap">

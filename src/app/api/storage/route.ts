@@ -45,11 +45,9 @@ function formatBytes(bytes: number): string {
 export async function GET() {
     try {
         const disk = getDiskUsage(VIDEOS_DIR)
-        const LOW_THRESHOLD_PERCENT = 10
-        const LOW_THRESHOLD_GB = 5
-
-        const freeGB = disk.free / (1024 * 1024 * 1024)
-        const warning = disk.freePercent < LOW_THRESHOLD_PERCENT || freeGB < LOW_THRESHOLD_GB
+        // Only warn if they have used over 90% of their allocated storage
+        const WARNING_THRESHOLD_PERCENT = 90
+        const warning = disk.usedPercent >= WARNING_THRESHOLD_PERCENT
 
         return NextResponse.json({
             total: disk.total,
