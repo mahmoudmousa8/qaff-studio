@@ -602,12 +602,12 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
             </div>
             <div className="w-full bg-muted rounded-full h-1.5">
               <div
-                className={`h-1.5 rounded-full transition-all ${storageInfo.warning ? 'bg-red-500' : storageInfo.usedPercent > 70 ? 'bg-orange-500' : 'bg-primary'}`}
+                className={`h-1.5 rounded-full transition-all ${storageInfo.warning ? 'bg-red-500' : storageInfo.usedPercent > 90 ? 'bg-red-500' : storageInfo.usedPercent > 70 ? 'bg-orange-500' : 'bg-green-500'}`}
                 style={{ width: `${Math.min(100, storageInfo.usedPercent)}%` }}
               />
             </div>
           </div>
-          <span className={`text-xs font-bold shrink-0 ${storageInfo.warning ? 'text-red-500' : 'text-muted-foreground'}`}>
+          <span className={`text-xs font-bold shrink-0 ${storageInfo.warning ? 'text-red-500' : storageInfo.usedPercent > 90 ? 'text-red-500' : storageInfo.usedPercent > 70 ? 'text-orange-500' : 'text-green-500'}`}>
             {storageInfo.usedPercent}%
           </span>
         </div>

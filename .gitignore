@@ -23,9 +23,6 @@ node_modules
 # misc
 .DS_Store
 *.pem
-*.rar
-*.zip
-/standalone/
 
 # debug
 npm-debug.log*
@@ -35,7 +32,6 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
-!.env.example
 
 # vercel
 .vercel
@@ -53,28 +49,3 @@ prompt
 server.log
 # Skills directory
 /skills/
-
-# ────────────────────────────────────────────────────────
-# 🔥 CRITICAL USER DATA (DO NOT COMMIT) 🔥
-# ────────────────────────────────────────────────────────
-
-# Main Database & Uploads
-/data/
-/data/app.db
-/data/app.db-shm
-/data/app.db-wal
-/data/videos/
-/data/upload/
-/data/download/
-/data/logs/
-
-# Admin Panel Database
-/qaff-admin/data/
-/qaff-admin/data/admin.db
-/qaff-admin/data/admin.db-shm
-/qaff-admin/data/admin.db-wal
-/qaff-admin/data/logs/
-
-# Sensitive Configs
-ecosystem.config.cjs
-ecosystem.admin.cjs

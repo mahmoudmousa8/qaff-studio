@@ -102,6 +102,8 @@ const updateClientResetAnswer = db.prepare(`
   UPDATE clients SET reset_answer = ?, updated_at = datetime('now') WHERE id = ?
 `)
 
+const updateClientStorage = db.prepare('UPDATE clients SET storage_gb = ?, updated_at = datetime(\'now\') WHERE id = ?');
+
 const updateClientLockout = db.prepare(`
   UPDATE clients SET reset_failures = ?, reset_lockout_until = ?, updated_at = datetime('now') WHERE id = ?
 `)
@@ -147,7 +149,8 @@ module.exports = {
   getAdmin, upsertAdmin,
   getAllClients, getClientById, getClientByPort,
   createClient, updateClientStatus, updateClientContainer,
-  updateClientSlots, updateClientInfo, updateClientSecurity, updateClientPassword, updateClientResetAnswer, updateClientLockout, deleteClient,
+  updateClientSlots, updateClientInfo, updateClientSecurity, updateClientPassword,
+  updateClientResetAnswer, updateClientStorage, updateClientLockout, deleteClient,
   getNextAvailablePort,
   addLog, getLogs,
   getSettingValue, upsertSetting,

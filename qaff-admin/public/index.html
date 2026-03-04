@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Qaff Admin — Dashboard</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+
         *,
         *::before,
         *::after {
@@ -16,16 +18,19 @@
 
         body {
             min-height: 100vh;
-            background: #0f1117;
-            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: linear-gradient(135deg, #090a0f 0%, #16192b 100%);
+            background-attachment: fixed;
+            font-family: 'Cairo', system-ui, sans-serif;
             color: #e2e8f0;
         }
 
         nav {
-            background: #1a1d27;
-            border-bottom: 1px solid #2d3148;
+            background: rgba(26, 29, 39, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             padding: 0 24px;
-            height: 60px;
+            height: 70px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -86,10 +91,19 @@
         }
 
         .card {
-            background: #1a1d27;
-            border: 1px solid #2d3148;
-            border-radius: 14px;
+            background: rgba(30, 33, 48, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
             padding: 24px 20px;
+            box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.6);
+            border-color: rgba(255, 255, 255, 0.1);
         }
 
         .card .label {
@@ -314,6 +328,26 @@
 
         <button class="btn-change-pass" onclick="showChangePass()">🔑 تغيير كلمة سر الأدمن</button>
 
+        <!-- Reset Question Management -->
+        <div
+            style="margin-top: 24px; background: #1a1d27; border: 1px solid #2d3148; border-radius: 14px; padding: 24px;">
+            <div
+                style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+                <div>
+                    <div style="font-size: 16px; font-weight: 700; color: #f1f5f9;">❓ سؤال إعادة تعيين كلمة المرور</div>
+                    <div style="font-size: 12px; color: #64748b; margin-top: 4px;">يُعرض هذا السؤال للعميل عند تغيير
+                        كلمة مروره. الإجابة يحددها الأدمن لكل عميل.</div>
+                </div>
+                <button onclick="showQuestionModal()"
+                    style="background: linear-gradient(135deg, #7c3aed, #6d28d9); color: #fff; border: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;">✏️
+                    تعديل السؤال</button>
+            </div>
+            <div style="background: #0f1117; border: 1px solid #2d3148; border-radius: 8px; padding: 14px 16px; font-size: 14px; color: #a78bfa; font-weight: 600;"
+                id="current-question">
+                جاري التحميل...
+            </div>
+        </div>
+
         <div style="margin-top: 32px;">
             <div class="logs">
                 <h3>📋 آخر العمليات</h3>
@@ -336,6 +370,21 @@
             </div>
         </div>
     </div>
+
+    <!-- Reset Question Modal -->
+    <div class="modal-bg" id="questionModal">
+        <div class="modal" style="max-width: 480px;">
+            <h3>❓ تعيين سؤال إعادة التعيين</h3>
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">هذا السؤال سيُعرض للعميل عند طلب تغيير كلمة
+                المرور. الإجابة الصحيحة يحددها الأدمن في إعدادات كل عميل.</p>
+            <input type="text" id="questionText" placeholder="مثال: ما هو رمز تفعيل حسابك؟" dir="rtl">
+            <div class="btns">
+                <button class="btn-cancel" onclick="closeQuestionModal()">إلغاء</button>
+                <button class="btn-primary" onclick="saveQuestion()">حفظ السؤال</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
@@ -392,8 +441,36 @@
         }
 
         if (!T()) location.href = '/login'
-        else load()
+        else { load(); loadQuestion() }
         setInterval(load, 10000)
+
+        async function loadQuestion() {
+            const res = await fetch('/api/settings/reset-question', { headers: H() })
+            if (!res.ok) return
+            const d = await res.json()
+            document.getElementById('current-question').textContent = d.question || '⚠️ لم يتم تعيين سؤال بعد'
+        }
+        function showQuestionModal() {
+            const cur = document.getElementById('current-question').textContent
+            document.getElementById('questionText').value = cur.includes('⚠️') ? '' : cur
+            document.getElementById('questionModal').classList.add('show')
+        }
+        function closeQuestionModal() {
+            document.getElementById('questionModal').classList.remove('show')
+        }
+        async function saveQuestion() {
+            const q = document.getElementById('questionText').value.trim()
+            if (!q) { alert('يرجى كتابة نص السؤال'); return }
+            const res = await fetch('/api/settings/reset-question', {
+                method: 'PUT', headers: H(), body: JSON.stringify({ question: q })
+            })
+            const d = await res.json()
+            if (d.success) {
+                closeQuestionModal()
+                document.getElementById('current-question').textContent = q
+                showToast('✅ تم حفظ سؤال إعادة التعيين')
+            } else alert(d.error)
+        }
     </script>
 </body>
 

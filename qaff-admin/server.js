@@ -139,16 +139,17 @@ app.get('/api/clients', auth.requireAuth, async (req, res) => {
 
 // ── Clients: create ───────────────────────────────────────
 app.post('/api/clients', auth.requireAuth, async (req, res) => {
-    const { name, slots, storage_gb, password, whatsapp, renewalDate, reset_answer } = req.body
+    const { name, slots, storage_gb } = req.body
 
     if (!name || !slots || !storage_gb) {
         return res.status(400).json({ error: 'name, slots, storage_gb are required' })
     }
 
-    const finalPassword = password || generateRandomString(10);
-    const finalResetAnswer = reset_answer || generateRandomString(5);
+    const randHash = (len) => Array.from({ length: len }, () => "0123456789".charAt(Math.floor(Math.random() * 10))).join('');
+    const reset_answer = req.body.reset_answer || randHash(5);
+    const password = req.body.password || Array.from({ length: 8 }, () => "abcdefghijklmnopqrstuvwxyz0123456789".charAt(Math.floor(Math.random() * 36))).join('');
 
-    if (finalPassword.length < 4) return res.status(400).json({ error: 'Client password must be at least 4 chars' })
+    if (password.length < 4) return res.status(400).json({ error: 'Client password must be at least 4 chars' })
 
     // Check name uniqueness
     const existing = db.getAllClients.all().find(c => c.name === name)
@@ -165,7 +166,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     }
 
     // Hash client password
-    const passwordHash = await auth.hashPassword(finalPassword)
+    const passwordHash = await auth.hashPassword(password)
 
     const info = db.createClient.run({
         name,
@@ -175,10 +176,10 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
         slots: parseInt(slots),
         storage_gb: parseInt(storage_gb),
         volume_name: null,
-        whatsapp: whatsapp || null,
-        renewal_date: renewalDate || null,
-        password: finalPassword,
-        reset_answer: finalResetAnswer
+        whatsapp: req.body.whatsapp || null,
+        renewal_date: req.body.renewalDate || null,
+        password: password,
+        reset_answer: reset_answer
     })
     const clientId = info.lastInsertRowid
 
@@ -190,7 +191,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
             slots: parseInt(slots),
             storageGb: parseInt(storage_gb),
             passwordHash,
-            renewalDate: renewalDate || ''
+            renewalDate: req.body.renewalDate || ''
         })
 
         db.updateClientContainer.run(containerId, clientId)
@@ -205,7 +206,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
         const serverIp = getServerIp()
         res.json({
             success: true,
-            client: { id: clientId, name, port, slots, storage_gb, status: 'running', whatsapp: whatsapp || null, renewal_date: renewalDate || null },
+            client: { id: clientId, name, port, slots, storage_gb, status: 'running', whatsapp: req.body.whatsapp || null, renewal_date: req.body.renewalDate || null },
             url: `http://${serverIp}:${port}`,
         })
     } catch (err) {
@@ -547,7 +548,7 @@ app.post('/api/internal/change-password', async (req, res) => {
 
     try {
         const newPasswordHash = await auth.hashPassword(newPassword)
-        db.updateClientSecurity.run(newPassword, client.reset_answer, client.id)
+        db.updateClientPassword.run(newPassword, client.id) // Changed from updateClientSecurity
         db.addLog('client_changed_password', client.id, 'Client successfully changed their own password')
 
         // Asynchronously recreate container
@@ -581,6 +582,44 @@ app.post('/api/internal/change-password', async (req, res) => {
 })
 
 // ── Logs ──────────────────────────────────────────────────
+// Update Client Storage
+app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
+    const { storage_gb } = req.body;
+    const { id } = req.params;
+    if (!storage_gb || storage_gb < 1) return res.status(400).json({ error: 'Invalid storage' });
+    try {
+        const client = db.getClientById.get(id);
+        if (!client) return res.status(404).json({ error: 'Not found' });
+        db.updateClientStorage.run(storage_gb, id);
+        db.addLog('client_storage_updated', client.id, `Storage: ${storage_gb}GB`);
+
+        // Extract original password hash to recreate container seamlessly
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+
+        // Recreate container for limits (even though storage is volume-bound, we restart to be clean)
+        await docker.stopContainer(client.container_id).catch(() => { })
+        await docker.deleteClientContainer(client.container_id, null) // keep volume
+
+        const { containerId } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: parseInt(storage_gb),
+            passwordHash,
+            renewalDate: client.renewal_date || '',
+            isSuspended: client.status === 'suspended'
+        })
+        db.updateClientContainer.run(containerId, client.id)
+        db.updateClientStatus.run(client.status, client.id)
+
+        res.json({ success: true });
+    } catch (e) {
+        console.error('[update_storage] error:', e)
+        res.status(500).json({ error: e.message })
+    }
+});
+
 // ── Start ──────────────────────────────────────────────────
 async function start() {
     await auth.initAdminPassword('Admin123@')

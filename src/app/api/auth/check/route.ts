@@ -40,5 +40,9 @@ export async function GET(request: NextRequest) {
     if (cookie.value !== getExpectedSessionToken()) {
         return NextResponse.json({ authenticated: false }, { status: 401 })
     }
-    return NextResponse.json({ authenticated: true })
+
+    return NextResponse.json({
+        authenticated: true,
+        renewalDate: process.env.QAFF_RENEWAL_DATE || null
+    })
 }

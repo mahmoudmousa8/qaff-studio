@@ -55,12 +55,15 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, p
             `ADMIN_PASSWORD_HASH=${passwordHash}`,
             `QAFF_SUSPENDED=${isSuspended ? 'true' : 'false'}`,
             `QAFF_RENEWAL_DATE=${renewalDate}`,
+            `QAFF_CLIENT_ID=${clientId}`,
+            `QAFF_ADMIN_URL=http://host.docker.internal:4000`,
             `DATABASE_URL=file:/data/app.db`,
             `NODE_ENV=production`,
             `HOSTNAME=0.0.0.0`,
         ],
         ExposedPorts: { '3000/tcp': {} },
         HostConfig: {
+            ExtraHosts: ["host.docker.internal:host-gateway"],
             PortBindings: {
                 '3000/tcp': [{ HostPort: String(port) }],
             },
