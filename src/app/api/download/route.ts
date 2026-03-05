@@ -269,6 +269,7 @@ export async function POST(request: NextRequest) {
           job.bytesDownloaded = stat.size
         } catch { }
         console.log(`[download] Complete: ${targetFilename} (${(job.bytesDownloaded / 1024 / 1024).toFixed(1)} MB)`)
+        import('@/lib/video-processor').then(m => m.processVideoAndEnforceLimits(targetPath)).catch(console.error)
       })
       .catch((err) => {
         job.status = 'error'

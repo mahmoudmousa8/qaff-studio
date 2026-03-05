@@ -197,6 +197,8 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             // Only send success AFTER the write has fully flushed to disk
             writeStream.on('finish', () => {
                 sendSuccess()
+                // FIRE AND FORGET TRANSCODE
+                import('@/lib/video-processor').then(m => m.processVideoAndEnforceLimits(filepath)).catch(console.error)
             })
 
             file.pipe(writeStream)

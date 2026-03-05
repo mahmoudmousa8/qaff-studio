@@ -115,46 +115,17 @@ function probeFile(filePath: string): ProbeResult {
 }
 
 // ── Build FFmpeg args ────────────────────────────────────────
-function buildFfmpegArgs(filePath: string, rtmpUrl: string, probe: ProbeResult): { args: string[]; profile: string } {
-  if (probe.compatible) {
-    log(`  Profile: Direct Copy (source is H264+AAC, fps=${probe.fps})`)
-    return {
-      profile: 'copy',
-      args: [
-        '-re', '-stream_loop', '-1',
-        '-i', filePath,
-        '-c:v', 'copy',
-        '-c:a', 'copy',
-        '-f', 'flv',
-        '-flvflags', 'no_duration_filesize',
-        rtmpUrl
-      ]
-    }
-  }
-
-  const fps = probe.fps || 30
-  const gop = fps * 2
-  log(`  Profile: Transcode (${probe.videoCodec}+${probe.audioCodec} → H264+AAC, fps=${fps}, gop=${gop})`)
-
+function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; profile: string } {
+  // Enforce zero-CPU direct copy architecture. All heavy lifting is now 
+  // exclusively processed during upload/download processing to enforce the single-storage strategy.
+  log(`  Profile: Direct Copy (Zero-CPU)`)
   return {
-    profile: 'transcode',
+    profile: 'copy',
     args: [
       '-re', '-stream_loop', '-1',
       '-i', filePath,
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-profile:v', 'high',
-      '-level', '4.1',
-      '-pix_fmt', 'yuv420p',
-      '-b:v', '4500k',
-      '-maxrate', '4500k',
-      '-bufsize', '9000k',
-      '-g', String(gop),
-      '-keyint_min', String(gop),
-      '-sc_threshold', '0',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-ar', '44100',
+      '-c:v', 'copy',
+      '-c:a', 'copy',
       '-f', 'flv',
       '-flvflags', 'no_duration_filesize',
       rtmpUrl
@@ -246,10 +217,7 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
   log(`  RTMP: ${maskedUrl}`)
 
   try {
-    const probe = probeFile(filePath)
-    log(`  Source: video=${probe.videoCodec} audio=${probe.audioCodec} fps=${probe.fps} compatible=${probe.compatible}`)
-
-    const { args, profile } = buildFfmpegArgs(filePath, rtmpUrl, probe)
+    const { args, profile } = buildFfmpegArgs(filePath, rtmpUrl)
 
     const redactedArgs = args.map(a => a === rtmpUrl ? maskedUrl : a)
     log(`  FFmpeg cmd: ${FFMPEG_PATH} ${redactedArgs.join(' ')}`)
