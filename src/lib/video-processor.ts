@@ -14,37 +14,47 @@ const FFPROBE_PATH = findTool('ffprobe')
 
 interface ProbeResult {
     videoCodec: string
-    audioCodec: string
+    hasAudio: boolean
     bitrate: number
     fps: number
-    pixFmt: string
+    width: number
+    height: number
 }
 
 function probeFile(filePath: string): ProbeResult {
-    const defaultResult: ProbeResult = { videoCodec: 'unknown', audioCodec: 'unknown', bitrate: 0, fps: 30, pixFmt: 'unknown' }
+    const defaultResult: ProbeResult = { videoCodec: 'unknown', hasAudio: false, bitrate: 0, fps: 30, width: 0, height: 0 }
     try {
         const jsonStr = execSync(
-            `"${FFPROBE_PATH}" -v error -select_streams v:0 -show_entries stream=codec_name,bit_rate,r_frame_rate,pix_fmt -of json "${filePath}"`,
+            `"${FFPROBE_PATH}" -v error -show_entries format=bit_rate -show_entries stream=codec_type,codec_name,bit_rate,r_frame_rate,width,height -of json "${filePath}"`,
             { encoding: 'utf-8', timeout: 15000 }
         )
         const data = JSON.parse(jsonStr)
-        const stream = data.programs?.[0]?.streams?.[0] || data.streams?.[0]
+        const streams = data.programs?.[0]?.streams || data.streams || []
+        const formatBitrate = parseInt(data.format?.bit_rate || '0', 10)
 
-        if (!stream) return defaultResult
+        let result = { ...defaultResult }
 
-        let fps = 30
-        if (stream.r_frame_rate && stream.r_frame_rate.includes('/')) {
-            const [num, den] = stream.r_frame_rate.split('/').map(Number)
-            if (den > 0) fps = Math.round(num / den)
+        for (const stream of streams) {
+            if (stream.codec_type === 'video') {
+                result.videoCodec = stream.codec_name || 'unknown'
+                result.width = stream.width || 0
+                result.height = stream.height || 0
+                const streamBitrate = parseInt(stream.bit_rate || '0', 10)
+                result.bitrate = streamBitrate > 0 ? streamBitrate : formatBitrate
+
+                let fps = 30
+                if (stream.r_frame_rate && stream.r_frame_rate.includes('/')) {
+                    const [num, den] = stream.r_frame_rate.split('/').map(Number)
+                    if (den > 0) fps = Math.round(num / den)
+                }
+                result.fps = fps
+            } else if (stream.codec_type === 'audio') {
+                result.hasAudio = true
+            }
         }
 
-        return {
-            videoCodec: stream.codec_name || 'unknown',
-            audioCodec: 'aac', // Assume we check later or just force audio transcode if needed, but video is the main concern for CPU
-            bitrate: parseInt(stream.bit_rate || '0', 10),
-            fps,
-            pixFmt: stream.pix_fmt || 'unknown'
-        }
+        if (result.bitrate === 0) result.bitrate = formatBitrate
+        return result
     } catch (err) {
         console.error(`[processor] FFprobe error on ${filePath}:`, err)
         return defaultResult
@@ -59,6 +69,14 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
 
     if (probe.videoCodec !== 'h264') {
         return { allowed: false, reason: `مرفوض: ترميز غير مدعوم | Rejected: Unsupported codec (${probe.videoCodec})` }
+    }
+
+    if (!probe.hasAudio) {
+        return { allowed: false, reason: `مرفوض: لا يوجد مسار صوتي | Rejected: Missing audio track` }
+    }
+
+    if (probe.height !== 1080 && probe.width !== 1080) {
+        return { allowed: false, reason: `مرفوض: الأبعاد ليست 1080p | Rejected: Resolution must be 1080p (${probe.width}x${probe.height})` }
     }
 
     if (probe.bitrate > 2600000) {
