@@ -1160,7 +1160,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
               <p className="font-semibold text-amber-500 mb-2">🔹 Bitrate (الجودة)</p>
               <ul className="space-y-1 list-disc list-inside">
                 <li>Bitrate Encoding: <strong>CBR</strong> أو <strong>VBR 1 Pass</strong></li>
-                <li>Target Bitrate: <strong>2000 - 2500 Kbps</strong> <span className="text-red-500 text-xs">(Max: 2.5 Mbps)</span></li>
+                <li>Target Bitrate: <strong>2000 - 2500 Kbps</strong> <span className="text-red-500 text-xs">(الحد الأقصى المطلق: 2900 Kbps)</span></li>
               </ul>
             </div>
           </div>
