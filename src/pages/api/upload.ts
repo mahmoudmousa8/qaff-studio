@@ -97,6 +97,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     try {
         const bb = Busboy({
             headers: req.headers,
+            defCharset: 'utf8',
             limits: {
                 // No file size limit — never generate "file too large" error
                 fileSize: Infinity,
@@ -107,7 +108,9 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
         bb.on('field', (name, val) => {
             if (name === 'folder') folder = val
-            if (name === 'encodedName') encodedName = val
+            if (name === 'encodedName') {
+                try { encodedName = decodeURIComponent(val) } catch { }
+            }
         })
 
         bb.on('file', (fieldName, file, info) => {
