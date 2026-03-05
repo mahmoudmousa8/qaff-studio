@@ -58,11 +58,11 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
     console.log(`[validator] Analyzed ${path.basename(filepath)}: Bitrate=${Math.round(probe.bitrate / 1000)}k, Codec=${probe.videoCodec}`)
 
     if (probe.videoCodec !== 'h264') {
-        return { allowed: false, reason: `نوع الترميز غير مدعوم (${probe.videoCodec}). المنصة تقبل ترميز H.264 فقط.` }
+        return { allowed: false, reason: `مرفوض: ترميز غير مدعوم | Rejected: Unsupported codec (${probe.videoCodec})` }
     }
 
     if (probe.bitrate > 2600000) {
-        return { allowed: false, reason: `جودة الفيديو (Bitrate) عالية جداً (${Math.round(probe.bitrate / 1000)}k). الحد الأقصى المسموح به هو 2500k.` }
+        return { allowed: false, reason: `مرفوض: جودة تتخطى 2500k | Rejected: Bitrate too high (${Math.round(probe.bitrate / 1000)}k)` }
     }
 
     return { allowed: true }
