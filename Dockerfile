@@ -11,11 +11,11 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat
 
 # Copy package files first to leverage Docker layer caching
-COPY package.json package-lock.json ./
+COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
 # Install ALL dependencies (including devDependencies required for Next.js build)
-RUN npm ci
+RUN npm install
 
 # Copy the rest of the source code
 COPY . .
@@ -24,7 +24,7 @@ COPY . .
 RUN npx prisma generate
 
 # Build the Next.js application (outputs to .next/standalone/ because of next.config.mjs)
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # ==========================================
