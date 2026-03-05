@@ -34,6 +34,11 @@ EXPOSE 3000
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
+    APP_DATA_DIR=/app/data \
+    VIDEOS_DIR=/app/data/videos \
+    UPLOAD_DIR=/app/data/upload \
+    DOWNLOAD_DIR=/app/data/download \
+    LOGS_DIR=/app/data/logs \
     DATABASE_URL=file:/app/data/app.db \
     TOTAL_SLOTS=50
 
