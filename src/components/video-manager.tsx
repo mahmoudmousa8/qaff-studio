@@ -226,7 +226,6 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
       upsertTransfer(id, { type: 'upload', name: file.name, total: file.size, status: 'active' })
 
       const formData = new FormData()
-      formData.append('file', file)
       formData.append('encodedName', encodeURIComponent(file.name))
 
       // If a folder was uploaded, the path is available in webkitRelativePath
@@ -239,6 +238,9 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
       }
 
       if (targetFolder) formData.append('folder', targetFolder)
+
+      // IMPORTANT: Append 'file' LAST so Busboy reads 'encodedName' and 'folder' fields first.
+      formData.append('file', file)
 
       const xhr = new XMLHttpRequest()
       upsertTransfer(id, { xhr })
