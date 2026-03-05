@@ -1141,28 +1141,26 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
           </DialogHeader>
           <div className="space-y-4 text-sm" dir="ltr">
             <div className="bg-muted p-4 rounded-md space-y-2">
-              <p className="font-semibold text-amber-500 mb-2">🔹 Export → Format</p>
-              <p><strong>H.264</strong></p>
-
-              <div className="my-4 border-t border-border" />
-
-              <p className="font-semibold text-amber-500 mb-2">🔹 Video</p>
+              <p className="font-semibold text-amber-500 mb-2">🔹 Format (الصيغة)</p>
               <ul className="space-y-1 list-disc list-inside">
-                <li>Width: <strong>1920</strong></li>
-                <li>Height: <strong>1080</strong></li>
-                <li>Frame Rate: <strong>25 fps</strong></li>
-                <li>Profile: <strong>High</strong></li>
-                <li>Level: <strong>4.1</strong></li>
-                <li>Field Order: <strong>Progressive</strong></li>
+                <li><strong>H.264</strong> <span className="text-muted-foreground text-xs">(إلزامي)</span></li>
+                <li>Audio: <strong>AAC</strong> <span className="text-muted-foreground text-xs">(إلزامي عدم كتم الصوت)</span></li>
               </ul>
 
               <div className="my-4 border-t border-border" />
 
-              <p className="font-semibold text-amber-500 mb-2">🔹 Bitrate</p>
+              <p className="font-semibold text-amber-500 mb-2">🔹 Video (الفيديو)</p>
               <ul className="space-y-1 list-disc list-inside">
-                <li>Bitrate Encoding: <strong>CBR أو VBR</strong></li>
-                <li>Target Bitrate: <strong>2000 - 2500 Kbps (2 - 2.5 Mbps)</strong></li>
-                <li>Key Frame Distance: <strong>50</strong> <span className="text-muted-foreground text-xs">(25fps × 2 ثانية = 50)</span></li>
+                <li>Resolution: <strong>1920x1080</strong> أو <strong>1280x720</strong></li>
+                <li>Frame Rate: <strong>25</strong> أو <strong>30 fps</strong></li>
+              </ul>
+
+              <div className="my-4 border-t border-border" />
+
+              <p className="font-semibold text-amber-500 mb-2">🔹 Bitrate (الجودة)</p>
+              <ul className="space-y-1 list-disc list-inside">
+                <li>Bitrate Encoding: <strong>CBR</strong> أو <strong>VBR 1 Pass</strong></li>
+                <li>Target Bitrate: <strong>2000 - 2500 Kbps</strong> <span className="text-red-500 text-xs">(Max: 2.5 Mbps)</span></li>
               </ul>
             </div>
           </div>
