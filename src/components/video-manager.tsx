@@ -1143,26 +1143,27 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
           </DialogHeader>
           <div className="space-y-4 text-sm" dir="ltr">
             <div className="bg-muted p-4 rounded-md space-y-2">
-              <p className="font-semibold text-amber-500 mb-2">🔹 Format (الصيغة)</p>
-              <ul className="space-y-1 list-disc list-inside">
-                <li><strong>H.264</strong> <span className="text-muted-foreground text-xs">(إلزامي)</span></li>
-                <li>Audio: <strong>AAC</strong> <span className="text-muted-foreground text-xs">(إلزامي عدم كتم الصوت)</span></li>
+              <p className="font-semibold text-amber-500 mb-2">🔹 Format</p>
+              <ul className="space-y-1 list-none pl-4">
+                <li><strong>H.264</strong></li>
+                <li>Audio: <strong>AAC</strong></li>
               </ul>
 
               <div className="my-4 border-t border-border" />
 
-              <p className="font-semibold text-amber-500 mb-2">🔹 Video (الفيديو)</p>
-              <ul className="space-y-1 list-disc list-inside">
-                <li>Resolution: <strong>1920x1080</strong> أو <strong>1280x720</strong></li>
-                <li>Frame Rate: <strong>25</strong> أو <strong>30 fps</strong></li>
+              <p className="font-semibold text-amber-500 mb-2">🔹 Video</p>
+              <ul className="space-y-1 list-none pl-4">
+                <li>Resolution: <strong>1920x1080</strong> {getLocale() === 'en' ? 'or' : 'أو'} <strong>1280x720</strong></li>
+                <li>Frame Rate: <strong>25</strong> {getLocale() === 'en' ? 'or' : 'أو'} <strong>30 fps</strong></li>
               </ul>
 
               <div className="my-4 border-t border-border" />
 
-              <p className="font-semibold text-amber-500 mb-2">🔹 Bitrate (الجودة)</p>
-              <ul className="space-y-1 list-disc list-inside">
-                <li>Bitrate Encoding: <strong>CBR</strong> أو <strong>VBR 1 Pass</strong></li>
-                <li>Target Bitrate: <strong>2000 - 2500 Kbps</strong> <span className="text-red-500 text-xs">(الحد الأقصى المطلق: 2900 Kbps)</span></li>
+              <p className="font-semibold text-amber-500 mb-2">🔹 Bitrate</p>
+              <ul className="space-y-1 list-none pl-4">
+                <li>Bitrate Encoding: <strong>CBR</strong> {getLocale() === 'en' ? 'or' : 'أو'} <strong>VBR 1 Pass</strong></li>
+                <li>Target Bitrate: <strong>2000 - 2500 Kbps</strong></li>
+                <li><span className="text-red-500 text-xs">* ({getLocale() === 'en' ? 'Absolute Maximum 2900 Kbps' : 'الحد الأقصى المطلق 2900 Kbps'})</span></li>
               </ul>
             </div>
           </div>
