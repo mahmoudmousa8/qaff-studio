@@ -68,14 +68,21 @@ export async function processVideoAndEnforceLimits(finalFilepath: string) {
         const probe = probeFile(processingPath)
         console.log(`[processor] Analyzed ${path.basename(finalFilepath)}: Bitrate=${Math.round(probe.bitrate / 1000)}k, Codec=${probe.videoCodec}, FPS=${probe.fps}, PixFmt=${probe.pixFmt}`)
 
-        // If bitrate is <= 2500k (allow small margin) and codec is h264 and pixFmt is yuv420p -> Direct Copy is safe
-        if (probe.bitrate > 0 && probe.bitrate <= 2600000 && probe.videoCodec === 'h264' && probe.pixFmt === 'yuv420p') {
-            console.log(`[processor] Video meets strict requirements. No transcode needed.`)
+        // 1. Strict H.264 Enforcement: reject and delete non-H.264 files
+        if (probe.videoCodec !== 'h264') {
+            console.error(`[processor] Rejected ${path.basename(finalFilepath)}. Codec is ${probe.videoCodec}, but only H.264 is allowed. Deleting file.`)
+            unlinkSync(processingPath)
+            return
+        }
+
+        // 2. Transcode ONLY if bitrate > 2500k (using 2600000 as margin). Ignoring fps, gop, pix_fmt.
+        if (probe.bitrate > 0 && probe.bitrate <= 2600000) {
+            console.log(`[processor] Video bitrate is ${Math.round(probe.bitrate / 1000)}k (<= 2500k). No transcode needed.`)
             renameSync(processingPath, finalFilepath)
             return
         }
 
-        console.log(`[processor] Video requires transcode (exceeds limits or incompatible codec). Starting ffmpeg...`)
+        console.log(`[processor] Video bitrate ${Math.round(probe.bitrate / 1000)}k exceeds 2500k. Starting ffmpeg transcode...`)
 
         const args = [
             '-i', processingPath,
