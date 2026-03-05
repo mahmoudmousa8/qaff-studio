@@ -278,7 +278,12 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
             upsertTransfer(id, { status: 'error', error: 'Upload failed' })
           }
         } else {
-          upsertTransfer(id, { status: 'error', error: `HTTP ${xhr.status}` })
+          try {
+            const data = JSON.parse(xhr.responseText)
+            upsertTransfer(id, { status: 'error', error: data.error || `HTTP ${xhr.status}` })
+          } catch (err) {
+            upsertTransfer(id, { status: 'error', error: `HTTP ${xhr.status}` })
+          }
         }
         checkAllDone()
       }
@@ -644,7 +649,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                   )}
                   {/* Status badge */}
                   {tr.status === 'complete' && <span className="text-xs text-green-500 font-medium shrink-0">✓ Done</span>}
-                  {tr.status === 'error' && <span className="text-xs text-red-500 font-medium shrink-0 truncate max-w-24" title={tr.error}>✗ {tr.error}</span>}
+                  {tr.status === 'error' && <span className="text-xs text-red-500 font-medium shrink-0 truncate max-w-[300px]" title={tr.error}>✗ {tr.error}</span>}
                   {/* Cancel / Dismiss */}
                   <Button
                     size="icon" variant="ghost" className="h-5 w-5 shrink-0"
