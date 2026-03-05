@@ -260,7 +260,23 @@ export async function POST(request: NextRequest) {
 
     // Start download in background (don't await!)
     downloadFile(downloadUrl, targetPath, job)
-      .then(() => {
+      .then(async () => {
+        // Validate video before keeping
+        try {
+          const processor = await import('@/lib/video-processor')
+          const check = await processor.validateVideoFile(targetPath)
+          if (!check.allowed) {
+            job.status = 'error'
+            job.error = check.reason || 'المقطع غير متوافق مع معايير المنصة'
+            job.completedAt = Date.now()
+            try { unlinkSync(targetPath) } catch { }
+            console.error(`[download] Rejected: ${targetFilename} — ${job.error}`)
+            return
+          }
+        } catch (e) {
+          console.error('[download] validation error:', e)
+        }
+
         job.status = 'complete'
         job.completedAt = Date.now()
         // Get final file size
@@ -269,7 +285,6 @@ export async function POST(request: NextRequest) {
           job.bytesDownloaded = stat.size
         } catch { }
         console.log(`[download] Complete: ${targetFilename} (${(job.bytesDownloaded / 1024 / 1024).toFixed(1)} MB)`)
-        import('@/lib/video-processor').then(m => m.processVideoAndEnforceLimits(targetPath)).catch(console.error)
       })
       .catch((err) => {
         job.status = 'error'

@@ -195,10 +195,20 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
             })
 
             // Only send success AFTER the write has fully flushed to disk
-            writeStream.on('finish', () => {
-                sendSuccess()
-                // FIRE AND FORGET TRANSCODE
-                import('@/lib/video-processor').then(m => m.processVideoAndEnforceLimits(filepath)).catch(console.error)
+            writeStream.on('finish', async () => {
+                try {
+                    const processor = await import('@/lib/video-processor')
+                    const check = await processor.validateVideoFile(filepath)
+                    if (!check.allowed) {
+                        try { unlinkSync(filepath) } catch { }
+                        sendError(400, check.reason || 'Invalid video file format or bitrate')
+                        return
+                    }
+                    sendSuccess()
+                } catch (e) {
+                    console.error('[upload] validation error:', e)
+                    sendSuccess() // fail open if probe fails entirely, or we can fail closed
+                }
             })
 
             file.pipe(writeStream)

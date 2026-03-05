@@ -51,86 +51,19 @@ function probeFile(filePath: string): ProbeResult {
     }
 }
 
-/**
- * Runs asynchronously in the background.
- * Validates the file and transcodes it if it exceeds 2500 kbps or has unsupported formats.
- */
-export async function processVideoAndEnforceLimits(finalFilepath: string) {
-    if (!existsSync(finalFilepath)) return
+export async function validateVideoFile(filepath: string): Promise<{ allowed: boolean, reason?: string }> {
+    if (!existsSync(filepath)) return { allowed: false, reason: "File not found" }
 
-    const processingPath = finalFilepath + '.processing'
-    const tmpPath = finalFilepath + '.tmp.mp4'
+    const probe = probeFile(filepath)
+    console.log(`[validator] Analyzed ${path.basename(filepath)}: Bitrate=${Math.round(probe.bitrate / 1000)}k, Codec=${probe.videoCodec}`)
 
-    try {
-        // Hide file from UI while processing
-        renameSync(finalFilepath, processingPath)
-
-        const probe = probeFile(processingPath)
-        console.log(`[processor] Analyzed ${path.basename(finalFilepath)}: Bitrate=${Math.round(probe.bitrate / 1000)}k, Codec=${probe.videoCodec}, FPS=${probe.fps}, PixFmt=${probe.pixFmt}`)
-
-        // 1. Strict H.264 Enforcement: reject and delete non-H.264 files
-        if (probe.videoCodec !== 'h264') {
-            console.error(`[processor] Rejected ${path.basename(finalFilepath)}. Codec is ${probe.videoCodec}, but only H.264 is allowed. Deleting file.`)
-            unlinkSync(processingPath)
-            return
-        }
-
-        // 2. Transcode ONLY if bitrate > 2500k (using 2600000 as margin). Ignoring fps, gop, pix_fmt.
-        if (probe.bitrate > 0 && probe.bitrate <= 2600000) {
-            console.log(`[processor] Video bitrate is ${Math.round(probe.bitrate / 1000)}k (<= 2500k). No transcode needed.`)
-            renameSync(processingPath, finalFilepath)
-            return
-        }
-
-        console.log(`[processor] Video bitrate ${Math.round(probe.bitrate / 1000)}k exceeds 2500k. Starting ffmpeg transcode...`)
-
-        const args = [
-            '-i', processingPath,
-            '-c:v', 'libx264',
-            '-preset', 'veryfast',
-            '-profile:v', 'high',
-            '-level', '4.1',
-            '-pix_fmt', 'yuv420p',
-            '-r', '25',
-            '-g', '50',
-            '-b:v', '2500k',
-            '-maxrate', '2500k',
-            '-bufsize', '5000k',
-            '-c:a', 'aac',
-            '-b:a', '128k',
-            '-ar', '44100',
-            '-ac', '2',
-            '-movflags', '+faststart',
-            '-y', // overwrite tmp if exists
-            tmpPath
-        ]
-
-        await new Promise<void>((resolve, reject) => {
-            const ffmpegProcess = spawn(FFMPEG_PATH, args, { stdio: 'ignore' })
-            ffmpegProcess.on('close', (code) => {
-                if (code === 0) resolve()
-                else reject(new Error(`FFmpeg exited with code ${code}`))
-            })
-            ffmpegProcess.on('error', reject)
-        })
-
-        // On success, replace original target with the transcoded file
-        if (existsSync(tmpPath)) {
-            renameSync(tmpPath, finalFilepath)
-            unlinkSync(processingPath)
-            console.log(`[processor] Transcode complete for ${path.basename(finalFilepath)}. File replaced.`)
-        } else {
-            throw new Error("Transcode finished but temporary file not found.")
-        }
-
-    } catch (err) {
-        console.error(`[processor] Error processing video ${finalFilepath}:`, err)
-        // Recovery: if something failed, try to restore the original file so it's not permanently lost
-        if (existsSync(processingPath) && !existsSync(finalFilepath)) {
-            try { renameSync(processingPath, finalFilepath) } catch { }
-        }
-        if (existsSync(tmpPath)) {
-            try { unlinkSync(tmpPath) } catch { }
-        }
+    if (probe.videoCodec !== 'h264') {
+        return { allowed: false, reason: `نوع الترميز غير مدعوم (${probe.videoCodec}). المنصة تقبل ترميز H.264 فقط.` }
     }
+
+    if (probe.bitrate > 2600000) {
+        return { allowed: false, reason: `جودة الفيديو (Bitrate) عالية جداً (${Math.round(probe.bitrate / 1000)}k). الحد الأقصى المسموح به هو 2500k.` }
+    }
+
+    return { allowed: true }
 }
