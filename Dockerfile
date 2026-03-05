@@ -34,11 +34,11 @@ EXPOSE 3000
 ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0 \
-    DATABASE_URL=file:/data/app.db \
+    DATABASE_URL=file:/app/data/app.db \
     TOTAL_SLOTS=50
 
 # Data dir will be mounted as a volume by qaff-admin
-VOLUME ["/data"]
+VOLUME ["/app/data"]
 
 # Bootstrap entrypoint: run prisma migrate then start the app
 COPY docker-entrypoint.sh /docker-entrypoint.sh

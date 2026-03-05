@@ -57,7 +57,7 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, p
             `QAFF_RENEWAL_DATE=${renewalDate}`,
             `QAFF_CLIENT_ID=${clientId}`,
             `QAFF_ADMIN_URL=http://host.docker.internal:4000`,
-            `DATABASE_URL=file:/data/app.db`,
+            `DATABASE_URL=file:/app/data/app.db`,
             `NODE_ENV=production`,
             `HOSTNAME=0.0.0.0`,
             `TZ=Africa/Cairo`,
