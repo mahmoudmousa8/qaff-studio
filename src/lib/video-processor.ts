@@ -75,8 +75,8 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
         return { allowed: false, reason: `مرفوض: لا يوجد مسار صوتي | Rejected: Missing audio track` }
     }
 
-    if (probe.bitrate > 2600000) {
-        return { allowed: false, reason: `مرفوض: جودة تتخطى 2500k | Rejected: Bitrate too high (${Math.round(probe.bitrate / 1000)}k)` }
+    if (probe.bitrate > 2900000) {
+        return { allowed: false, reason: `مرفوض: جودة تتخطى 2900k | Rejected: Bitrate too high (${Math.round(probe.bitrate / 1000)}k)` }
     }
 
     return { allowed: true }
