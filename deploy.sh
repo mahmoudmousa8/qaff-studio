@@ -35,8 +35,9 @@ docker stop "$CONTAINER_NAME" 2>/dev/null || true
 docker rm -f "$CONTAINER_NAME" 2>/dev/null || true
 
 # --- 4. Clean up dangling images to save space ---
-echo "Cleaning up dangling images..."
-docker image prune -f 2>/dev/null || true
+echo "Cleaning up dangling images and build cache..."
+docker image prune -a -f 2>/dev/null || true
+docker builder prune -a -f 2>/dev/null || true
 
 # --- 5. Sync Admin Panel and Restart PM2 ---
 echo "Syncing Qaff Admin Panel updates to /opt/qaff-admin..."
