@@ -13,6 +13,8 @@ export async function POST(
     const updatedSlot = await db.streamSlot.update({
       where: { slotIndex },
       data: {
+        filePath: '',
+        streamKey: '',
         schedStart: '',
         schedStop: '',
         daily: false,
@@ -24,8 +26,8 @@ export async function POST(
       }
     })
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       slot: updatedSlot,
       message: 'Slot reset'
     })
