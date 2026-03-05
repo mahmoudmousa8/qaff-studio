@@ -608,7 +608,17 @@
     <main>
         <div class="top">
             <h2>إدارة العملاء</h2>
-            <button class="btn-create" onclick="openCreateModal()">+ إنشاء عميل جديد</button>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button class="btn-update-all" id="updateAllBtn" onclick="updateAllPanels()"
+                    style="background: linear-gradient(135deg, #10b981, #059669); border: none; color: white; padding: 12px 24px; border-radius: 12px; font-weight: 600; font-size: 15px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        style="vertical-align: middle; margin-left: 6px;">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-10.26l1.08 1.08" />
+                    </svg>
+                    تحديث كافة اللوحات
+                </button>
+                <button class="btn-create" onclick="openCreateModal()">+ إنشاء عميل جديد</button>
+            </div>
         </div>
 
         <div id="table-wrap" style="overflow-x: auto; padding-bottom: 8px;">
