@@ -45,21 +45,21 @@ ENV NODE_ENV=production \
 # Copy package data
 COPY --from=builder /app/package.json ./
 
-# Copy ONLY the Prisma schema and the generated client from the builder
-# We'll need Prisma for migrations or raw db access
+# Copy Prisma schema, generated client, and CLI executable
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder /app/prisma ./prisma
+
+# Copy mini-services (required for stream-manager background daemon)
+COPY --from=builder /app/mini-services ./mini-services
 
 # Install TSX globally to run the Stream Manager
 RUN npm install -g tsx
 
-# Copy the standalone Next.js server and static files
-# The standalone folder includes its own minimal node_modules
-# and doesn't need global node_modules for the Next.js app to run
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+# Copy the standalone Next.js server into the expected .next/standalone path 
+# (The package.json build script already copies public/ and static/ inside it!)
+COPY --from=builder /app/.next/standalone ./.next/standalone
 
 # Rebuild the entrypoint correctly
 COPY docker-entrypoint.sh /docker-entrypoint.sh
