@@ -189,7 +189,7 @@ app.get('/api/clients', auth.requireAuth, async (req, res) => {
 
 // ── Clients: create ───────────────────────────────────────
 app.post('/api/clients', auth.requireAuth, async (req, res) => {
-    const { name, slots, storage_gb } = req.body
+    const { name, slots, storage_gb, bandwidth_limit } = req.body
 
     if (!name || !slots || !storage_gb) {
         return res.status(400).json({ error: 'name, slots, storage_gb are required' })
@@ -233,6 +233,9 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     })
     const clientId = info.lastInsertRowid
 
+    // Explicitly update bandwidth limit (since it's a new column added post-launch)
+    try { db.updateClientBandwidth.run(parseInt(bandwidth_limit || 0), clientId) } catch (e) { }
+
     try {
         const { containerId, containerName, volumeName } = await docker.createClientContainer({
             clientId,
@@ -240,6 +243,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
             port,
             slots: parseInt(slots),
             storageGb: parseInt(storage_gb),
+            bandwidthLimit: parseInt(bandwidth_limit || 0),
             passwordHash,
             renewalDate: req.body.renewalDate || ''
         })
@@ -314,6 +318,7 @@ app.post('/api/clients/:id/suspend', auth.requireAuth, async (req, res) => {
             port: client.port,
             slots: client.slots,
             storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             isSuspended: true,
             renewalDate: client.renewal_date || ''
@@ -344,6 +349,7 @@ app.post('/api/clients/:id/resume', auth.requireAuth, async (req, res) => {
             port: client.port,
             slots: client.slots,
             storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             isSuspended: false,
             renewalDate: client.renewal_date || ''
@@ -394,6 +400,7 @@ app.put('/api/clients/:id/password', auth.requireAuth, async (req, res) => {
             port: client.port,
             slots: client.slots,
             storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             renewalDate: client.renewal_date || '',
             isSuspended: client.status === 'suspended'
@@ -430,6 +437,7 @@ app.put('/api/clients/:id/slots', auth.requireAuth, async (req, res) => {
             port: client.port,
             slots: parseInt(slots),
             storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             renewalDate: client.renewal_date || '',
             isSuspended: client.status === 'suspended'
@@ -465,6 +473,7 @@ app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
             port: client.port,
             slots: client.slots,
             storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             renewalDate: renewalDate || '',
             isSuspended: client.status === 'suspended'
@@ -475,6 +484,43 @@ app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
         res.json({ success: true })
     } catch (e) {
         console.error('[update_info] error:', e)
+        res.status(500).json({ error: e.message })
+    }
+})
+
+// ── Client: update bandwidth ────────────────────────────────
+app.put('/api/clients/:id/bandwidth', auth.requireAuth, async (req, res) => {
+    const client = db.getClientById.get(req.params.id)
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+    const { bandwidthLimit } = req.body
+
+    try {
+        const strictLimit = Math.max(0, parseInt(bandwidthLimit) || 0)
+        db.updateClientBandwidth.run(strictLimit, client.id)
+        db.addLog('client_bandwidth_updated', client.id, `Bandwidth Limit (Mbps): ${strictLimit}`)
+
+        // Extract original password hash to recreate container seamlessly for new env vars
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        await docker.stopContainer(client.container_id).catch(() => { })
+        await docker.deleteClientContainer(client.container_id, null) // keep volume
+
+        const { containerId } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: client.storage_gb,
+            bandwidthLimit: strictLimit,
+            passwordHash,
+            renewalDate: client.renewal_date || '',
+            isSuspended: client.status === 'suspended'
+        })
+        db.updateClientContainer.run(containerId, client.id)
+        db.updateClientStatus.run(client.status, client.id)
+
+        res.json({ success: true, bandwidth_limit: strictLimit })
+    } catch (e) {
+        console.error('[update_bandwidth] error:', e)
         res.status(500).json({ error: e.message })
     }
 })
@@ -505,6 +551,7 @@ app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
                     port: client.port,
                     slots: client.slots,
                     storageGb: client.storage_gb,
+                    bandwidthLimit: client.bandwidth_limit || 0,
                     passwordHash,
                     renewalDate: client.renewal_date || '',
                     isSuspended: client.status === 'suspended'
@@ -547,21 +594,56 @@ app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
         const freeMem = os.freemem()
         const usedMem = totalMem - freeMem
 
-        let diskTotal = 0, diskUsed = 0
+        let diskTotal = 0, diskUsed = 0, currentOutgoingBandwidthMbps = 0, globalActiveStreams = 0
         try {
             if (os.platform() !== 'win32') {
                 const df = require('child_process').execSync("df -B1 / | tail -1").toString().trim().split(/\s+/)
                 diskTotal = parseInt(df[1], 10)
                 diskUsed = parseInt(df[2], 10)
+
+                // Read `/proc/net/dev` to calculate live outgoing bandwidth (tx_bytes)
+                const readTxBytes = () => {
+                    try {
+                        const netDev = require('fs').readFileSync('/proc/net/dev', 'utf8')
+                        // Usually public traffic goes out through eth0 or en*
+                        const ethLine = netDev.split('\n').find(line => line.includes('eth') || line.includes('en'))
+                        if (ethLine) {
+                            const parts = ethLine.trim().split(/\s+/)
+                            // 9th column in standard /proc/net/dev (index 9 if we split by space) is Transmit Bytes
+                            return parseInt(parts[9] || 0, 10)
+                        }
+                    } catch (e) { }
+                    return 0
+                }
+
+                const tx1 = readTxBytes()
+                // Synchronous microscopic sleep to measure delta
+                require('child_process').execSync('sleep 0.1')
+                const tx2 = readTxBytes()
+
+                // Diff in bytes over 0.1 second -> translate to Mbps
+                if (tx2 >= tx1) {
+                    currentOutgoingBandwidthMbps = ((tx2 - tx1) * 10 * 8) / 1000000;
+                }
             }
-        } catch (e) { console.error('Disk read error:', e) }
+        } catch (e) { console.error('Disk/Net read error:', e) }
+
+        // Count active broadcast streams concurrently
+        try {
+            const activeClients = clients.filter(c => c.status === 'running' && c.container_id)
+            const streamPromises = activeClients.map(c => docker.getContainerActiveStreams(c.container_id))
+            const streamResults = await Promise.all(streamPromises)
+            globalActiveStreams = streamResults.reduce((a, b) => a + b, 0)
+        } catch (e) { console.error('Failed to parse streams:', e) }
 
         res.json({
             success: true,
             ram: { total: totalMem, used: usedMem, free: freeMem },
             disk: { total: diskTotal, used: diskUsed, free: diskTotal - diskUsed },
             slots: { totalAllocated: totalAllocatedSlots, activeRunning: totalRunningSlots },
-            clients: { total: totalClients, running: runningClients }
+            clients: { total: totalClients, running: runningClients },
+            network: { outgoingMbps: currentOutgoingBandwidthMbps.toFixed(2) },
+            streams: { active: globalActiveStreams }
         })
     } catch (e) {
         res.status(500).json({ error: e.message })

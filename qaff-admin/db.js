@@ -55,6 +55,7 @@ try { db.exec("ALTER TABLE clients ADD COLUMN password TEXT;") } catch (e) { }
 try { db.exec("ALTER TABLE clients ADD COLUMN reset_answer TEXT;") } catch (e) { }
 try { db.exec("ALTER TABLE clients ADD COLUMN reset_failures INTEGER DEFAULT 0;") } catch (e) { }
 try { db.exec("ALTER TABLE clients ADD COLUMN reset_lockout_until TEXT;") } catch (e) { }
+try { db.exec("ALTER TABLE clients ADD COLUMN bandwidth_limit INTEGER DEFAULT 0;") } catch (e) { }
 
 // ── Admin ─────────────────────────────────────────────────
 const getAdmin = db.prepare('SELECT * FROM admin WHERE id = 1')
@@ -104,6 +105,8 @@ const updateClientResetAnswer = db.prepare(`
 
 const updateClientStorage = db.prepare('UPDATE clients SET storage_gb = ?, updated_at = datetime(\'now\') WHERE id = ?');
 
+const updateClientBandwidth = db.prepare('UPDATE clients SET bandwidth_limit = ?, updated_at = datetime(\'now\') WHERE id = ?');
+
 const updateClientLockout = db.prepare(`
   UPDATE clients SET reset_failures = ?, reset_lockout_until = ?, updated_at = datetime('now') WHERE id = ?
 `)
@@ -150,7 +153,7 @@ module.exports = {
   getAllClients, getClientById, getClientByPort,
   createClient, updateClientStatus, updateClientContainer,
   updateClientSlots, updateClientInfo, updateClientSecurity, updateClientPassword,
-  updateClientResetAnswer, updateClientStorage, updateClientLockout, deleteClient,
+  updateClientResetAnswer, updateClientStorage, updateClientBandwidth, updateClientLockout, deleteClient,
   getNextAvailablePort,
   addLog, getLogs,
   getSettingValue, upsertSetting,

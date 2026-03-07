@@ -24,19 +24,136 @@ echo -e "${BOLD}═════════════════════�
 # ════════════════════════════════════════════
 # 1. Timezone
 # ════════════════════════════════════════════
-echo -e "${GREEN}[1/9]${NC} Setting timezone to Africa/Cairo..."
+echo -e "${GREEN}[1/10]${NC} Setting timezone to Africa/Cairo..."
 sudo timedatectl set-timezone Africa/Cairo 2>/dev/null || true
 echo -e "  ✅ Timezone: $(timedatectl show --property=Timezone --value 2>/dev/null || echo 'Africa/Cairo')"
 
 # ════════════════════════════════════════════
-# 2. System packages
+# 2. Kernel & Network Tuning for High Load
 # ════════════════════════════════════════════
-echo -e "\n${GREEN}[2/9]${NC} Installing system packages..."
+echo -e "\n${GREEN}[2/10]${NC} Applying High-Load Kernel & Network limits..."
+
+cat << 'EOF' > /tmp/qaff-tune.sh
+#!/bin/bash
+TARGET_CONF="/etc/sysctl.d/99-qaff-tuning.conf"
+rm -f $TARGET_CONF
+touch $TARGET_CONF
+
+ensure_min_sysctl() {
+    local key=$1
+    local req=$2
+    local cur=$(sysctl -n $key 2>/dev/null || echo 0)
+    if [ "$cur" -ge "$req" ] 2>/dev/null; then
+        echo "$key = $cur" >> $TARGET_CONF
+    else
+        echo "$key = $req" >> $TARGET_CONF
+    fi
+}
+
+ensure_min_sysctl "fs.file-max" 2097152
+ensure_min_sysctl "net.core.somaxconn" 65535
+ensure_min_sysctl "net.ipv4.tcp_max_syn_backlog" 65535
+ensure_min_sysctl "net.core.netdev_max_backlog" 300000
+ensure_min_sysctl "net.ipv4.tcp_fin_timeout" 10
+ensure_min_sysctl "net.ipv4.tcp_tw_reuse" 1
+ensure_min_sysctl "net.ipv4.tcp_keepalive_time" 600
+ensure_min_sysctl "net.ipv4.tcp_keepalive_intvl" 60
+ensure_min_sysctl "net.ipv4.tcp_keepalive_probes" 10
+ensure_min_sysctl "net.ipv4.tcp_rmem" "4096 87380 16777216"   # Fallback array strings don't parse well in GT, handled below instead.
+ensure_min_sysctl "net.ipv4.tcp_max_tw_buckets" 2000000
+ensure_min_sysctl "net.core.rmem_max" 16777216
+ensure_min_sysctl "net.core.wmem_max" 16777216
+
+# Ensure conntrack module is loaded before applying sysctl
+modprobe nf_conntrack 2>/dev/null || true
+ensure_min_sysctl "net.netfilter.nf_conntrack_max" 2000000
+
+# Overwrite string/multi-value parameters safely
+echo "net.ipv4.ip_local_port_range = 1024 65535" >> $TARGET_CONF
+echo "net.core.default_qdisc = fq" >> $TARGET_CONF
+echo "net.ipv4.tcp_congestion_control = bbr" >> $TARGET_CONF
+echo "net.ipv4.tcp_rmem = 4096 87380 16777216" >> $TARGET_CONF
+echo "net.ipv4.tcp_wmem = 4096 65536 16777216" >> $TARGET_CONF
+echo "net.netfilter.nf_conntrack_tcp_timeout_established = 7200" >> $TARGET_CONF
+echo "net.netfilter.nf_conntrack_tcp_timeout_time_wait = 10" >> $TARGET_CONF
+
+sysctl -p $TARGET_CONF >/dev/null 2>&1
+
+# Setup security limits
+mkdir -p /etc/security/limits.d
+cat << 'LIMITS' > /etc/security/limits.d/99-qaff.conf
+* soft nofile 2097152
+* hard nofile 2097152
+* soft nproc 2097152
+* hard nproc 2097152
+root soft nofile 2097152
+root hard nofile 2097152
+LIMITS
+
+# Setup systemd global limits
+mkdir -p /etc/systemd/system.conf.d/
+cat << 'SYSCONF' > /etc/systemd/system.conf.d/limits.conf
+[Manager]
+DefaultLimitNOFILE=2097152
+DefaultLimitNPROC=2097152
+SYSCONF
+systemctl daemon-reload
+EOF
+
+sudo bash /tmp/qaff-tune.sh
+echo -e "  ✅ Kernel Limits and BBR Congestion Control configured"
+
+# Setup Persistent NIC Tuning (txqueuelen, ethtool ring buffers / CPU queues)
+cat << 'NIC_TUNE' > /tmp/qaff-nic-tune.sh
+#!/bin/bash
+MAIN_IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
+if [ -n "$MAIN_IFACE" ]; then
+    # Increase transmit queue length
+    ip link set "$MAIN_IFACE" txqueuelen 10000 2>/dev/null || true
+    
+    # Increase Ring Buffers to absorb bursts
+    ethtool -G "$MAIN_IFACE" rx 4096 tx 4096 2>/dev/null || true
+    
+    # Scale NIC hardware queues to match CPU cores
+    CPU=$(nproc)
+    ethtool -L "$MAIN_IFACE" combined $CPU 2>/dev/null || \
+    ethtool -L "$MAIN_IFACE" rx $CPU tx $CPU 2>/dev/null || true
+fi
+NIC_TUNE
+
+sudo mv /tmp/qaff-nic-tune.sh /usr/local/bin/qaff-nic-tune.sh
+sudo chmod +x /usr/local/bin/qaff-nic-tune.sh
+
+cat << 'NIC_SERVICE' > /tmp/qaff-nic-tune.service
+[Unit]
+Description=Qaff Studio NIC Advanced Tuning
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/qaff-nic-tune.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+NIC_SERVICE
+
+sudo mv /tmp/qaff-nic-tune.service /etc/systemd/system/qaff-nic-tune.service
+sudo systemctl daemon-reload 2>/dev/null || true
+sudo systemctl enable qaff-nic-tune.service 2>/dev/null || true
+sudo systemctl start qaff-nic-tune.service 2>/dev/null || true
+
+echo -e "  ✅ Advanced NIC Queue and Ring Buffer Tuning configured"
+
+# ════════════════════════════════════════════
+# 3. System packages
+# ════════════════════════════════════════════
+echo -e "\n${GREEN}[3/10]${NC} Installing system packages..."
 sudo apt-get update -qq
 sudo apt-get install -y \
   curl wget unzip openssl \
   build-essential \
-  sqlite3 \
+  sqlite3 ethtool \
   ffmpeg \
   2>/dev/null | grep -E "(installed|upgraded)" || true
 
@@ -212,17 +329,24 @@ cd "$PROJECT_DIR"
 # ════════════════════════════════════════════
 SERVER_IP=$(hostname -I | awk '{print $1}')
 echo -e "\n${BOLD}════════════════════════════════════════════${NC}"
-echo -e "${GREEN}  ✅ Installation complete!${NC}"
+echo -e "${GREEN}  ✅ Installation & Tuning complete!${NC}"
 echo -e "${BOLD}════════════════════════════════════════════${NC}"
 echo -e ""
 echo -e "  🎛️  Admin Panel:    ${BOLD}http://${SERVER_IP}:4000${NC}"
 echo -e "  🔑  Admin Password: ${BOLD}Admin123@${NC}"
 echo -e ""
 echo -e "  💡 Create your first client from the Admin Panel!"
-echo -e "  💡 Each client gets their own Docker container on a unique port."
 echo -e ""
-
-echo -e "\n${GREEN}[10/10] Finalizing...${NC}"
-echo -e "  ✅ Qaff Admin Panel is the ONLY service spun up by default now."
-echo -e "  ✅ Use the Admin Panel to install your first client instance."
+MAIN_IFACE=$(ip route | grep default | awk '{print $5}' | head -n1 2>/dev/null || echo "eth0")
+echo -e "${CYAN}──────── System Limits Applied ────────${NC}"
+echo -e "  • BBR Congestion: $(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo 'N/A')"
+echo -e "  • somaxconn:      $(sysctl -n net.core.somaxconn 2>/dev/null || echo 'N/A')"
+echo -e "  • file-max:       $(sysctl -n fs.file-max 2>/dev/null || echo 'N/A')"
+echo -e "  • Open Files:     $(ulimit -n)"
+echo -e "  • TX Queue Len:   $(ip link show $MAIN_IFACE 2>/dev/null | grep qlen | awk '{print $NF}' || echo 'N/A')"
+echo -e "${CYAN}───────────────────────────────────────${NC}"
+echo -e "  🔍 To rigorously verify system limits, you can run:"
+echo -e "     ${BOLD}sysctl net.ipv4.tcp_congestion_control${NC}"
+echo -e "     ${BOLD}ethtool -g $MAIN_IFACE${NC} (Check Ring Buffers)"
+echo -e "     ${BOLD}ethtool -l $MAIN_IFACE${NC} (Check CPU Queues)"
 echo -e "\n${BOLD}✅ All done!${NC}\n"

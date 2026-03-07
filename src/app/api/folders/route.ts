@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { readdirSync, statSync, existsSync, mkdirSync, renameSync, rmdirSync, unlinkSync, copyFileSync } from 'fs'
 import path from 'path'
-import { VIDEOS_DIR } from '@/lib/paths'
+import { VIDEOS_DIR, STREAM_MANAGER_URL } from '@/lib/paths'
+import { db } from '@/lib/db'
 
 // Helper function to recursively get all folders
 function getAllFoldersRecursive(dir: string, basePath: string = ''): { path: string; displayPath: string }[] {
@@ -231,6 +232,23 @@ export async function POST(request: NextRequest) {
         }
 
         renameSync(itemPath, newPath)
+
+        // Database Graceful Fallback: Update all slot filePaths to prevent breaking on restart
+        try {
+          const affectedSlots = await db.streamSlot.findMany({
+            where: { filePath: { startsWith: itemPath } }
+          })
+          for (const slot of affectedSlots) {
+            const newSlotFilePath = slot.filePath.replace(itemPath, newPath)
+            await db.streamSlot.update({
+              where: { slotIndex: slot.slotIndex },
+              data: { filePath: newSlotFilePath }
+            })
+          }
+        } catch (dbErr) {
+          console.error("Failed to update database slots during rename:", dbErr)
+        }
+
         return NextResponse.json({ success: true, message: 'Renamed successfully', newPath })
       }
 
@@ -258,6 +276,38 @@ export async function POST(request: NextRequest) {
           rmdirSync(itemPath)
         } else {
           unlinkSync(itemPath)
+
+          // Forcefully stop any active streaming slots relying on this exact file
+          try {
+            const affectedSlots = await db.streamSlot.findMany({
+              where: { filePath: itemPath }
+            })
+            for (const slot of affectedSlots) {
+              if (slot.isRunning) {
+                try {
+                  await fetch(`${STREAM_MANAGER_URL}/stop`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slotIndex: slot.slotIndex })
+                  })
+                } catch (stopErr) {
+                  console.error('Failed to stop orphaned stream manager:', stopErr)
+                }
+              }
+              // Nullify the record string because the file is gone, marking appropriately
+              await db.streamSlot.update({
+                where: { slotIndex: slot.slotIndex },
+                data: {
+                  filePath: '',
+                  isRunning: false,
+                  status: 'Failed (File Deleted)',
+                  isScheduled: false
+                }
+              })
+            }
+          } catch (dbErr) {
+            console.error("Failed to cleanup deleted slots:", dbErr)
+          }
         }
 
         return NextResponse.json({ success: true, message: 'Deleted successfully' })

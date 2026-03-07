@@ -33,7 +33,7 @@ RUN npm run build
 FROM node:20-alpine AS runner
 
 # Install necessary runtime system packages
-RUN apk add --no-cache ffmpeg sqlite
+RUN apk add --no-cache ffmpeg sqlite iproute2
 
 WORKDIR /app
 

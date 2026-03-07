@@ -1163,7 +1163,6 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
               <ul className="space-y-1 list-none pl-4">
                 <li>Bitrate Encoding: <strong>CBR</strong> {getLocale() === 'en' ? 'or' : 'أو'} <strong>VBR 1 Pass</strong></li>
                 <li>Target Bitrate: <strong>2000 - 2500 Kbps</strong></li>
-                <li><span className="text-red-500 text-xs">* ({getLocale() === 'en' ? 'Absolute Maximum 2900 Kbps' : 'الحد الأقصى المطلق 2900 Kbps'})</span></li>
               </ul>
             </div>
           </div>

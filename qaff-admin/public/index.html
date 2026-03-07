@@ -299,8 +299,9 @@
                 <div class="val" id="stopped">—</div>
             </div>
             <div class="card yellow">
-                <div class="label">إجمالي Slots</div>
-                <div class="val" id="slots">—</div>
+                <div class="label">البثوث النشطة حالياً</div>
+                <div class="val" id="total-streams" style="color:#f59e0b">—</div>
+                <div class="sub" style="color:#fbbf24">من أصل <span id="slots">—</span> Slots محجوزة</div>
             </div>
             <div class="card">
                 <div class="label">التخزين المخصص</div>
@@ -409,8 +410,19 @@
                     const i = Math.floor(Math.log(bytes) / Math.log(k))
                     return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
                 }
+                // Legacy system fallback
                 document.getElementById('network').innerHTML = `<span style="color:#a78bfa">صادر: ${formatBytes(d.system.net_tx)}</span>`
                 document.getElementById('netfree').textContent = `وارد: ${formatBytes(d.system.net_rx)}`
+            }
+
+            if (d.network) {
+                document.getElementById('network').innerHTML = `<span style="color:#a78bfa">${d.network.outgoingMbps} Mbps</span>`
+                document.getElementById('netfree').textContent = `سرعة الصادر الآن`
+            }
+
+            if (d.streams) {
+                document.getElementById('total-streams').textContent = d.streams.active
+                document.getElementById('slots').textContent = `${d.streams.active} / ${d.slots.totalAllocated}`
             }
         }
 

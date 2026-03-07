@@ -686,23 +686,27 @@
             </div>
             <div class="grid2">
                 <div class="form-row">
-                    <label>رقم الواتساب (اختياري)</label>
-                    <input type="text" id="c-wa" placeholder="+2010... أو 9665..." dir="ltr" style="text-align: right;">
+                    <label>السرعة الصادرة Limit (Mbps)</label>
+                    <input type="number" id="c-bandwidth" value="0" min="0" placeholder="0 لـ مفتوح">
                 </div>
                 <div class="form-row">
-                    <label>تاريخ التجديد (اختياري)</label>
-                    <input type="date" id="c-ren" style="color-scheme: dark;">
+                    <label>رقم الواتساب (اختياري)</label>
+                    <input type="text" id="c-wa" placeholder="+2010... أو 9665..." dir="ltr" style="text-align: right;">
                 </div>
             </div>
             <div class="grid2">
                 <div class="form-row">
+                    <label>تاريخ التجديد (اختياري)</label>
+                    <input type="date" id="c-ren" style="color-scheme: dark;">
+                </div>
+                <div class="form-row">
                     <label>كلمة السر (اختياري)</label>
                     <input type="text" id="c-pass" placeholder="اتركه فارغاً للتوليد التلقائي">
                 </div>
-                <div class="form-row">
-                    <label>رمز الأمان (5 أرقام)</label>
-                    <input type="text" id="c-reset" placeholder="12345" maxlength="5">
-                </div>
+            </div>
+            <div class="form-row">
+                <label>رمز الأمان (5 أرقام)</label>
+                <input type="text" id="c-reset" placeholder="12345" maxlength="5">
             </div>
             <div class="url-box" id="created-url"></div>
             <div class="modal-btns">
@@ -771,6 +775,22 @@
             </div>
             <button class="btn-create" onclick="updateStorage()">تحديث المساحة</button>
             <button class="btn-sm" style="margin-top:10px; width:100%;" onclick="closeStorageModal()">إلغاء</button>
+        </div>
+    </div>
+
+    <!-- Edit Bandwidth Limit Modal -->
+    <div class="modal-bg" id="bandwidthModal">
+        <div class="modal">
+            <h3>✏️ تعديل سرعة الصادر Limit</h3>
+            <input type="hidden" id="bw-client-id">
+            <div class="form-row">
+                <label>الحد الأقصى للسرعة (Mbps) - 0 لـ مفتوح</label>
+                <input type="number" id="bw-limit" min="0" placeholder="مثال: 125">
+            </div>
+            <div class="modal-btns">
+                <button class="btn-cancel" onclick="closeBandwidthModal()">إلغاء</button>
+                <button class="btn-primary" onclick="updateBandwidth()">حفظ وتطبيق</button>
+            </div>
         </div>
     </div>
 
@@ -844,6 +864,7 @@
                 btns.push(`<button class="btn-sm btn-code" onclick="openCodeModal(${c.id},'${c.reset_answer || ''}')">🛡️ رمز الأمان</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ Slots</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openStorageModal(${c.id},${c.storage_gb})">✏️ المساحة</button>`)
+                btns.push(`<button class="btn-sm btn-slots" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})">✏️ السرعة</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
                 btns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${c.name}')">🗑 حذف</button>`)
 
@@ -852,7 +873,7 @@
                 const safePass = (c.password || '').replace(/'/g, "\\'")
                 const safeWa = (c.whatsapp || '').replace(/'/g, "\\'")
                 const safeRen = (c.renewal_date || '').replace(/'/g, "\\'")
-                btns.push(`<button class="btn-sm btn-slots" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;" onclick="copyClientInfo('${url}','${safePass}','${c.reset_answer || ''}','${c.slots}','${c.storage_gb}','${safeRen}')">📋 نسخ البيانات</button>`)
+                btns.push(`<button class="btn-sm btn-slots" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;" onclick="copyClientInfo('${url}','${safePass}','${c.reset_answer || ''}','${c.slots}','${c.storage_gb}','${safeRen}','${c.bandwidth_limit || 0}')">📋 نسخ البيانات</button>`)
 
                 return `<tr>
         <td>
@@ -871,6 +892,7 @@
         </td>
         <td><span style="font-weight:800;color:#a78bfa">${c.slots}</span></td>
         <td>${c.storage_gb} GB</td>
+        <td>${c.bandwidth_limit || 0} Mbps</td>
         <td>${renHtml}</td>
         <td><div class="actions">${btns.join('')}</div></td>
       </tr>`
@@ -912,6 +934,7 @@
             const name = document.getElementById('c-name').value.trim()
             const slots = document.getElementById('c-slots').value
             const storage = document.getElementById('c-storage').value
+            const bandwidthLimit = document.getElementById('c-bandwidth').value
             const wa = document.getElementById('c-wa').value.trim()
             const ren = document.getElementById('c-ren').value
             const pass = document.getElementById('c-pass').value
@@ -922,7 +945,7 @@
             btn.disabled = true
             const res = await fetch('/api/clients', {
                 method: 'POST', headers: H(true),
-                body: JSON.stringify({ name, slots, storage_gb: storage, password: pass, whatsapp: wa, renewalDate: ren, reset_answer: reset })
+                body: JSON.stringify({ name, slots, storage_gb: storage, bandwidth_limit: bandwidthLimit, password: pass, whatsapp: wa, renewalDate: ren, reset_answer: reset })
             })
             const d = await res.json()
             btn.disabled = false; btn.textContent = 'إنشاء'
@@ -1034,6 +1057,25 @@
             else showToast(d.error || 'خطأ', true)
         }
 
+        function openBandwidthModal(id, current) {
+            document.getElementById('bw-client-id').value = id
+            document.getElementById('bw-limit').value = current || 0
+            document.getElementById('bandwidthModal').classList.add('show')
+        }
+        function closeBandwidthModal() {
+            document.getElementById('bandwidthModal').classList.remove('show')
+        }
+        async function updateBandwidth() {
+            const id = document.getElementById('bw-client-id').value
+            const bw = document.getElementById('bw-limit').value
+            const res = await fetch(`/api/clients/${id}/bandwidth`, {
+                method: 'PUT', headers: H(true), body: JSON.stringify({ bandwidthLimit: bw })
+            })
+            const d = await res.json()
+            if (d.success) { closeBandwidthModal(); showToast('✅ تم تحديث سرعة الصادر وإعادة التشغيل'); loadClients() }
+            else showToast(d.error || 'خطأ', true)
+        }
+
         async function updateAllPanels() {
             if (!confirm('هل أنت متأكد من تحديث كافة اللوحات للنسخة الأحدث؟\n\nتنبيه: هذا سيمر على جميع العملاء وسيقوم تفريغ وبناء الحاويات من جديد. البثوث النشطة حالياً ستتوقف وتحتاج لضغط زر التشغيل من العميل.')) return;
             const btn = document.getElementById('updateAllBtn')
@@ -1058,13 +1100,14 @@
             }
         }
 
-        function copyClientInfo(url, pass, reset, slots, storage, ren) {
+        function copyClientInfo(url, pass, reset, slots, storage, ren, bw) {
             const text =
                 `رابط اللوحة: ${url}
 كلمة المرور: ${pass || 'غير محددة'}
 رمز الأمان: ${reset || 'غير محدد'}
 عدد البثوث: ${slots}
 مساحة التخزين: ${storage} جيجابايت
+السرعة القصوى: ${bw || 'مفتوحة'} Mbps
 موعد التجديد القادم: ${ren || 'غير محدد'}`;
 
             if (navigator.clipboard) {

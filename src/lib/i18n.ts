@@ -159,7 +159,7 @@ const translations = {
         timezoneLoading: 'Loading...',
         timezoneSave: 'Save',
 
-        optional: 'Optional',
+        optional: 'Notes',
         timezoneBtn: 'Timezone',
 
         // Language
@@ -289,7 +289,7 @@ const translations = {
         resetAll: 'إعادة تعيين الكل',
         autoSave: 'حفظ تلقائي',
 
-        colDetails: 'اختياري',
+        colDetails: 'ملاحظات',
         colOutput: 'الإخراج',
         colPlatform: 'المنصة',
         colOutputSettings: 'الإعدادات',
@@ -358,7 +358,7 @@ const translations = {
         timezoneLoading: 'جاري التحميل...',
         timezoneSave: 'حفظ',
 
-        optional: 'اختياري',
+        optional: 'ملاحظات',
         timezoneBtn: 'المنطقة الزمنية',
 
         // Language

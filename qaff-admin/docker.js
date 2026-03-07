@@ -34,7 +34,7 @@ async function imageExists() {
  * @param {string} opts.renewalDate
  * @returns {{ containerId, containerName, volumeName }}
  */
-async function createClientContainer({ clientId, name, port, slots, storageGb, passwordHash, isSuspended = false, renewalDate = '' }) {
+async function createClientContainer({ clientId, name, port, slots, storageGb, bandwidthLimit = 0, passwordHash, isSuspended = false, renewalDate = '' }) {
     const containerName = `${CONTAINER_PREFIX}${clientId}`
     const volumeName = `${VOLUME_PREFIX}${clientId}`
 
@@ -66,6 +66,7 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, p
             `NODE_ENV=production`,
             `HOSTNAME=0.0.0.0`,
             `TZ=Africa/Cairo`,
+            `BANDWIDTH_LIMIT_MBPS=${bandwidthLimit}`,
         ],
         ExposedPorts: { '3000/tcp': {} },
         HostConfig: {
@@ -74,6 +75,10 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, p
                 '3000/tcp': [{ HostPort: String(port) }],
             },
             Binds: [`${volumeName}:/app/data`],
+            // Needed to execute 'tc' Linux traffic control
+            CapAdd: ['NET_ADMIN'],
+            // Enhance the kernel TCP stream sockets for huge concurrency loads inside the container isolated namespace
+            Sysctls: { 'net.core.somaxconn': '65535' },
             // Disk quota is enforced at OS/volume level via Docker
             RestartPolicy: { Name: 'unless-stopped' },
         },
@@ -192,11 +197,34 @@ async function listManagedContainers() {
 }
 
 /**
- * Restart a container (used after changing ENV vars via recreate)
+ * Fetch active stream count running inside the client container
  */
-async function restartContainer(containerId) {
-    const c = docker.getContainer(containerId)
-    await c.restart({ t: 10 })
+async function getContainerActiveStreams(containerId) {
+    try {
+        const c = docker.getContainer(containerId)
+        const info = await c.inspect().catch(() => null)
+        if (!info || !info.State.Running) return 0;
+
+        // Use docker exec to ping the internal stream-manager API at port 3002
+        // We grep 'isActive":true' to roughly count how many streams are currently live.
+        // It's a quick low-overhead shell script mapping inside the container.
+        const exec = await c.exec({
+            Cmd: ['sh', '-c', 'wget -qO- http://127.0.0.1:3002/api/streams | grep -o "\\"isActive\\":true" | wc -l'],
+            AttachStdout: true, AttachStderr: true
+        })
+        const stream = await exec.start({ Detached: false })
+
+        return new Promise((resolve) => {
+            let output = ''
+            stream.on('data', chunk => output += chunk.toString())
+            stream.on('end', () => {
+                const count = parseInt(output.trim())
+                resolve(isNaN(count) ? 0 : count)
+            })
+        })
+    } catch (e) {
+        return 0;
+    }
 }
 
 module.exports = {
@@ -209,6 +237,7 @@ module.exports = {
     deleteClientContainer,
     getContainerStatus,
     getContainerPasswordHash,
+    getContainerActiveStreams,
     listManagedContainers,
     restartContainer,
 }

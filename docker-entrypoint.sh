@@ -60,6 +60,13 @@ else
   echo "Booting Stream Manager Daemon (Port 3002) in background..."
   NODE_ENV=production tsx /app/mini-services/stream-manager/index.ts &
   
+  # Apply egress bandwidth throttling if a limit is set
+  if [ -n "$BANDWIDTH_LIMIT_MBPS" ] && [ "$BANDWIDTH_LIMIT_MBPS" -gt 0 ] 2>/dev/null; then
+    echo "Applying Bandwidth Limit: ${BANDWIDTH_LIMIT_MBPS} Mbps..."
+    tc qdisc del dev eth0 root 2>/dev/null || true
+    tc qdisc add dev eth0 root tbf rate ${BANDWIDTH_LIMIT_MBPS}mbit burst 32kbit latency 400ms
+  fi
+
   echo "Booting Next.js Web Server (Port 3000)..."
   exec node .next/standalone/server.js
 fi
