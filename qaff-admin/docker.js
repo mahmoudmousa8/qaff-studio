@@ -238,6 +238,5 @@ module.exports = {
     getContainerStatus,
     getContainerPasswordHash,
     getContainerActiveStreams,
-    listManagedContainers,
-    restartContainer,
+    listManagedContainers
 }
