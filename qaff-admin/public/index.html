@@ -318,9 +318,16 @@
                 <div class="sub" id="ramfree"></div>
             </div>
             <div class="card">
-                <div class="label">البيانات (الشبكة)</div>
-                <div class="val" style="font-size:24px; margin-top:10px" id="network">—</div>
-                <div class="sub" id="netfree"></div>
+                <div class="label">⚡ سرعة الصادر اللحظية</div>
+                <div class="val" style="font-size:26px; margin-top:6px; color:#a78bfa" id="live-mbps">—</div>
+                <div class="sub" style="color:#7c3aed; font-weight:700">Mbps الآن</div>
+                <div
+                    style="margin-top:10px; font-size:12px; color:#64748b; border-top:1px solid #2d3148; padding-top:8px">
+                    منذ آخر تشغيل للسيرفر:<br>
+                    <span style="color:#94a3b8">صادر: <span id="total-tx">—</span></span>
+                    &nbsp;|&nbsp;
+                    <span style="color:#94a3b8">وارد: <span id="total-rx">—</span></span>
+                </div>
             </div>
         </div>
 
@@ -426,6 +433,38 @@
             }
         }
 
+        const formatBytes = (bytes) => {
+            if (!bytes || bytes === 0) return '0 B'
+            const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+            const i = Math.floor(Math.log(bytes) / Math.log(1024))
+            return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i]
+        }
+
+        async function loadNetworkStats() {
+            try {
+                const res = await fetch('/api/system-stats', { headers: H() })
+                if (!res.ok) return
+                const d = await res.json()
+                if (d.network) {
+                    const mbps = parseFloat(d.network.outgoingMbps)
+                    const el = document.getElementById('live-mbps')
+                    el.textContent = mbps.toFixed(2)
+                    // Color code the speed: green<10, orange<50, red>=50
+                    el.style.color = mbps >= 50 ? '#f87171' : mbps >= 10 ? '#fbbf24' : '#a78bfa'
+                    document.getElementById('total-tx').textContent = formatBytes(d.network.totalTxBytes)
+                    document.getElementById('total-rx').textContent = formatBytes(d.network.totalRxBytes)
+                }
+                if (d.ram) {
+                    const toGB = b => (b / 1024 / 1024 / 1024).toFixed(1)
+                    document.getElementById('ram').textContent = ((d.ram.used / d.ram.total) * 100).toFixed(0) + '%'
+                    document.getElementById('ramfree').textContent = `متاح: ${toGB(d.ram.free)}GB / ${toGB(d.ram.total)}GB`
+                }
+                if (d.streams) {
+                    document.getElementById('total-streams').textContent = d.streams.active
+                }
+            } catch (e) { }
+        }
+
         function logout() {
             localStorage.removeItem('qaff_admin_token')
             location.href = '/login'
@@ -437,8 +476,9 @@
         }
 
         if (!T()) location.href = '/login'
-        else { load(); loadQuestion() }
+        else { load(); loadQuestion(); loadNetworkStats() }
         setInterval(load, 10000)
+        setInterval(loadNetworkStats, 3000)
 
         async function loadQuestion() {
             const res = await fetch('/api/settings/reset-question', { headers: H() })

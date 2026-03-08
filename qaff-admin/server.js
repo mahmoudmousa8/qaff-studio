@@ -601,30 +601,34 @@ app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
                 diskTotal = parseInt(df[1], 10)
                 diskUsed = parseInt(df[2], 10)
 
-                // Read `/proc/net/dev` to calculate live outgoing bandwidth (tx_bytes)
-                const readTxBytes = () => {
+                // Read `/proc/net/dev` to calculate live outgoing bandwidth (tx_bytes) and totals
+                let totalTxBytes = 0, totalRxBytes = 0
+                const readNetStats = () => {
                     try {
                         const netDev = require('fs').readFileSync('/proc/net/dev', 'utf8')
                         // Usually public traffic goes out through eth0 or en*
                         const ethLine = netDev.split('\n').find(line => line.includes('eth') || line.includes('en'))
                         if (ethLine) {
                             const parts = ethLine.trim().split(/\s+/)
-                            // 9th column in standard /proc/net/dev (index 9 if we split by space) is Transmit Bytes
-                            return parseInt(parts[9] || 0, 10)
+                            // col[1]=RxBytes, col[9]=TxBytes in /proc/net/dev
+                            return { tx: parseInt(parts[9] || 0, 10), rx: parseInt(parts[1] || 0, 10) }
                         }
                     } catch (e) { }
-                    return 0
+                    return { tx: 0, rx: 0 }
                 }
 
-                const tx1 = readTxBytes()
+                const snap1 = readNetStats()
                 // Synchronous microscopic sleep to measure delta
-                require('child_process').execSync('sleep 0.1')
-                const tx2 = readTxBytes()
+                require('child_process').execSync('sleep 0.2')
+                const snap2 = readNetStats()
 
-                // Diff in bytes over 0.1 second -> translate to Mbps
-                if (tx2 >= tx1) {
-                    currentOutgoingBandwidthMbps = ((tx2 - tx1) * 10 * 8) / 1000000;
+                // Diff in bytes over 0.2 second -> translate to Mbps
+                if (snap2.tx >= snap1.tx) {
+                    currentOutgoingBandwidthMbps = ((snap2.tx - snap1.tx) * 5 * 8) / 1000000;
                 }
+                // Expose cumulative totals for monthly usage tracking
+                totalTxBytes = snap2.tx
+                totalRxBytes = snap2.rx
             }
         } catch (e) { console.error('Disk/Net read error:', e) }
 
@@ -642,7 +646,11 @@ app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
             disk: { total: diskTotal, used: diskUsed, free: diskTotal - diskUsed },
             slots: { totalAllocated: totalAllocatedSlots, activeRunning: totalRunningSlots },
             clients: { total: totalClients, running: runningClients },
-            network: { outgoingMbps: currentOutgoingBandwidthMbps.toFixed(2) },
+            network: {
+                outgoingMbps: currentOutgoingBandwidthMbps.toFixed(2),
+                totalTxBytes: totalTxBytes,
+                totalRxBytes: totalRxBytes
+            },
             streams: { active: globalActiveStreams }
         })
     } catch (e) {
