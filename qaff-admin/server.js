@@ -594,7 +594,7 @@ app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
         const freeMem = os.freemem()
         const usedMem = totalMem - freeMem
 
-        let diskTotal = 0, diskUsed = 0, currentOutgoingBandwidthMbps = 0, globalActiveStreams = 0
+        let diskTotal = 0, diskUsed = 0, currentOutgoingBandwidthMbps = 0, globalActiveStreams = 0, totalTxBytes = 0, totalRxBytes = 0
         try {
             if (os.platform() !== 'win32') {
                 const df = require('child_process').execSync("df -B1 / | tail -1").toString().trim().split(/\s+/)
@@ -602,7 +602,6 @@ app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
                 diskUsed = parseInt(df[2], 10)
 
                 // Read `/proc/net/dev` to calculate live outgoing bandwidth (tx_bytes) and totals
-                let totalTxBytes = 0, totalRxBytes = 0
                 const readNetStats = () => {
                     try {
                         const netDev = require('fs').readFileSync('/proc/net/dev', 'utf8')
