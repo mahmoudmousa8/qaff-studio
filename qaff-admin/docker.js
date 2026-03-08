@@ -205,11 +205,10 @@ async function getContainerActiveStreams(containerId) {
         const info = await c.inspect().catch(() => null)
         if (!info || !info.State.Running) return 0;
 
-        // Use docker exec to ping the internal stream-manager API at port 3002
-        // We grep 'isActive":true' to roughly count how many streams are currently live.
-        // It's a quick low-overhead shell script mapping inside the container.
+        // Call the stream-manager /health endpoint which returns { activeStreams: N }
+        // Use wget to fetch JSON, then parse the activeStreams number field
         const exec = await c.exec({
-            Cmd: ['sh', '-c', 'wget -qO- http://127.0.0.1:3002/api/streams | grep -o "\\"isActive\\":true" | wc -l'],
+            Cmd: ['sh', '-c', 'wget -qO- http://127.0.0.1:3002/health 2>/dev/null | grep -o \'"activeStreams":[0-9]*\' | grep -o \'[0-9]*$\''],
             AttachStdout: true, AttachStderr: true
         })
         const stream = await exec.start({ Detached: false })
@@ -218,7 +217,9 @@ async function getContainerActiveStreams(containerId) {
             let output = ''
             stream.on('data', chunk => output += chunk.toString())
             stream.on('end', () => {
-                const count = parseInt(output.trim())
+                // Strip any Docker multiplexing header bytes and parse the number
+                const cleaned = output.replace(/[^\d]/g, '').trim()
+                const count = parseInt(cleaned)
                 resolve(isNaN(count) ? 0 : count)
             })
         })
