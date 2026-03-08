@@ -122,6 +122,21 @@ function getNetworkUsage() {
     }
 }
 
+// Live Mbps delta: reads NIC bytes twice 500ms apart -> accurate Mbps
+function getLiveMbps() {
+    return new Promise(resolve => {
+        const snap1 = getNetworkUsage()
+        setTimeout(() => {
+            const snap2 = getNetworkUsage()
+            const txDiff = snap2.tx - snap1.tx
+            const rxDiff = snap2.rx - snap1.rx
+            const outMbps = txDiff >= 0 ? parseFloat(((txDiff * 2 * 8) / 1_000_000).toFixed(2)) : 0
+            const inMbps = rxDiff >= 0 ? parseFloat(((rxDiff * 2 * 8) / 1_000_000).toFixed(2)) : 0
+            resolve({ outMbps, inMbps, totalTx: snap2.tx, totalRx: snap2.rx })
+        }, 500)
+    })
+}
+
 app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
     const clients = db.getAllClients.all()
     const totalSlots = clients.reduce((s, c) => s + c.slots, 0)
@@ -145,8 +160,8 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
     // CPU Info
     const cpuUsagePercent = await getCpuUsage()
 
-    // Network Info
-    const net = getNetworkUsage()
+    // Live network speed + cumulative totals
+    const netLive = await getLiveMbps()
 
     const logs = db.getLogs.all()
 
@@ -165,8 +180,10 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
             ram_used: usedMem,
             ram_free: freeMem,
             ram_percent: memUsagePercent,
-            net_rx: net.rx,
-            net_tx: net.tx
+            net_rx: netLive.totalRx,
+            net_tx: netLive.totalTx,
+            net_mbps_out: netLive.outMbps,
+            net_mbps_in: netLive.inMbps
         },
         logs: logs.slice(0, 20),
     })

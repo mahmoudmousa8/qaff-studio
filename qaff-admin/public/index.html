@@ -412,19 +412,23 @@
                 document.getElementById('ramfree').textContent = `متاح: ${toGB(d.system.ram_free)}GB / ${toGB(d.system.ram_total)}GB`
 
                 const formatBytes = (bytes) => {
-                    if (bytes === 0) return '0 B'
-                    const k = 1024, dm = 2, sizes = ['B', 'KB', 'MB', 'GB', 'TB']
-                    const i = Math.floor(Math.log(bytes) / Math.log(k))
-                    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i]
+                    if (!bytes || bytes === 0) return '0 B'
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
+                    const i = Math.floor(Math.log(bytes) / Math.log(1024))
+                    return parseFloat((bytes / Math.pow(1024, i)).toFixed(2)) + ' ' + sizes[i]
                 }
-                // Legacy system fallback
-                document.getElementById('network').innerHTML = `<span style="color:#a78bfa">صادر: ${formatBytes(d.system.net_tx)}</span>`
-                document.getElementById('netfree').textContent = `وارد: ${formatBytes(d.system.net_rx)}`
-            }
 
-            if (d.network) {
-                document.getElementById('network').innerHTML = `<span style="color:#a78bfa">${d.network.outgoingMbps} Mbps</span>`
-                document.getElementById('netfree').textContent = `سرعة الصادر الآن`
+                // ⚡ Live speed from dashboard
+                const mbps = parseFloat(d.system.net_mbps_out || 0)
+                const el = document.getElementById('live-mbps')
+                if (el) {
+                    el.textContent = mbps.toFixed(2)
+                    el.style.color = mbps >= 50 ? '#f87171' : mbps >= 10 ? '#fbbf24' : '#a78bfa'
+                }
+                const txEl = document.getElementById('total-tx')
+                const rxEl = document.getElementById('total-rx')
+                if (txEl) txEl.textContent = formatBytes(d.system.net_tx)
+                if (rxEl) rxEl.textContent = formatBytes(d.system.net_rx)
             }
 
             if (d.streams) {
