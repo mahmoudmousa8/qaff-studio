@@ -890,7 +890,14 @@
                 <a href="${url}" target="_blank" style="color:#8b5cf6;font-size:11px;text-decoration:underline;">🔗 فتح</a>
             </div>
         </td>
-        <td><span style="font-weight:800;color:#a78bfa">${c.slots}</span></td>
+        <td>
+            <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                <span style="font-weight:800;color:#a78bfa;font-size:16px;">${c.slots}</span>
+                ${c.status === 'running'
+                        ? `<span style="font-size:11px; background:rgba(245, 158, 11, 0.15); border:1px solid rgba(245, 158, 11, 0.3); color:#fbbf24; padding:2px 6px; border-radius:6px; font-weight:700; white-space:nowrap;">بث نشط: ${c.active_streams || 0}</span>`
+                        : ``}
+            </div>
+        </td>
         <td>${c.storage_gb} GB</td>
         <td>${c.bandwidth_limit || 0} Mbps</td>
         <td>${renHtml}</td>

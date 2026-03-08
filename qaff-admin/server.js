@@ -193,12 +193,15 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
 app.get('/api/clients', auth.requireAuth, async (req, res) => {
     const clients = db.getAllClients.all()
 
-    // Enrich with live Docker status
+    // Enrich with live Docker status + active stream count
     const enriched = await Promise.all(clients.map(async (c) => {
         const dockerStatus = c.container_id
             ? await docker.getContainerStatus(c.container_id)
             : { status: 'no_container', running: false }
-        return { ...c, docker: dockerStatus }
+        const activeStreams = (c.container_id && dockerStatus.running)
+            ? await docker.getContainerActiveStreams(c.container_id)
+            : 0
+        return { ...c, docker: dockerStatus, active_streams: activeStreams }
     }))
 
     res.json({ clients: enriched })
