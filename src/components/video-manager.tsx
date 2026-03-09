@@ -561,10 +561,17 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
     setTimeout(() => clearInterval(interval), 6 * 60 * 60 * 1000)
   }
 
-  // Format date
+  // Format date in 24-hour style to avoid RTL/LTR flipping issues with Arabic AM/PM
   const formatDate = (isoString: string) => {
     try {
-      return new Date(isoString).toLocaleString()
+      const d = new Date(isoString)
+      const yr = d.getFullYear()
+      const mo = String(d.getMonth() + 1).padStart(2, '0')
+      const da = String(d.getDate()).padStart(2, '0')
+      const hr = String(d.getHours()).padStart(2, '0')
+      const mn = String(d.getMinutes()).padStart(2, '0')
+      const sc = String(d.getSeconds()).padStart(2, '0')
+      return `${yr}/${mo}/${da} ${hr}:${mn}:${sc}`
     } catch { return isoString }
   }
 
