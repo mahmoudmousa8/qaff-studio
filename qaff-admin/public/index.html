@@ -280,6 +280,7 @@
         <div class="links">
             <a href="/" class="active">Dashboard</a>
             <a href="/clients">العملاء</a>
+            <a href="javascript:void(0)" onclick="showAdminPassModal()">🔑 تغيير كلمة المرور</a>
         </div>
         <button class="logout" onclick="logout()">تسجيل الخروج</button>
     </nav>
@@ -372,6 +373,25 @@
             <div class="btns">
                 <button class="btn-cancel" onclick="closeQuestionModal()">إلغاء</button>
                 <button class="btn-primary" onclick="saveQuestion()">حفظ السؤال</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Password Change Modal -->
+    <div class="modal-bg" id="adminPassModal">
+        <div class="modal" style="max-width: 400px;">
+            <h3>🔑 تغيير كلمة مرور الأدمن</h3>
+            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">لإتمام التغيير، يجب إدخال رمز الأمان القديم
+                المعطى لك لإثبات الملكية.</p>
+            <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:6px">رمز الأمان (الإثبات)</label>
+            <input type="password" id="adminSecurityCode" placeholder="••••••••">
+            <label style="font-size:12px;color:#94a3b8;display:block;margin-top:10px;margin-bottom:6px">كلمة المرور
+                الجديدة</label>
+            <input type="password" id="adminNewPass" placeholder="6 أحرف على الأقل">
+            <p id="adminPassErr" style="color:#f87171;font-size:13px;margin:8px 0;display:none;"></p>
+            <div class="btns" style="margin-top:16px;">
+                <button class="btn-cancel" onclick="closeAdminPassModal()">إلغاء</button>
+                <button class="btn-primary" id="adminPassBtn" onclick="saveAdminPassword()">حفظ وتغيير</button>
             </div>
         </div>
     </div>
@@ -510,6 +530,55 @@
                 document.getElementById('current-question').textContent = q
                 showToast('✅ تم حفظ سؤال إعادة التعيين')
             } else alert(d.error)
+        }
+
+        // --- Admin Password Change ---
+        function showAdminPassModal() {
+            document.getElementById('adminSecurityCode').value = '';
+            document.getElementById('adminNewPass').value = '';
+            document.getElementById('adminPassErr').style.display = 'none';
+            document.getElementById('adminPassModal').classList.add('show');
+            document.getElementById('adminSecurityCode').focus();
+        }
+
+        function closeAdminPassModal() {
+            document.getElementById('adminPassModal').classList.remove('show');
+        }
+
+        async function saveAdminPassword() {
+            const code = document.getElementById('adminSecurityCode').value;
+            const pass = document.getElementById('adminNewPass').value;
+            const errEl = document.getElementById('adminPassErr');
+            const btn = document.getElementById('adminPassBtn');
+
+            if (!code || !pass) return;
+
+            btn.disabled = true;
+            btn.textContent = 'جاري التحقق...';
+            errEl.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/admin/password', {
+                    method: 'POST',
+                    headers: H(),
+                    body: JSON.stringify({ security_code: code, new_password: pass })
+                });
+                const d = await res.json();
+
+                if (d.success) {
+                    showToast('✅ ' + d.message);
+                    closeAdminPassModal();
+                } else {
+                    errEl.textContent = d.error || 'حدث خطأ';
+                    errEl.style.display = 'block';
+                }
+            } catch (e) {
+                errEl.textContent = 'خطأ في الاتصال';
+                errEl.style.display = 'block';
+            }
+
+            btn.disabled = false;
+            btn.textContent = 'حفظ وتغيير';
         }
     </script>
 </body>

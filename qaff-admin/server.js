@@ -61,7 +61,39 @@ app.post('/api/login', async (req, res) => {
     res.json({ token })
 })
 
-// ── Admin Password route removed per user request ───────────
+// ── Admin: reset password (no auth required, relies on security code) ──
+app.post('/api/admin/reset-password', async (req, res) => {
+    const { security_code, new_password } = req.body
+    if (!security_code || security_code !== 'l27e8q0n') {
+        return res.status(401).json({ error: 'رمز الأمان غير صحيح' })
+    }
+    if (!new_password || new_password.length < 6) {
+        return res.status(400).json({ error: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل' })
+    }
+
+    const hash = await auth.hashPassword(new_password)
+    db.upsertAdmin.run(hash)
+    db.addLog('admin_password_reset', null, 'Admin password reset using security code')
+
+    res.json({ success: true, message: 'تم إعادة تعيين كلمة المرور بنجاح' })
+})
+
+// ── Admin: change password (requires auth AND security code) ───────────
+app.post('/api/admin/password', auth.requireAuth, async (req, res) => {
+    const { security_code, new_password } = req.body
+    if (!security_code || security_code !== 'l27e8q0n') {
+        return res.status(401).json({ error: 'رمز الأمان غير صحيح' })
+    }
+    if (!new_password || new_password.length < 6) {
+        return res.status(400).json({ error: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل' })
+    }
+
+    const hash = await auth.hashPassword(new_password)
+    db.upsertAdmin.run(hash)
+    db.addLog('admin_password_changed', null, 'Admin password changed from within panel')
+
+    res.json({ success: true, message: 'تم تغيير كلمة المرور بنجاح' })
+})
 
 // ── Admin: password reset question (global setting) ───────
 app.get('/api/settings/reset-question', auth.requireAuth, (req, res) => {

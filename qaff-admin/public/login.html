@@ -111,11 +111,30 @@
       text-align: center;
       display: none;
     }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .link {
+      display: block;
+      text-align: center;
+      margin-top: 16px;
+      font-size: 13px;
+      color: #94a3b8;
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.2s;
+    }
+
+    .link:hover {
+      color: #e2e8f0;
+    }
   </style>
 </head>
 
 <body>
-  <div class="card">
+  <div class="card" id="login-card">
     <div class="logo">
       <h1>🎛️ Qaff Admin</h1>
       <p>Master Control Panel</p>
@@ -123,7 +142,23 @@
     <label>كلمة المرور</label>
     <input type="password" id="pass" placeholder="••••••••" autofocus>
     <button id="btn" onclick="login()">دخول</button>
+    <a class="link" onclick="toggleReset(true)">نسيت كلمة المرور؟</a>
     <p class="error" id="err">كلمة المرور غير صحيحة</p>
+  </div>
+
+  <div class="card hidden" id="reset-card">
+    <div class="logo">
+      <h1>🔐 استعادة الحساب</h1>
+      <p>برجاء إدخال بيانات الأمان المعطاة لك</p>
+    </div>
+    <label>رمز الأمان الخاص بك</label>
+    <input type="password" id="r-code" placeholder="••••••••">
+    <label style="margin-top: 16px">كلمة المرور الجديدة</label>
+    <input type="password" id="r-pass" placeholder="6 أحرف كحد أدنى">
+
+    <button id="r-btn" onclick="resetPassword()">تغيير وتسجيل الدخول</button>
+    <a class="link" onclick="toggleReset(false)">العودة لتسجيل الدخول</a>
+    <p class="error" id="r-err">بيانات غير صحيحة</p>
   </div>
   <script>
     document.getElementById('pass').addEventListener('keydown', e => { if (e.key === 'Enter') login() })
@@ -149,6 +184,54 @@
         }
       } catch { err.textContent = 'خطأ في الاتصال'; err.style.display = 'block' }
       btn.disabled = false; btn.textContent = 'دخول'
+    }
+
+    function toggleReset(show) {
+      document.getElementById('login-card').classList.toggle('hidden', show);
+      document.getElementById('reset-card').classList.toggle('hidden', !show);
+      document.getElementById('r-err').style.display = 'none';
+      document.getElementById('err').style.display = 'none';
+      if (show) document.getElementById('r-code').focus();
+      else document.getElementById('pass').focus();
+    }
+
+    async function resetPassword() {
+      const code = document.getElementById('r-code').value;
+      const pass = document.getElementById('r-pass').value;
+      const btn = document.getElementById('r-btn');
+      const err = document.getElementById('r-err');
+
+      if (!code || !pass) return;
+      btn.disabled = true; btn.textContent = 'جاري التحقق...';
+      err.style.display = 'none';
+
+      try {
+        const res = await fetch('/api/admin/reset-password', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ security_code: code, new_password: pass })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          err.style.display = 'block';
+          err.style.color = '#10b981';
+          err.textContent = '✅ تم التغيير بنجاح!';
+          setTimeout(() => {
+            toggleReset(false);
+            document.getElementById('pass').value = pass;
+            login(); // auto login
+          }, 1500)
+        } else {
+          err.style.color = '#f87171';
+          err.textContent = data.error || 'حدث خطأ';
+          err.style.display = 'block';
+        }
+      } catch {
+        err.style.color = '#f87171';
+        err.textContent = 'خطأ في الاتصال';
+        err.style.display = 'block';
+      }
+      btn.disabled = false; btn.textContent = 'تغيير وتسجيل الدخول';
     }
   </script>
 </body>
