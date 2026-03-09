@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Qaff Admin — إدارة العملاء</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
     <style>
         :root {
             --bg-dark: #09090b;
@@ -698,7 +700,7 @@
             <div class="grid2">
                 <div class="form-row">
                     <label>تاريخ التجديد (اختياري)</label>
-                    <input type="date" id="c-ren" style="color-scheme: dark;">
+                    <input type="text" id="c-ren" class="date-picker" placeholder="اختر تاريخ التجديد...">
                 </div>
                 <div class="form-row">
                     <label>كلمة السر (اختياري)</label>
@@ -810,7 +812,7 @@
             </div>
             <div class="form-row">
                 <label>تاريخ التجديد الجديد</label>
-                <input type="date" id="i-ren">
+                <input type="text" id="i-ren" class="date-picker" placeholder="اختر تاريخ التجديد...">
             </div>
             <div class="modal-btns">
                 <button class="btn-cancel" onclick="closeInfoModal()">إلغاء</button>
@@ -1175,7 +1177,19 @@
 
         loadClients()
         setInterval(loadClients, 15000)
+        // Initialize Flatpickr for date inputs
+        document.addEventListener("DOMContentLoaded", () => {
+            if (typeof flatpickr !== 'undefined') {
+                flatpickr(".date-picker", {
+                    locale: "ar",
+                    dateFormat: "Y-m-d",
+                    disableMobile: "true"
+                });
+            }
+        });
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://npmcdn.com/flatpickr/dist/l10n/ar.js"></script>
 </body>
 
 </html>
