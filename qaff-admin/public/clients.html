@@ -900,7 +900,14 @@
             </div>
         </td>
         <td>${c.storage_gb} GB</td>
-        <td>${c.bandwidth_limit || 0} Mbps</td>
+        <td>
+            <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                <span style="font-weight:800;color:${c.status === 'running' ? '#10b981' : '#64748b'};font-size:16px;font-family:monospace;">
+                    ${c.status === 'running' ? c.live_mbps_out : '0.00'} <span style="font-size:11px;font-weight:600">Mbps</span>
+                </span>
+                <span style="font-size:11px; color:#64748b; font-weight:700;">الحد: ${c.bandwidth_limit ? c.bandwidth_limit + ' Mbps' : 'مفتوح'}</span>
+            </div>
+        </td>
         <td>${renHtml}</td>
         <td><div class="actions">${btns.join('')}</div></td>
       </tr>`

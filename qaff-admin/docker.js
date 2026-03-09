@@ -228,6 +228,25 @@ async function getContainerActiveStreams(containerId) {
     }
 }
 
+/**
+ * Get total outbound network bytes (tx_bytes) for a container
+ */
+async function getContainerNetTx(containerId) {
+    try {
+        const c = docker.getContainer(containerId)
+        const stats = await c.stats({ stream: false })
+        let tx = 0
+        if (stats.networks) {
+            for (const eth in stats.networks) {
+                if (eth !== 'lo') tx += stats.networks[eth].tx_bytes
+            }
+        }
+        return tx
+    } catch {
+        return 0
+    }
+}
+
 module.exports = {
     imageExists,
     createClientContainer,
@@ -239,5 +258,6 @@ module.exports = {
     getContainerStatus,
     getContainerPasswordHash,
     getContainerActiveStreams,
+    getContainerNetTx,
     listManagedContainers
 }
