@@ -88,7 +88,7 @@ const updateClientSlots = db.prepare(`
 `)
 
 const updateClientInfo = db.prepare(`
-  UPDATE clients SET whatsapp = ?, renewal_date = ?, updated_at = datetime('now') WHERE id = ?
+  UPDATE clients SET name = ?, whatsapp = ?, renewal_date = ?, updated_at = datetime('now') WHERE id = ?
 `)
 
 const updateClientSecurity = db.prepare(`

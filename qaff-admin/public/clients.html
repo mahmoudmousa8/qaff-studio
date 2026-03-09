@@ -801,6 +801,10 @@
             <h3>✏️ تعديل بيانات العميل</h3>
             <input type="hidden" id="i-client-id">
             <div class="form-row">
+                <label>إسم العميل</label>
+                <input type="text" id="i-name" placeholder="اسم يعبر عن العميل">
+            </div>
+            <div class="form-row">
                 <label>رقم الواتساب الجديد</label>
                 <input type="text" id="i-wa" placeholder="+2010... أو 9665..." dir="ltr" style="text-align: right;">
             </div>
@@ -866,7 +870,11 @@
                 btns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ عدد البثوث</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openStorageModal(${c.id},${c.storage_gb})">✏️ المساحة</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})">✏️ السرعة</button>`)
-                btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
+
+                // Escape simple quotes for name when passing to openInfoModal
+                const safeNameForInfo = (c.name || '').replace(/'/g, "\\'")
+                btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${safeNameForInfo}','${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
+
                 btns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${c.name}')">🗑 حذف</button>`)
 
                 // Escape simple quotes for the copy info
@@ -1032,8 +1040,9 @@
             else showToast(d.error || 'خطأ', true)
         }
 
-        function openInfoModal(id, wa, ren) {
+        function openInfoModal(id, name, wa, ren) {
             document.getElementById('i-client-id').value = id
+            document.getElementById('i-name').value = name || ''
             document.getElementById('i-wa').value = wa || ''
             document.getElementById('i-ren').value = ren || ''
             document.getElementById('infoModal').classList.add('show')
@@ -1043,10 +1052,14 @@
         }
         async function updateInfo() {
             const id = document.getElementById('i-client-id').value
+            const name = document.getElementById('i-name').value.trim()
             const whatsapp = document.getElementById('i-wa').value.trim()
             const renewalDate = document.getElementById('i-ren').value
+
+            if (!name) { showToast('اسم العميل مطلوب', true); return }
+
             const res = await fetch(`/api/clients/${id}/info`, {
-                method: 'PUT', headers: H(true), body: JSON.stringify({ whatsapp, renewalDate })
+                method: 'PUT', headers: H(true), body: JSON.stringify({ name, whatsapp, renewalDate })
             })
             const d = await res.json()
             if (d.success) { closeInfoModal(); showToast('✅ تم تحديث البيانات'); loadClients() }

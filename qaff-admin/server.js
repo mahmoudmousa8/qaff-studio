@@ -536,11 +536,12 @@ app.put('/api/clients/:id/slots', auth.requireAuth, async (req, res) => {
 app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
     const client = db.getClientById.get(req.params.id)
     if (!client) return res.status(404).json({ error: 'Client not found' })
-    const { whatsapp, renewalDate } = req.body
+    const { name, whatsapp, renewalDate } = req.body
 
     try {
-        db.updateClientInfo.run(whatsapp || null, renewalDate || null, client.id)
-        db.addLog('client_info_updated', client.id, `WhatsApp: ${whatsapp}, Renewal: ${renewalDate}`)
+        const updateName = name && name.trim() ? name.trim() : client.name
+        db.updateClientInfo.run(updateName, whatsapp || null, renewalDate || null, client.id)
+        db.addLog('client_info_updated', client.id, `Name: ${updateName}, WhatsApp: ${whatsapp}, Renewal: ${renewalDate}`)
 
         // Extract original password hash to recreate container seamlessly for new env vars
         const passwordHash = await docker.getContainerPasswordHash(client.container_id)
@@ -549,7 +550,7 @@ app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
 
         const { containerId } = await docker.createClientContainer({
             clientId: client.id,
-            name: client.name,
+            name: updateName,
             port: client.port,
             slots: client.slots,
             storageGb: client.storage_gb,
