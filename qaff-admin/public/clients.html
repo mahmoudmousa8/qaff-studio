@@ -629,8 +629,9 @@
                         <th>واتساب</th>
                         <th>تاريخ الإنشاء</th>
                         <th>الرابط</th>
-                        <th>البثوث</th>
+                        <th>عدد البثوث</th>
                         <th>التخزين</th>
+                        <th>سرعة الصادر</th>
                         <th>التجديد</th>
                         <th>الإجراءات</th>
                     </tr>
@@ -862,7 +863,7 @@
                 if (c.status === 'suspended') btns.push(`<button class="btn-sm btn-resume" onclick="action(${c.id},'resume')">▶ استئناف</button>`)
                 btns.push(`<button class="btn-sm btn-pass" onclick="openPassModal(${c.id},'${c.password || ''}')">🔑 كلمة السر</button>`)
                 btns.push(`<button class="btn-sm btn-code" onclick="openCodeModal(${c.id},'${c.reset_answer || ''}')">🛡️ رمز الأمان</button>`)
-                btns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ Slots</button>`)
+                btns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ عدد البثوث</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openStorageModal(${c.id},${c.storage_gb})">✏️ المساحة</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})">✏️ السرعة</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
@@ -1144,6 +1145,13 @@
             t.style.display = 'block'
             setTimeout(() => { t.style.display = 'none' }, 3500)
         }
+
+        // Close modals on Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.modal-bg').forEach(m => m.classList.remove('show'));
+            }
+        });
 
         loadClients()
         setInterval(loadClients, 15000)
