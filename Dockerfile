@@ -7,15 +7,16 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install build dependencies (sometimes needed for native node modules)
-RUN apk add --no-cache libc6-compat
+# Install build dependencies (libc compat + native addon build tools for better-sqlite3)
+RUN apk add --no-cache libc6-compat python3 make g++
 
 # Copy package files first to leverage Docker layer caching
 COPY package.json package-lock.json* ./
 COPY prisma ./prisma/
 
 # Install ALL dependencies (including devDependencies required for Next.js build)
-RUN npm install
+# Clean the npm cache immediately after to keep the layer lean
+RUN npm install && npm cache clean --force
 
 # Copy the rest of the source code
 COPY . .
@@ -50,6 +51,11 @@ COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/clie
 COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 COPY --from=builder /app/prisma ./prisma
+
+# Copy better-sqlite3: only the compiled native addon + its JS module (no build tools)
+COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=builder /app/node_modules/bindings ./node_modules/bindings
+COPY --from=builder /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
 
 # Copy mini-services (required for stream-manager background daemon)
 COPY --from=builder /app/mini-services ./mini-services
