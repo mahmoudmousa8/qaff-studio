@@ -511,7 +511,7 @@ async function startServer() {
     process.exit(1)
   }
 
-  server.listen(PORT, '127.0.0.1', () => {
+  server.listen(PORT, '127.0.0.1', async () => {
     log(`Qaff Stream Manager v4.0.0 started on 127.0.0.1:${PORT}`)
     log(`  Videos directory: ${VIDEOS_DIR}`)
     log(`  FFmpeg: ${FFMPEG_PATH}`)
@@ -519,6 +519,63 @@ async function startServer() {
     log(`  Max concurrent: ${MAX_CONCURRENT}`)
     log(`  Stagger delay: ${STAGGER_DELAY_MS}ms`)
     log('Ready to accept connections')
+
+    // ── Auto-Resume Active Streams ──────────────────────────────
+    try {
+      // Find the database path. Usually provided by Docker via $DATABASE_URL (e.g., file:/app/data/app.db)
+      let dbPath = '/app/data/app.db'
+      if (process.env.DATABASE_URL) {
+        dbPath = process.env.DATABASE_URL.replace('file:', '').replace('sqlite:', '')
+      } else if (existsSync(resolve(PROJECT_ROOT, './data/app.db'))) {
+        dbPath = resolve(PROJECT_ROOT, './data/app.db')
+      }
+
+      if (existsSync(dbPath)) {
+        log(`Checking for previously active streams in DB: ${dbPath}`)
+        const Database = (await import('better-sqlite3')).default
+        const db = new Database(dbPath, { readonly: true })
+        
+        // Fetch slots where isRunning is true (1)
+        const activeSlots = db.prepare(`
+          SELECT slotIndex, outputType, rtmpServer, streamKey, filePath 
+          FROM StreamSlot 
+          WHERE isRunning = 1 OR status = 'Live'
+        `).all() as Array<{
+          slotIndex: number
+          outputType: string
+          rtmpServer: string
+          streamKey: string
+          filePath: string
+        }>
+
+        db.close()
+
+        if (activeSlots.length > 0) {
+          log(`Found ${activeSlots.length} active stream(s) to auto-resume...`)
+          for (const slot of activeSlots) {
+            const finalRtmp = buildRtmpUrl(slot.outputType, slot.rtmpServer, slot.streamKey)
+            // Add to the stagger queue just like a normal '/start' request
+            staggerQueue.push({
+              slotIndex: slot.slotIndex,
+              rtmpUrl: finalRtmp,
+              streamKey: slot.streamKey,
+              filePath: slot.filePath,
+              resolve: (res) => {
+                log(`Auto-resume slot ${slot.slotIndex + 1}: ${res.success ? 'Success' : `Failed (${res.message})`}`)
+              }
+            })
+          }
+          // Kickoff the queue processor
+          processStaggerQueue()
+        } else {
+          log('No active streams found to auto-resume.')
+        }
+      } else {
+        log(`Skipping auto-resume: Database not found at ${dbPath}`)
+      }
+    } catch (err) {
+      log(`Auto-resume failed: ${err instanceof Error ? err.message : err}`)
+    }
   })
 }
 
