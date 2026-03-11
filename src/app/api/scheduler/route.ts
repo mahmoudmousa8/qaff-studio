@@ -103,44 +103,87 @@ export async function GET() {
     let stoppedCount = 0
 
     for (const slot of slots) {
-      // Check for start
-      if (slot.isScheduled && !slot.isRunning && slot.schedStart) {
+      // ── Auto-Start ──────────────────────────────────────────
+      // Precondition check (cheap, avoids DB round-trip for non-matching slots)
+      if (slot.isScheduled && !slot.isRunning && slot.schedStart && slot.streamKey && slot.filePath) {
         if (shouldTrigger(slot.schedStart, slot.daily, slot.weekly)) {
-          if (slot.streamKey && slot.filePath) {
-            try {
-              await fetch(`${STREAM_MANAGER_URL}/start`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  slotIndex: slot.slotIndex,
-                  rtmpServer: slot.rtmpServer,
-                  streamKey: slot.streamKey,
-                  filePath: slot.filePath
-                })
-              })
 
-              await db.streamSlot.update({
-                where: { slotIndex: slot.slotIndex },
-                data: {
-                  isRunning: true,
-                  isScheduled: false,
-                  status: 'Streaming'
-                }
-              })
-              startedCount++
-              logs.push(`Slot ${slot.slotIndex + 1}: Auto-started`)
-            } catch {
-              logs.push(`Slot ${slot.slotIndex + 1}: Failed to auto-start`)
+          // ── Atomic DB lock ──────────────────────────────────
+          // updateMany with isRunning=false in the WHERE clause acts as a
+          // compare-and-swap. If two requests land simultaneously, only one will
+          // get count=1 and proceed. The other gets count=0 and is silently skipped.
+          const claimed = await db.streamSlot.updateMany({
+            where: {
+              slotIndex: slot.slotIndex,
+              isRunning: false,        // ← atomic guard: only succeed if NOT already running
+              isScheduled: true,       // ← extra safety: must still be in scheduled state
+            },
+            data: {
+              isRunning: true,
+              isScheduled: false,
+              status: 'Streaming',
             }
+          })
+
+          if (claimed.count === 0) {
+            // Another request already claimed this slot — skip silently
+            continue
+          }
+
+          // We own the slot — now start the stream
+          try {
+            await fetch(`${STREAM_MANAGER_URL}/start`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                slotIndex: slot.slotIndex,
+                outputType: slot.outputType,
+                rtmpServer: slot.rtmpServer,
+                streamKey: slot.streamKey,
+                filePath: slot.filePath
+              })
+            })
+            startedCount++
+            logs.push(`Slot ${slot.slotIndex + 1}: Auto-started`)
+          } catch {
+            // Stream manager failed — roll back the DB claim so it retries next tick
+            await db.streamSlot.update({
+              where: { slotIndex: slot.slotIndex },
+              data: {
+                isRunning: false,
+                isScheduled: true,
+                status: 'Scheduled',
+              }
+            })
+            logs.push(`Slot ${slot.slotIndex + 1}: Failed to auto-start (rolled back)`)
           }
         }
       }
 
-      // Check for stop
+      // ── Auto-Stop ───────────────────────────────────────────
       if (slot.isRunning && slot.schedStop) {
         if (shouldTrigger(slot.schedStop, slot.daily, slot.weekly)) {
           const newStatus = slot.daily || slot.weekly ? 'Completed' : 'Stopped'
 
+          // Atomic stop-claim: only succeed if still running
+          const claimed = await db.streamSlot.updateMany({
+            where: {
+              slotIndex: slot.slotIndex,
+              isRunning: true,   // ← guard against concurrent stop
+            },
+            data: {
+              isRunning: false,
+              isScheduled: slot.daily || slot.weekly,
+              status: newStatus,
+              nextRunTime: (slot.daily || slot.weekly)
+                ? calculateNextRun(slot.schedStart, slot.daily, slot.weekly)
+                : ''
+            }
+          })
+
+          if (claimed.count === 0) continue  // already stopped by another request
+
+          // Tell stream-manager to stop FFmpeg
           try {
             await fetch(`${STREAM_MANAGER_URL}/stop`, {
               method: 'POST',
@@ -148,23 +191,9 @@ export async function GET() {
               body: JSON.stringify({ slotIndex: slot.slotIndex })
             })
           } catch {
-            // Continue even if stream manager fails
+            // Non-fatal: DB is already updated, FFmpeg will eventually die on its own
           }
 
-          // Recalculate nextRunTime so the UI shows the upcoming run instead of blank
-          const nextRunTime = (slot.daily || slot.weekly)
-            ? calculateNextRun(slot.schedStart, slot.daily, slot.weekly)
-            : ''
-
-          await db.streamSlot.update({
-            where: { slotIndex: slot.slotIndex },
-            data: {
-              isRunning: false,
-              isScheduled: slot.daily || slot.weekly,
-              status: newStatus,
-              nextRunTime
-            }
-          })
           stoppedCount++
           logs.push(`Slot ${slot.slotIndex + 1}: Auto-stopped`)
         }
@@ -172,9 +201,7 @@ export async function GET() {
     }
 
     for (const log of logs) {
-      await db.systemLog.create({
-        data: { message: log }
-      })
+      await db.systemLog.create({ data: { message: log } })
     }
 
     return NextResponse.json({
