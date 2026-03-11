@@ -17,6 +17,42 @@ function parseScheduleTime(sched: string): { month: number; day: number; hour: n
   }
 }
 
+// Recalculate the next run time after an auto-stop, so the UI always shows a valid upcoming time
+function calculateNextRun(schedStart: string, daily: boolean, weekly: boolean): string {
+  if (!schedStart) return ''
+  const now = new Date()
+  try {
+    const parts = schedStart.split(' ')
+    if (parts.length !== 2) return ''
+    const [datePart, timePart] = parts
+    const [month, day] = datePart.split('-').map(Number)
+    const [hour, minute] = timePart.split(':').map(Number)
+
+    if (daily) {
+      const nextRun = new Date()
+      nextRun.setHours(hour, minute, 0, 0)
+      // If that time has already passed today, jump to tomorrow
+      if (now >= nextRun) nextRun.setDate(nextRun.getDate() + 1)
+      return `${String(nextRun.getMonth() + 1).padStart(2, '0')}-${String(nextRun.getDate()).padStart(2, '0')} ${String(nextRun.getHours()).padStart(2, '0')}:${String(nextRun.getMinutes()).padStart(2, '0')}`
+    }
+
+    if (weekly) {
+      const refDate = new Date(now.getFullYear(), month - 1, day, hour, minute)
+      const targetWeekday = refDate.getDay()
+      let daysAhead = (targetWeekday - now.getDay() + 7) % 7
+      if (daysAhead === 0 && now >= refDate) daysAhead = 7
+      const nextRun = new Date(now)
+      nextRun.setDate(nextRun.getDate() + daysAhead)
+      nextRun.setHours(hour, minute, 0, 0)
+      return `${String(nextRun.getMonth() + 1).padStart(2, '0')}-${String(nextRun.getDate()).padStart(2, '0')} ${String(nextRun.getHours()).padStart(2, '0')}:${String(nextRun.getMinutes()).padStart(2, '0')}`
+    }
+
+    return schedStart
+  } catch {
+    return ''
+  }
+}
+
 function shouldTrigger(sched: string, isDaily: boolean, isWeekly: boolean): boolean {
   const now = new Date()
   const parsed = parseScheduleTime(sched)
@@ -115,13 +151,18 @@ export async function GET() {
             // Continue even if stream manager fails
           }
 
+          // Recalculate nextRunTime so the UI shows the upcoming run instead of blank
+          const nextRunTime = (slot.daily || slot.weekly)
+            ? calculateNextRun(slot.schedStart, slot.daily, slot.weekly)
+            : ''
+
           await db.streamSlot.update({
             where: { slotIndex: slot.slotIndex },
             data: {
               isRunning: false,
               isScheduled: slot.daily || slot.weekly,
               status: newStatus,
-              nextRunTime: ''
+              nextRunTime
             }
           })
           stoppedCount++
