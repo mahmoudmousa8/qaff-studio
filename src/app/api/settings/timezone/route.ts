@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'fs'
 import path from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import { db } from '@/lib/db'
 
 const execAsync = promisify(exec)
 
@@ -46,7 +47,9 @@ export async function POST(request: NextRequest) {
         writeFileSync(envPath, envContent.trim() + '\n')
 
         // 2. Restart Container by escaping the Node process 
-        // Docker's restart=always policy will instantly catch the exit and cleanly rebuild the environment
+        // Docker's restart=always policy will instantly catch the exit and cleanly rebuild the environment.
+        // During restart, stream-manager's new auto-resume feature will 
+        // automatically restart any streams that have isRunning=true in the database.
         setTimeout(() => {
             process.exit(0)
         }, 1000)
