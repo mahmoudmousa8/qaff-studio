@@ -266,6 +266,9 @@ export default function Home() {
   useEffect(() => {
     fetchSlots(); fetchLogs(); fetchStats(); fetchStorage()
 
+    // Fire the scheduler once immediately on mount
+    fetch('/api/scheduler').catch(() => {})
+
     const statusInterval = setInterval(async () => {
       try { await fetch('/api/status'); fetchSlots(); fetchStats() } catch { }
     }, 5000)

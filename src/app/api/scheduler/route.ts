@@ -163,14 +163,29 @@ export async function GET() {
       // ── Auto-Stop ───────────────────────────────────────────
       if (slot.isRunning && slot.schedStop) {
         if (shouldTrigger(slot.schedStop, slot.daily, slot.weekly)) {
-          // Recurring streams stay 'Scheduled' (they will run again). 'Stopped' only for one-time streams.
-          const newStatus = slot.daily || slot.weekly ? 'Scheduled' : 'Stopped'
 
-          // Atomic stop-claim: only succeed if still running
+          // Step 1: Tell stream-manager to stop FFmpeg FIRST
+          // (We do this before the DB update so that if it fails, the slot
+          //  stays isRunning=true in the DB and the next tick will retry)
+          try {
+            await fetch(`${STREAM_MANAGER_URL}/stop`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ slotIndex: slot.slotIndex })
+            })
+          } catch (e) {
+            // If stream-manager is unreachable, log and skip — will retry next tick
+            logs.push(`Slot ${slot.slotIndex + 1}: Auto-stop failed (stream-manager unreachable) — will retry`)
+            await db.systemLog.create({ data: { message: `Slot ${slot.slotIndex + 1}: Auto-stop failed, will retry next tick` } })
+            continue
+          }
+
+          // Step 2: Atomic DB update — only succeeds if still running
+          const newStatus = slot.daily || slot.weekly ? 'Scheduled' : 'Stopped'
           const claimed = await db.streamSlot.updateMany({
             where: {
               slotIndex: slot.slotIndex,
-              isRunning: true,   // ← guard against concurrent stop
+              isRunning: true,
             },
             data: {
               isRunning: false,
@@ -183,17 +198,6 @@ export async function GET() {
           })
 
           if (claimed.count === 0) continue  // already stopped by another request
-
-          // Tell stream-manager to stop FFmpeg
-          try {
-            await fetch(`${STREAM_MANAGER_URL}/stop`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ slotIndex: slot.slotIndex })
-            })
-          } catch {
-            // Non-fatal: DB is already updated, FFmpeg will eventually die on its own
-          }
 
           stoppedCount++
           logs.push(`Slot ${slot.slotIndex + 1}: Auto-stopped`)
