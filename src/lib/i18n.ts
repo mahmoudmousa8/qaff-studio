@@ -110,6 +110,11 @@ const translations = {
         colLogs: 'Logs',
         colFolder: 'Folder',
 
+        startStream: 'Start Stream',
+        stopStream: 'Stop Stream',
+        scheduleStream: 'Schedule Stream',
+        resetSlot: 'Reset Slot',
+
         // Output dropdown options
         optYouTube: 'YouTube',
         optFacebook: 'Facebook',
@@ -310,6 +315,11 @@ const translations = {
         colReset: 'إعادة',
         colLogs: 'السجلات',
         colFolder: 'المجلد',
+
+        startStream: 'بدء البث',
+        stopStream: 'إيقاف البث',
+        scheduleStream: 'جدولة البث',
+        resetSlot: 'إعادة تعيين القناة',
 
         // Output dropdown options
         optYouTube: 'يوتيوب',

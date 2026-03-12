@@ -885,24 +885,24 @@ export default function Home() {
                             <Button size="sm" variant="default" className="h-6 w-6 p-0 bg-green-600 hover:bg-green-700"
                               disabled={slot.isRunning}
                               onClick={() => startStream(slot.slotIndex)}
-                              title={t('startAll')}>
+                              title={t('startStream')}>
                               <Play className="w-3 h-3" />
                             </Button>
                             <Button size="sm" variant="secondary" className="h-6 w-6 p-0"
-                              disabled={slot.isRunning || slot.isScheduled}
+                              disabled={slot.isRunning}
                               onClick={() => scheduleSlot(slot.slotIndex)}
-                              title={t('scheduleAllExt')}>
+                              title={t('scheduleStream')}>
                               <Calendar className="w-3 h-3" />
                             </Button>
                             <Button size="sm" variant="destructive" className="h-6 w-6 p-0"
                               disabled={!slot.isRunning && !slot.isScheduled}
                               onClick={() => stopStream(slot.slotIndex)}
-                              title={t('stopAll')}>
+                              title={t('stopStream')}>
                               <Square className="w-3 h-3" />
                             </Button>
                             <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-muted"
                               onClick={() => resetSlot(slot.slotIndex)}
-                              title={t('resetAll')}>
+                              title={t('resetSlot')}>
                               <RotateCcw className="w-3 h-3" />
                             </Button>
                           </div>
