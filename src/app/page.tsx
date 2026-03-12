@@ -122,6 +122,7 @@ export default function Home() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [channelLogs, setChannelLogs] = useState<ChannelLogsState | null>(null)
   const channelLogsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [serverTime, setServerTime] = useState<string>('')
 
   // Password change state
   const [pwDialogOpen, setPwDialogOpen] = useState(false)
@@ -164,6 +165,19 @@ export default function Home() {
     checkAuth()
     const interval = setInterval(checkAuth, 5 * 60 * 1000)
     return () => clearInterval(interval)
+  }, [])
+
+  // Live server clock — poll every second
+  useEffect(() => {
+    const syncClock = () => {
+      fetch('/api/server-time')
+        .then(r => r.json())
+        .then(d => setServerTime(d.time || ''))
+        .catch(() => {})
+    }
+    syncClock()
+    const clockInterval = setInterval(syncClock, 1000)
+    return () => clearInterval(clockInterval)
   }, [])
 
   const switchLocale = () => {
@@ -551,6 +565,12 @@ export default function Home() {
                 </Badge>
               )}
             </div>
+            {serverTime && (
+              <Badge className="bg-slate-700 text-white text-xs font-mono tracking-widest ml-1">
+                <Clock className="w-3 h-3 mr-1" />
+                {serverTime}
+              </Badge>
+            )}
 
             <div className="flex items-center gap-1.5 flex-wrap">
               <Button size="sm" variant="outline" onClick={() => setVideosManagerOpen(true)}>

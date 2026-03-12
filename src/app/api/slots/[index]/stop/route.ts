@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { STREAM_MANAGER_URL } from '@/lib/paths'
 
-// POST - Stop streaming
+// POST - Manual Stop streaming
+// Always cancels all scheduled state. If the user explicitly stops,
+// they want everything stopped — not just paused until the next run.
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ index: string }> }
@@ -11,20 +13,16 @@ export async function POST(
     const { index } = await params
     const slotIndex = parseInt(index)
 
-    // Validate slotIndex
     if (isNaN(slotIndex) || slotIndex < 0) {
       return NextResponse.json({ error: 'Invalid slot index' }, { status: 400 })
     }
 
-    const slot = await db.streamSlot.findUnique({
-      where: { slotIndex }
-    })
-
+    const slot = await db.streamSlot.findUnique({ where: { slotIndex } })
     if (!slot) {
       return NextResponse.json({ error: 'Slot not found' }, { status: 404 })
     }
 
-    // Call the stream manager to stop FFmpeg
+    // Call stream-manager to stop FFmpeg
     try {
       await fetch(`${STREAM_MANAGER_URL}/stop`, {
         method: 'POST',
@@ -35,21 +33,14 @@ export async function POST(
       console.error('Failed to connect to stream manager:', error)
     }
 
-    let newStatus = 'Stopped'
-    let isScheduled = false
-
-    // If stream has a recurring schedule (daily/weekly), it will run again → keep it Scheduled
-    if (slot.daily || slot.weekly) {
-      newStatus = 'Scheduled'
-      isScheduled = true
-    }
-
+    // Manual stop always cancels scheduling entirely (user explicitly chose to stop)
     const updatedSlot = await db.streamSlot.update({
       where: { slotIndex },
       data: {
         isRunning: false,
-        isScheduled,
-        status: newStatus
+        isScheduled: false,
+        status: 'Stopped',
+        nextRunTime: ''
       }
     })
 
