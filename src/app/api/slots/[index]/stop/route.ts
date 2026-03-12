@@ -38,9 +38,9 @@ export async function POST(
     let newStatus = 'Stopped'
     let isScheduled = false
 
-    // If was scheduled and has recurring schedule
-    if (slot.isScheduled && (slot.daily || slot.weekly)) {
-      newStatus = 'Completed'
+    // If stream has a recurring schedule (daily/weekly), it will run again → keep it Scheduled
+    if (slot.daily || slot.weekly) {
+      newStatus = 'Scheduled'
       isScheduled = true
     }
 

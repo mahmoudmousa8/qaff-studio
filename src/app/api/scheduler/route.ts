@@ -163,7 +163,8 @@ export async function GET() {
       // ── Auto-Stop ───────────────────────────────────────────
       if (slot.isRunning && slot.schedStop) {
         if (shouldTrigger(slot.schedStop, slot.daily, slot.weekly)) {
-          const newStatus = slot.daily || slot.weekly ? 'Completed' : 'Stopped'
+          // Recurring streams stay 'Scheduled' (they will run again). 'Stopped' only for one-time streams.
+          const newStatus = slot.daily || slot.weekly ? 'Scheduled' : 'Stopped'
 
           // Atomic stop-claim: only succeed if still running
           const claimed = await db.streamSlot.updateMany({

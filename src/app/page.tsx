@@ -801,11 +801,19 @@ export default function Home() {
                               </Button>
                               <div className="flex items-center gap-1 ml-1 bg-muted/20 px-1.5 py-0.5 rounded border border-border/50">
                                 <div className="flex items-center gap-0.5">
-                                  <Checkbox checked={slot.daily} onCheckedChange={(c) => { handleSlotChange(slot.slotIndex, 'daily', !!c); if (c) handleSlotChange(slot.slotIndex, 'weekly', false) }} id={`daily-${slot.slotIndex}`} className="w-3 h-3" />
+                                  <Checkbox checked={slot.daily} onCheckedChange={(c) => {
+                                    handleSlotChange(slot.slotIndex, 'daily', !!c)
+                                    if (c) handleSlotChange(slot.slotIndex, 'weekly', false)
+                                    if (!c) handleSlotChange(slot.slotIndex, 'nextRunTime', '')
+                                  }} id={`daily-${slot.slotIndex}`} className="w-3 h-3" />
                                   <label htmlFor={`daily-${slot.slotIndex}`} className="text-[10px] text-muted-foreground mr-1 cursor-pointer select-none">{t('lblDaily')}</label>
                                 </div>
                                 <div className="flex items-center gap-0.5">
-                                  <Checkbox checked={slot.weekly} onCheckedChange={(c) => { handleSlotChange(slot.slotIndex, 'weekly', !!c); if (c) handleSlotChange(slot.slotIndex, 'daily', false) }} id={`weekly-${slot.slotIndex}`} className="w-3 h-3" />
+                                  <Checkbox checked={slot.weekly} onCheckedChange={(c) => {
+                                    handleSlotChange(slot.slotIndex, 'weekly', !!c)
+                                    if (c) handleSlotChange(slot.slotIndex, 'daily', false)
+                                    if (!c) handleSlotChange(slot.slotIndex, 'nextRunTime', '')
+                                  }} id={`weekly-${slot.slotIndex}`} className="w-3 h-3" />
                                   <label htmlFor={`weekly-${slot.slotIndex}`} className="text-[10px] text-muted-foreground cursor-pointer select-none">{t('lblWeekly')}</label>
                                 </div>
                               </div>
