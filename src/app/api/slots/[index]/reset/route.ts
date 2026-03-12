@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { STREAM_MANAGER_URL } from '@/lib/paths'
 
 // POST - Reset slot
 export async function POST(
@@ -9,6 +10,18 @@ export async function POST(
   try {
     const { index } = await params
     const slotIndex = parseInt(index)
+
+    // Always tell stream-manager to stop FFmpeg first.
+    // This prevents ghost processes from continuing after a reset.
+    try {
+      await fetch(`${STREAM_MANAGER_URL}/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slotIndex })
+      })
+    } catch {
+      // Non-fatal — proceed with DB reset even if stream-manager is unreachable
+    }
 
     const updatedSlot = await db.streamSlot.update({
       where: { slotIndex },
