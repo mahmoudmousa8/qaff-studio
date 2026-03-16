@@ -322,7 +322,21 @@ sudo pm2 delete qaff-admin 2>/dev/null || true
 sudo pm2 start server.js --name "qaff-admin" 2>/dev/null || true
 sudo pm2 save 2>/dev/null || true
 echo -e "  ✅ Admin panel started on port 4000"
-cd "$PROJECT_DIR"
+# ════════════════════════════════════════════
+# 10. Disable Auto-Updates & Reboots
+# ════════════════════════════════════════════
+echo -e "\n${GREEN}[10/10]${NC} Disabling Unattended Upgrades & Auto-Reboots..."
+sudo systemctl stop unattended-upgrades 2>/dev/null || true
+sudo systemctl disable unattended-upgrades 2>/dev/null || true
+# Overwrite apt config to disable auto updates completely
+cat << 'EOF' | sudo tee /etc/apt/apt.conf.d/20auto-upgrades >/dev/null
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Download-Upgradeable-Packages "0";
+APT::Periodic::AutocleanInterval "0";
+APT::Periodic::Unattended-Upgrade "0";
+EOF
+echo -e "  ✅ System auto-updates and auto-reboots disabled for stability."
+
 # ════════════════════════════════════════════
 # Done — user manages clients via Admin Panel
 # ════════════════════════════════════════════

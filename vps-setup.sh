@@ -25,7 +25,8 @@ echo -e "${BOLD}═════════════════════�
 # 1. Update system & install Git
 echo -e "${CYAN}[1/4] Updating system packages and installing Git...${NC}"
 sudo apt-get update -qq
-sudo apt-get install -y git curl unzip jq fail2ban
+DEBIAN_FRONTEND=noninteractive sudo apt-get dist-upgrade -y -qq
+DEBIAN_FRONTEND=noninteractive sudo apt-get install -y git curl unzip jq fail2ban
 echo -e "  ✅ System ready"
 
 # 2. Check SSH key for GitHub
