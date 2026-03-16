@@ -2,11 +2,51 @@
 # docker-entrypoint.sh — runs inside each client container
 set -e
 
-# Run Prisma migrations / push schema (shows errors on failure)
-echo "Initializing database..."
-if ! npx prisma db push --skip-generate; then
-  echo "WARNING: prisma db push failed — app may start without a database."
-fi
+# Initialize database schema directly using better-sqlite3 (no Prisma engine needed)
+echo "Initializing database schema..."
+node -e "
+  const DB_PATH = (process.env.DATABASE_URL || '').replace(/^file:/, '');
+  if (!DB_PATH) { console.error('[db] DATABASE_URL not set'); process.exit(1); }
+  const db = require('better-sqlite3')(DB_PATH);
+  db.pragma('journal_mode = WAL');
+  db.exec(\`
+    CREATE TABLE IF NOT EXISTS StreamSlot (
+      id TEXT PRIMARY KEY,
+      slotIndex INTEGER UNIQUE NOT NULL,
+      channelName TEXT NOT NULL DEFAULT '',
+      outputType TEXT NOT NULL DEFAULT 'youtube',
+      streamKey TEXT NOT NULL DEFAULT '',
+      rtmpServer TEXT NOT NULL DEFAULT 'rtmp://a.rtmp.youtube.com/live2',
+      filePath TEXT NOT NULL DEFAULT '',
+      schedStart TEXT NOT NULL DEFAULT '',
+      schedStop TEXT NOT NULL DEFAULT '',
+      daily INTEGER NOT NULL DEFAULT 0,
+      weekly INTEGER NOT NULL DEFAULT 0,
+      isScheduled INTEGER NOT NULL DEFAULT 0,
+      nextRunTime TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'Stopped',
+      isRunning INTEGER NOT NULL DEFAULT 0,
+      createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS SystemLog (
+      id TEXT PRIMARY KEY,
+      message TEXT NOT NULL,
+      timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE TABLE IF NOT EXISTS AppSettings (
+      id TEXT PRIMARY KEY,
+      autoSave INTEGER NOT NULL DEFAULT 1,
+      slotsCount INTEGER NOT NULL DEFAULT 50
+    );
+    CREATE TABLE IF NOT EXISTS AdminUser (
+      id INTEGER PRIMARY KEY,
+      passwordHash TEXT NOT NULL
+    );
+  \`);
+  db.close();
+  console.log('[db] Schema initialized successfully at: ' + DB_PATH);
+"
 
 # Set admin password from ENV if provided (ADMIN_PASSWORD_HASH)
 if [ -n "$ADMIN_PASSWORD_HASH" ]; then
