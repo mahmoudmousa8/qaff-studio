@@ -29,30 +29,7 @@ DEBIAN_FRONTEND=noninteractive sudo apt-get dist-upgrade -y -qq
 DEBIAN_FRONTEND=noninteractive sudo apt-get install -y git curl unzip jq fail2ban
 echo -e "  ✅ System ready"
 
-# 2. Check SSH key for GitHub
-echo -e "\n${CYAN}[2/4] Checking GitHub Access...${NC}"
-
-if ! ssh -T git@github.com 2>&1 | grep -q "successfully authenticated"; then
-    echo -e "${YELLOW}⚠️ You need a GitHub Deploy Key or Personal Access Token (PAT) for this private repository.${NC}"
-    
-    # Prompt for PAT if SSH fails
-    echo -e "Please enter your GitHub Personal Access Token (PAT) with 'repo' scope:"
-    read -rs GITHUB_TOKEN
-    echo ""
-    
-    if [ -z "$GITHUB_TOKEN" ]; then
-        echo -e "${RED}Token is required for a private repository. Exiting.${NC}"
-        exit 1
-    fi
-    
-    # Update URL to use HTTPS with token
-    REPO_URL="https://${GITHUB_TOKEN}@github.com/mahmoudmousa8/qaff-studio.git"
-    echo -e "  ✅ Using token authentication"
-else
-     echo -e "  ✅ SSH Key authenticated"
-     REPO_URL="git@github.com:mahmoudmousa8/qaff-studio.git"
-fi
-
+# 2. Deleted: Checked SSH key for GitHub (Not needed for public repo)
 
 # 3. Clone Repository
 echo -e "\n${CYAN}[3/4] Cloning Qaff Studio Repository...${NC}"
