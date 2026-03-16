@@ -2,8 +2,11 @@
 # docker-entrypoint.sh — runs inside each client container
 set -e
 
-# Run Prisma migrations / push schema
-npx prisma db push --skip-generate 2>/dev/null || true
+# Run Prisma migrations / push schema (shows errors on failure)
+echo "Initializing database..."
+if ! npx prisma db push --skip-generate; then
+  echo "WARNING: prisma db push failed — app may start without a database."
+fi
 
 # Set admin password from ENV if provided (ADMIN_PASSWORD_HASH)
 if [ -n "$ADMIN_PASSWORD_HASH" ]; then
