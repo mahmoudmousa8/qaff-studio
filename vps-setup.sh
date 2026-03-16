@@ -24,9 +24,12 @@ echo -e "${BOLD}═════════════════════�
 
 # 1. Update system & install Git
 echo -e "${CYAN}[1/4] Updating system packages and installing Git...${NC}"
+export DEBIAN_FRONTEND=noninteractive
+export NEEDRESTART_MODE=a
+
 sudo apt-get update -qq
-DEBIAN_FRONTEND=noninteractive sudo apt-get dist-upgrade -y -qq
-DEBIAN_FRONTEND=noninteractive sudo apt-get install -y git curl unzip jq fail2ban
+sudo apt-get dist-upgrade -y -qq -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
+sudo apt-get install -y -qq -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" git curl unzip jq fail2ban
 echo -e "  ✅ System ready"
 
 # 2. Deleted: Checked SSH key for GitHub (Not needed for public repo)
