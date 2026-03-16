@@ -33,7 +33,9 @@ function getExpectedSessionToken(): string {
 
 // GET — validate current session
 export async function GET(request: NextRequest) {
-    const cookie = request.cookies.get('qaff_auth')
+    const CLIENT_ID = process.env.QAFF_CLIENT_ID || ''
+    const COOKIE_NAME = CLIENT_ID ? `qaff_auth_${CLIENT_ID}` : 'qaff_auth'
+    const cookie = request.cookies.get(COOKIE_NAME)
     if (!cookie?.value) {
         return NextResponse.json({ authenticated: false }, { status: 401 })
     }

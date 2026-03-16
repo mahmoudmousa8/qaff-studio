@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const COOKIE_NAME = 'qaff_auth'
+const CLIENT_ID = process.env.QAFF_CLIENT_ID || ''
+const COOKIE_NAME = CLIENT_ID ? `qaff_auth_${CLIENT_ID}` : 'qaff_auth'
 const PUBLIC_PATHS = ['/login', '/api/auth/login', '/api/auth/check']
 
 export async function middleware(request: NextRequest) {
