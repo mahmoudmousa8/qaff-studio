@@ -150,12 +150,11 @@ echo -e "  ✅ Advanced NIC Queue and Ring Buffer Tuning configured"
 # ════════════════════════════════════════════
 echo -e "\n${GREEN}[3/10]${NC} Installing system packages..."
 sudo apt-get update -qq
-sudo apt-get install -y \
+DEBIAN_FRONTEND=noninteractive sudo apt-get install -y \
   curl wget unzip openssl \
   build-essential \
   sqlite3 ethtool \
-  ffmpeg \
-  2>/dev/null | grep -E "(installed|upgraded)" || true
+  ffmpeg
 
 if ! command -v ffmpeg &>/dev/null; then
   echo -e "  ${RED}ffmpeg install failed!${NC}" && exit 1
