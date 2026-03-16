@@ -887,6 +887,58 @@ app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
     }
 });
 
+
+// ── System: Pull + Rebuild Docker Image + Update All Clients ──
+app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
+    const projectDir = '/opt/qaff-studio'
+    res.json({ success: true, message: 'Rebuild started. Check server logs for progress.' })
+
+    setTimeout(async () => {
+        try {
+            console.log('[rebuild] Pulling latest code from GitHub...')
+            execSync(`git -C "${projectDir}" pull origin main`, { stdio: 'inherit' })
+
+            console.log('[rebuild] Rebuilding Docker image qaff-studio:latest...')
+            execSync(`docker build -t qaff-studio:latest "${projectDir}"`, { stdio: 'inherit' })
+            console.log('[rebuild] Docker image rebuilt.')
+
+            // Recreate all running clients from the new image
+            const clients = db.getAllClients.all()
+            let upgraded = 0, failed = 0
+            for (const client of clients) {
+                if (!client.container_id) continue
+                try {
+                    const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null)
+                    if (!passwordHash) { failed++; continue }
+                    await docker.stopContainer(client.container_id).catch(() => { })
+                    await docker.deleteClientContainer(client.container_id, null)
+                    const { containerId } = await docker.createClientContainer({
+                        clientId: client.id,
+                        name: client.name,
+                        port: client.port,
+                        slots: client.slots,
+                        storageGb: client.storage_gb,
+                        bandwidthLimit: client.bandwidth_limit || 0,
+                        passwordHash,
+                        renewalDate: client.renewal_date || '',
+                        isSuspended: client.status === 'suspended'
+                    })
+                    db.updateClientContainer.run(containerId, client.id)
+                    upgraded++
+                } catch (err) {
+                    console.error(`[rebuild] client ${client.id} failed:`, err)
+                    failed++
+                }
+            }
+            db.addLog('system_rebuild', null, `Rebuilt image. Upgraded: ${upgraded}, Failed: ${failed}`)
+            console.log(`[rebuild] Done. Upgraded: ${upgraded}, Failed: ${failed}`)
+        } catch (err) {
+            console.error('[rebuild] Fatal error:', err)
+            db.addLog('system_rebuild_failed', null, err.message)
+        }
+    }, 100)
+})
+
 // ── Start ──────────────────────────────────────────────────
 async function start() {
     await auth.initAdminPassword('Admin123@')
