@@ -536,7 +536,7 @@ export default function Home() {
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-background" dir="ltr">
+    <div className="min-h-screen flex flex-col bg-background" dir="ltr">
       {/* â€•â€•â€• Header â€•â€•â€• */}
       <header className="border-b bg-card shrink-0 z-50">
         <div className="px-4 py-2">
