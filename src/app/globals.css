@@ -128,8 +128,14 @@
   }
 
   @media (min-width: 1024px) {
+    html {
+      font-size: 90%;
+    }
     body {
-      zoom: 0.9;
+      width: 111.11vw;
+      height: 111.11vh;
+      transform: scale(0.9);
+      transform-origin: top left;
     }
   }
 }

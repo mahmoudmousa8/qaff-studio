@@ -536,7 +536,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background" dir="ltr">
+    <div className="h-screen flex flex-col overflow-hidden bg-background" dir="ltr">
       {/* â€•â€•â€• Header â€•â€•â€• */}
       <header className="border-b bg-card shrink-0 z-50">
         <div className="px-4 py-2">
@@ -665,8 +665,8 @@ export default function Home() {
       </header>
 
       {/* â€•â€•â€• Main Content â€•â€•â€• */}
-      <main className="flex-1 flex flex-col px-4 py-2 gap-2">
-        <Card className="flex-1 flex flex-col shadow-sm">
+      <main className="flex-1 flex flex-col overflow-hidden px-4 py-2 gap-2">
+        <Card className="flex-1 flex flex-col overflow-hidden">
           <CardHeader className="py-2 px-4 shrink-0">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{t('slots')}</CardTitle>
@@ -685,10 +685,10 @@ export default function Home() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="flex-1 p-0">
-            <div className="w-full overflow-x-auto overflow-y-clip">
+          <CardContent className="flex-1 overflow-hidden p-0">
+            <div className="h-full overflow-auto">
               <table className="w-full border-collapse" style={{ minWidth: 1530, tableLayout: 'fixed' }}>
-                <thead className="bg-card shadow-sm">
+                <thead className="sticky top-0 bg-card z-10 shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 110 }}>{t('colDetails')}</th>
@@ -948,7 +948,7 @@ export default function Home() {
         </Card>
       </main >
 
-      <footer className="w-full border-t bg-card/50 py-4 shrink-0 mt-auto shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+      <footer className="w-full border-t bg-card/50 py-4 shrink-0 mt-auto shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] absolute bottom-0 left-0 right-0 z-40">
         <div className="container mx-auto w-full overflow-hidden">
           <div className="flex flex-col items-center justify-center gap-3 px-4 text-center w-full">
 
