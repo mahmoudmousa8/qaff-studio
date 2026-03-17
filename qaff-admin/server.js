@@ -895,8 +895,11 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
 
     setTimeout(async () => {
         try {
-            console.log('[rebuild] Pulling latest code from GitHub...')
-            execSync(`git -C "${projectDir}" pull origin main`, { stdio: 'inherit' })
+            console.log('[rebuild] Pulling latest code from GitHub (Hard Reset)...')
+            // Add safe directory config just in case of ownership issues
+            execSync(`git config --global --add safe.directory "${projectDir}"`, { stdio: 'inherit' })
+            execSync(`git -C "${projectDir}" fetch origin main`, { stdio: 'inherit' })
+            execSync(`git -C "${projectDir}" reset --hard origin/main`, { stdio: 'inherit' })
 
             console.log('[rebuild] Rebuilding Docker image qaff-studio:latest...')
             execSync(`docker build -t qaff-studio:latest "${projectDir}"`, { stdio: 'inherit' })
