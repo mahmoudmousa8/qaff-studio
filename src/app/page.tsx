@@ -1152,8 +1152,8 @@ export default function Home() {
                     {pwResetQuestion}
                   </div>
                 ) : (
-                  <div className="text-xs text-muted-foreground bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded p-2">
-                    {locale === 'ar' ? '❌ لم يتم تعيين سؤال إعادة التعيين بعد. تواصل مع المسؤول.' : '❌ No security question has been set yet. Contact your administrator.'}
+                  <div className="text-sm text-foreground bg-primary/10 border border-primary/20 rounded p-3 text-center font-medium">
+                    {t('resetQuestionRequired')}
                   </div>
                 )}
                 <label className="text-sm font-semibold">

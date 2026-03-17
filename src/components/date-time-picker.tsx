@@ -239,7 +239,7 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
                                     onClick={handleDone}
                                     className="text-xs bg-primary text-primary-foreground hover:bg-primary/90 px-2.5 py-1 rounded font-semibold"
                                 >
-                                    Done
+                                    {t('done') || 'Done'}
                                 </button>
                             </div>
                         </div>

@@ -208,6 +208,8 @@ const translations = {
         renewalPrefix: 'Renewal in',
         renewalDaysSuffix: 'days',
         renewalExpired: 'Subscription Expired',
+        done: 'Done',
+        resetQuestionRequired: 'You must enter the reset question to change the password',
     },
     ar: {
         // Videos Manager
@@ -414,6 +416,8 @@ const translations = {
         renewalPrefix: 'متبقي',
         renewalDaysSuffix: 'أيام',
         renewalExpired: 'انتهى الاشتراك',
+        done: 'تم',
+        resetQuestionRequired: 'يجب إدخال سؤال التعيين لتغيير كلمة المرور',
     }
 } as const
 
