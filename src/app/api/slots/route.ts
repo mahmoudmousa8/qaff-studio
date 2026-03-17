@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const TOTAL_SLOTS = parseInt(process.env.TOTAL_SLOTS || '50', 10)
   const { searchParams } = new URL(request.url)
   const page = parseInt(searchParams.get('page') || '1')
-  const limit = parseInt(searchParams.get('limit') || '50')
+  const limit = parseInt(searchParams.get('limit') || '100')
   const skip = (page - 1) * limit
 
   try {
