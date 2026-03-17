@@ -137,6 +137,10 @@
       transform: scale(0.9);
       transform-origin: top left;
     }
+    
+    .h-screen {
+      height: 111.11vh !important;
+    }
   }
 }
 
