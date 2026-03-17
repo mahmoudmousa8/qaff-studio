@@ -276,6 +276,10 @@ cd "$PROJECT_DIR"
 npm install --production=false 2>&1 | tail -3
 echo -e "  ✅ npm install complete"
 
+# Fix Git ownership issues for future pulls
+git config --global --add safe.directory "$PROJECT_DIR" 2>/dev/null || true
+sudo git config --global --add safe.directory "$PROJECT_DIR" 2>/dev/null || true
+
 npx prisma generate 2>&1 | tail -2
 npx prisma db push 2>&1 | tail -2
 echo -e "  ✅ Database initialized"
