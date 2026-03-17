@@ -97,7 +97,7 @@ app.post('/api/admin/password', auth.requireAuth, async (req, res) => {
 
 // ── Admin: password reset question (global setting) ───────
 app.get('/api/settings/reset-question', auth.requireAuth, (req, res) => {
-    const question = db.getSettingValue('reset_question', '')
+    const question = db.getSettingValue('reset_question', 'من فضلك أدخل رمز الأمان المكون من 5 أحرف الخاص بلوحتك')
     res.json({ question })
 })
 
@@ -111,7 +111,7 @@ app.put('/api/settings/reset-question', auth.requireAuth, (req, res) => {
 
 // ── Internal: get reset question (no auth — for client containers) ───
 app.get('/api/internal/reset-question', (req, res) => {
-    const question = db.getSettingValue('reset_question', '')
+    const question = db.getSettingValue('reset_question', 'من فضلك أدخل رمز الأمان المكون من 5 أحرف الخاص بلوحتك')
     res.json({ question })
 })
 
