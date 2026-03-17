@@ -948,7 +948,7 @@ export default function Home() {
         </Card>
       </main >
 
-      <footer className="w-full border-t bg-card/50 py-4 shrink-0 mt-auto shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)] absolute bottom-0 left-0 right-0 z-40">
+      <footer className="w-full border-t bg-card py-4 shrink-0 mt-auto shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
         <div className="container mx-auto w-full overflow-hidden">
           <div className="flex flex-col items-center justify-center gap-3 px-4 text-center w-full">
 
