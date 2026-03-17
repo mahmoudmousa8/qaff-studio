@@ -665,8 +665,8 @@ export default function Home() {
       </header>
 
       {/* â€•â€•â€• Main Content â€•â€•â€• */}
-      <main className="flex-1 flex flex-col overflow-hidden px-4 py-2 gap-2">
-        <Card className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col px-4 py-2 gap-2">
+        <Card className="flex-1 flex flex-col shadow-sm">
           <CardHeader className="py-2 px-4 shrink-0">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{t('slots')}</CardTitle>
@@ -685,10 +685,10 @@ export default function Home() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="flex-1 overflow-hidden p-0">
-            <div className="h-full overflow-auto">
+          <CardContent className="flex-1 p-0">
+            <div className="w-full overflow-x-auto overflow-y-clip">
               <table className="w-full border-collapse" style={{ minWidth: 1530, tableLayout: 'fixed' }}>
-                <thead className="sticky top-0 bg-card z-10 shadow-sm">
+                <thead className="bg-card shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 110 }}>{t('colDetails')}</th>
