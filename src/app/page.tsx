@@ -720,17 +720,17 @@ export default function Home() {
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
             <div className="h-full overflow-auto">
-              <table className="w-full border-collapse" style={{ minWidth: 1400, tableLayout: 'fixed' }}>
+              <table className="w-full border-collapse" style={{ minWidth: 1350, tableLayout: 'fixed' }}>
                 <thead className="sticky top-0 bg-card z-10 shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 450 }}>{t('colSchedule')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 400 }}>{t('colSchedule')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 85 }}>{t('colPlatform')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 230 }}>{t('colOutputSettings')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 110 }}>{t('colActions')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 310 }}>{t('colOutputSettings')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -786,9 +786,9 @@ export default function Home() {
                                   <path d="M5.5 3.5l14 8.5-14 8.5v-17z" />
                                 </svg>
                               </div>
-                              {slot.schedStart && (
-                                <span className="text-[10px] font-mono text-foreground/80 shrink-0 tabular-nums">{slot.schedStart}</span>
-                              )}
+                              <span className={`text-[10px] font-mono shrink-0 tabular-nums ${slot.schedStart ? 'text-foreground/80' : 'text-muted-foreground/50'}`}>
+                                {slot.schedStart || "00-00 00:00"}
+                              </span>
                               <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6" />
                             </div>
 
@@ -811,9 +811,9 @@ export default function Home() {
                                     const h = parseInt(val)
                                     const m = stopM >= 0 ? stopM : 0
                                     handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h, m))
-                                  }} className={`${sc} w-[72px]`} dir="ltr">
+                                  }} className={`${sc} w-[64px]`} dir="ltr">
                                     <option value="">{t('chooseHour')}</option>
-                                    {Array.from({length:24},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}:xx</option>))}
+                                    {Array.from({length:24},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}</option>))}
                                   </select>
                                   <select value={hasStop && stopM >= 0 ? String(stopM) : ''} onChange={(e) => {
                                     const val = e.target.value

@@ -139,8 +139,8 @@ const translations = {
         copied: 'Copied!',
 
         // Stop Group Dropdowns
-        chooseHour: 'Choose Hour',
-        chooseMin: 'Choose Minute',
+        chooseHour: 'Hour',
+        chooseMin: 'Min',
 
         // Footer
         footerText: 'Qaff Digital © - For Sales',
@@ -351,8 +351,8 @@ const translations = {
         copied: 'تم النسخ!',
 
         // Stop Group Dropdowns
-        chooseHour: 'اختيار الساعة',
-        chooseMin: 'اختيار الدقيقة',
+        chooseHour: 'الساعة',
+        chooseMin: 'الدقيقة',
 
         // Footer
         footerText: 'قاف ديجيتال © للمبيعات تواصل معنا',
