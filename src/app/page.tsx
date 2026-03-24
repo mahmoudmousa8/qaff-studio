@@ -802,42 +802,108 @@ export default function Home() {
                                   <path d="M5.5 3.5l14 8.5-14 8.5v-17z" />
                                 </svg>
                               </div>
-                              <span className={`text-[10px] font-mono shrink-0 tabular-nums ${slot.schedStart ? 'text-foreground/80' : 'text-muted-foreground/50'}`}>
-                                {slot.schedStart || "00-00 00:00"}
-                              </span>
+                              <input
+                                type="text"
+                                value={slot.schedStart || ''}
+                                placeholder="00-00 00:00"
+                                onChange={(e) => handleSlotChange(slot.slotIndex, 'schedStart', e.target.value)}
+                                className={`w-[85px] bg-transparent border-none text-[10px] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-ring rounded px-1 ${slot.schedStart ? 'text-foreground/80' : 'text-muted-foreground/50'}`}
+                                dir="ltr"
+                              />
                               <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6" />
                             </div>
 
-                            {/* Stop Group – Choose Hour + Choose Minute */}
+                            {/* Stop Group – 12h Hour, Minute, AM/PM */}
                             {(() => {
                               const stopTime = slot.schedStop ? (slot.schedStop.split(' ')[1] || '') : ''
                               const [sHr, sMr] = stopTime.split(':').map(Number)
-                              const stopH = isNaN(sHr) ? -1 : sHr
-                              const stopM = isNaN(sMr) ? -1 : sMr
-                              const hasStop = !!slot.schedStop && stopH >= 0
+                              const stopH24 = isNaN(sHr) ? -1 : sHr // Hour 0-23
+                              const stopM = isNaN(sMr) ? -1 : sMr // Min 0-59
+                              const hasStop = !!slot.schedStop && stopH24 >= 0
+
+                              const stopH12Obj = hasStop ? to12h(stopH24) : null
+                              const stopH12 = stopH12Obj ? stopH12Obj.hour12 : -1
+                              const stopAmPm = stopH12Obj ? stopH12Obj.ampm : 'AM'
+
+                              const setStopTime = (h12: number, m: number, ampm: 'AM' | 'PM') => {
+                                if (h12 < 0 || m < 0) {
+                                  handleSlotChange(slot.slotIndex, 'schedStop', '')
+                                  return
+                                }
+                                const h24 = to24h(h12, ampm)
+                                handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h24, m))
+                              }
+
                               const sc = "h-6 text-[10px] font-mono border rounded bg-background focus:outline-none cursor-pointer px-1"
                               return (
-                                <div className="flex gap-1.5 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
-                                  <div className="flex items-center justify-center w-[18px] h-[18px] bg-red-500/15 text-red-500 rounded-[4px] shrink-0 border border-red-500/20">
+                                <div className="flex gap-1 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
+                                  <div className="flex items-center justify-center w-[18px] h-[18px] bg-red-500/15 text-red-500 rounded-[4px] shrink-0 border border-red-500/20 mr-0.5">
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5"><rect x="5" y="5" width="14" height="14" rx="3.5" /></svg>
                                   </div>
-                                  <input 
-                                    type="time" 
-                                    value={stopTime} 
+                                  
+                                  <select 
+                                    value={hasStop ? String(stopH12) : ''} 
                                     onChange={(e) => {
                                       const val = e.target.value
-                                      if (!val) { handleSlotChange(slot.slotIndex, 'schedStop', ''); return }
-                                      const [h, m] = val.split(':').map(Number)
-                                      handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h, m))
-                                    }} 
-                                    className={`${sc} w-[80px]`} 
-                                    dir="ltr"
-                                    title={t('colSchedule')}
-                                  />
-                                  <div className="flex bg-muted/50 rounded overflow-hidden border ml-0.5">
-                                    <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-muted transition-colors border-r" title="Set to next 12:00 AM">AM</button>
-                                    <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-muted transition-colors" title="Set to next 12:00 PM">PM</button>
-                                  </div>
+                                      if (!val) { setStopTime(-1, -1, 'AM'); return }
+                                      const h12 = parseInt(val)
+                                      const m = stopM >= 0 ? stopM : 0
+                                      setStopTime(h12, m, stopAmPm)
+                                    }}
+                                    className={`${sc} w-[42px]`} dir="ltr"
+                                  >
+                                    <option value="">--</option>
+                                    {Array.from({length:12},(_,i)=>{
+                                      const v = i === 0 ? 12 : i
+                                      return <option key={v} value={v}>{String(v).padStart(2,'0')}</option>
+                                    })}
+                                  </select>
+
+                                  <span className="text-muted-foreground font-bold -mx-0.5">:</span>
+
+                                  <select 
+                                    value={hasStop && stopM >= 0 ? String(stopM) : ''} 
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      if (!val) { setStopTime(-1, -1, 'AM'); return }
+                                      const m = parseInt(val)
+                                      const h12 = hasStop && stopH12 > 0 ? stopH12 : 12
+                                      setStopTime(h12, m, stopAmPm)
+                                    }}
+                                    className={`${sc} w-[42px]`} dir="ltr"
+                                  >
+                                    <option value="">--</option>
+                                    {Array.from({length:60},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
+                                  </select>
+
+                                  <select
+                                    value={hasStop ? stopAmPm : 'AM'}
+                                    onChange={(e) => {
+                                      const val = e.target.value as 'AM' | 'PM'
+                                      if (!hasStop && !val) return
+                                      const h12 = hasStop && stopH12 > 0 ? stopH12 : 12
+                                      const m = stopM >= 0 ? stopM : 0
+                                      setStopTime(h12, m, val)
+                                    }}
+                                    className={`${sc} w-[46px] font-semibold bg-muted/20`} dir="ltr"
+                                  >
+                                    <option value="AM">AM</option>
+                                    <option value="PM">PM</option>
+                                  </select>
+
+                                  {/* Reset Button */}
+                                  <button
+                                    onClick={() => {
+                                      handleSlotChange(slot.slotIndex, 'schedStart', '')
+                                      handleSlotChange(slot.slotIndex, 'schedStop', '')
+                                    }}
+                                    className="h-6 w-6 flex items-center justify-center rounded bg-muted/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground border transition-colors ml-1"
+                                    title="إعادة تعيين التواريخ"
+                                  >
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  </button>
                                 </div>
                               )
                             })()}
@@ -860,6 +926,12 @@ export default function Home() {
                                 }} id={`weekly-${slot.slotIndex}`} className="w-3 h-3" />
                                 <label htmlFor={`weekly-${slot.slotIndex}`} className="text-[10px] text-muted-foreground cursor-pointer select-none">{t('lblWeekly')}</label>
                               </div>
+                            </div>
+
+                            {/* Quick AM/PM Targets */}
+                            <div className="flex bg-muted/50 rounded overflow-hidden border shrink-0 border-primary/20">
+                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title="Set to next 12:00 AM">AM</button>
+                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title="Set to next 12:00 PM">PM</button>
                             </div>
                             {slot.nextRunTime && (
                               <div className="text-[10px] text-blue-500 font-mono shrink-0">{slot.nextRunTime}</div>
