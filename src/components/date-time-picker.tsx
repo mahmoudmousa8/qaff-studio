@@ -52,7 +52,8 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     // Selected values
     const [selMonth, setSelMonth] = React.useState<number | null>(value ? parsed.month : null)
     const [selDay, setSelDay] = React.useState<number | null>(value ? parsed.day : null)
-    const [selHour, setSelHour] = React.useState(parsed.hour)
+    const [selHour, setSelHour] = React.useState(parsed.hour % 12 === 0 ? 12 : parsed.hour % 12)
+    const [selAmPm, setSelAmPm] = React.useState<'AM'|'PM'>(parsed.hour < 12 ? 'AM' : 'PM')
     const [selMinute, setSelMinute] = React.useState(parsed.minute)
 
     const hourRef = React.useRef<HTMLDivElement>(null)
@@ -66,7 +67,8 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
             setViewYear(now.getFullYear())
             setSelMonth(value ? p.month : null)
             setSelDay(value ? p.day : null)
-            setSelHour(p.hour)
+            setSelHour(p.hour % 12 === 0 ? 12 : p.hour % 12)
+            setSelAmPm(p.hour < 12 ? 'AM' : 'PM')
             setSelMinute(p.minute)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -91,21 +93,31 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     function handleDayClick(day: number) {
         setSelDay(day)
         setSelMonth(viewMonth)
-        // Emit immediately on day selection
-        onChange(buildValue(viewMonth, day, selHour, selMinute))
+        const h24 = selAmPm === 'PM' ? (selHour === 12 ? 12 : selHour + 12) : (selHour === 12 ? 0 : selHour)
+        onChange(buildValue(viewMonth, day, h24, selMinute))
     }
 
-    function handleHourClick(h: number) {
-        setSelHour(h)
+    function handleHourClick(h12: number) {
+        setSelHour(h12)
         if (selDay !== null && selMonth !== null) {
-            onChange(buildValue(selMonth, selDay, h, selMinute))
+            const h24 = selAmPm === 'PM' ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12)
+            onChange(buildValue(selMonth, selDay, h24, selMinute))
+        }
+    }
+
+    function handleAmPmClick(ap: 'AM'|'PM') {
+        setSelAmPm(ap)
+        if (selDay !== null && selMonth !== null) {
+            const h24 = ap === 'PM' ? (selHour === 12 ? 12 : selHour + 12) : (selHour === 12 ? 0 : selHour)
+            onChange(buildValue(selMonth, selDay, h24, selMinute))
         }
     }
 
     function handleMinuteClick(m: number) {
         setSelMinute(m)
         if (selDay !== null && selMonth !== null) {
-            onChange(buildValue(selMonth, selDay, selHour, m))
+            const h24 = selAmPm === 'PM' ? (selHour === 12 ? 12 : selHour + 12) : (selHour === 12 ? 0 : selHour)
+            onChange(buildValue(selMonth, selDay, h24, m))
         }
     }
 
@@ -123,12 +135,14 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
         const n = new Date()
         const m = n.getMonth() + 1
         const d = n.getDate()
-        const h = n.getHours()
+        const h24 = n.getHours()
         const min = n.getMinutes()
-        setSelMonth(m); setSelDay(d); setSelHour(h); setSelMinute(min)
+        const h12 = h24 % 12 === 0 ? 12 : h24 % 12
+        const ap: 'AM'|'PM' = h24 < 12 ? 'AM' : 'PM'
+        setSelMonth(m); setSelDay(d); setSelHour(h12); setSelAmPm(ap); setSelMinute(min)
         setViewMonth(m); setViewYear(n.getFullYear())
-        onChange(buildValue(m, d, h, min))
-        scrollToItem(hourRef, h)
+        onChange(buildValue(m, d, h24, min))
+        scrollToItem(hourRef, h12 - 1)
         scrollToItem(minuteRef, min)
     }
 
@@ -246,27 +260,30 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
                     </div>
 
                     {/* ── Time panel ── */}
-                    <div className="flex divide-x" style={{ width: 110 }}>
-                        {/* Hours */}
+                    <div className="flex divide-x" style={{ width: 150 }}>
+                        {/* Hours 1-12 */}
                         <div
                             ref={hourRef}
                             className="flex-1 overflow-y-auto scroll-smooth"
                             style={{ maxHeight: 280 }}
                         >
-                            {Array.from({ length: 24 }, (_, h) => (
-                                <button
-                                    key={h}
-                                    onClick={() => handleHourClick(h)}
-                                    className={cn(
-                                        'w-full h-9 text-sm font-mono flex items-center justify-center transition-colors',
-                                        selHour === h
-                                            ? 'bg-primary text-primary-foreground font-bold'
-                                            : 'hover:bg-muted text-foreground'
-                                    )}
-                                >
-                                    {String(h).padStart(2, '0')}
-                                </button>
-                            ))}
+                            {Array.from({ length: 12 }, (_, i) => {
+                                const h = i + 1
+                                return (
+                                    <button
+                                        key={h}
+                                        onClick={() => handleHourClick(h)}
+                                        className={cn(
+                                            'w-full h-9 text-sm font-mono flex items-center justify-center transition-colors',
+                                            selHour === h
+                                                ? 'bg-primary text-primary-foreground font-bold'
+                                                : 'hover:bg-muted text-foreground'
+                                        )}
+                                    >
+                                        {String(h).padStart(2, '0')}
+                                    </button>
+                                )
+                            })}
                         </div>
                         {/* Minutes */}
                         <div
@@ -286,6 +303,23 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
                                     )}
                                 >
                                     {String(m).padStart(2, '0')}
+                                </button>
+                            ))}
+                        </div>
+                        {/* AM / PM */}
+                        <div className="flex flex-col justify-center divide-y" style={{ minWidth: 46 }}>
+                            {(['AM', 'PM'] as const).map(ap => (
+                                <button
+                                    key={ap}
+                                    onClick={() => handleAmPmClick(ap)}
+                                    className={cn(
+                                        'flex-1 text-sm font-semibold flex items-center justify-center transition-colors',
+                                        selAmPm === ap
+                                            ? 'bg-primary text-primary-foreground'
+                                            : 'hover:bg-muted text-foreground'
+                                    )}
+                                >
+                                    {ap}
                                 </button>
                             ))}
                         </div>

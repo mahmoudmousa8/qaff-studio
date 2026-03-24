@@ -720,17 +720,17 @@ export default function Home() {
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
             <div className="h-full overflow-auto">
-              <table className="w-full border-collapse" style={{ minWidth: 1540, tableLayout: 'fixed' }}>
+              <table className="w-full border-collapse" style={{ minWidth: 1400, tableLayout: 'fixed' }}>
                 <thead className="sticky top-0 bg-card z-10 shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 200 }}>{t('colDetails')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 160 }}>{t('colFilePath')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 560 }}>{t('colSchedule')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 450 }}>{t('colSchedule')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 310 }}>{t('colOutputSettings')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 85 }}>{t('colPlatform')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 230 }}>{t('colOutputSettings')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 110 }}>{t('colActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -778,68 +778,18 @@ export default function Home() {
 
                         {/* Schedule */}
                         <td className="px-2 py-1" style={{ overflow: 'hidden' }}>
-                          <div className="flex flex-row items-center gap-1.5 flex-nowrap">
-                            {/* Start Group – date + 12h hour/min/ampm selects + calendar picker */}
-                            <div className="flex gap-1 items-center bg-muted/40 px-1.5 py-1 rounded shrink-0">
+                          <div className="flex flex-row items-center gap-2 flex-nowrap">
+                            {/* Start Group – DateTimePicker only */}
+                            <div className="flex gap-1.5 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
                               <div className="flex items-center justify-center w-[18px] h-[18px] bg-green-500/15 text-green-600 rounded-[4px] shrink-0 border border-green-500/20">
                                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 ml-[1px]">
                                   <path d="M5.5 3.5l14 8.5-14 8.5v-17z" />
                                 </svg>
                               </div>
-                              <div className="flex bg-background border rounded overflow-hidden shrink-0">
-                                <Input
-                                  value={slot.schedStart ? slot.schedStart.split(' ')[0] || '' : ''}
-                                  onChange={(e) => {
-                                    const dp = e.target.value
-                                    const tp = slot.schedStart ? (slot.schedStart.split(' ')[1] || '00:00') : '00:00'
-                                    handleSlotChange(slot.slotIndex, 'schedStart', dp ? `${dp} ${tp}` : '')
-                                  }}
-                                  className="h-6 text-[10px] font-mono w-[46px] text-center px-0.5 border-0 focus-visible:ring-0 rounded-none"
-                                  placeholder="MM-DD" maxLength={5} dir="ltr"
-                                />
-                              </div>
-                              {(() => {
-                                const sp = parse24hTime(slot.schedStart)
-                                const { hour12, ampm } = to12h(sp.hour)
-                                const hasStart = !!slot.schedStart
-                                const sc = "h-6 text-[10px] font-mono text-center px-0 border rounded bg-background focus:outline-none cursor-pointer"
-                                return (
-                                  <>
-                                    <select value={hasStart ? String(hour12) : ''} onChange={(e) => {
-                                      if (!e.target.value) return
-                                      const h24 = to24h(parseInt(e.target.value), ampm)
-                                      const dp = slot.schedStart ? (slot.schedStart.split(' ')[0] || '') : ''
-                                      if (dp) handleSlotChange(slot.slotIndex, 'schedStart', `${dp} ${String(h24).padStart(2,'0')}:${String(sp.minute).padStart(2,'0')}`)
-                                    }} className={`${sc} w-[34px]`} dir="ltr">
-                                      {!hasStart && <option value="">--</option>}
-                                      {Array.from({length:12},(_,i)=>(<option key={i+1} value={i+1}>{String(i+1).padStart(2,'0')}</option>))}
-                                    </select>
-                                    <span className="text-[10px] text-muted-foreground">:</span>
-                                    <select value={hasStart ? String(sp.minute) : ''} onChange={(e) => {
-                                      if (e.target.value==='') return
-                                      const m = parseInt(e.target.value)
-                                      const h24 = to24h(hour12, ampm)
-                                      const dp = slot.schedStart ? (slot.schedStart.split(' ')[0] || '') : ''
-                                      if (dp) handleSlotChange(slot.slotIndex, 'schedStart', `${dp} ${String(h24).padStart(2,'0')}:${String(m).padStart(2,'0')}`)
-                                    }} className={`${sc} w-[34px]`} dir="ltr">
-                                      {!hasStart && <option value="">--</option>}
-                                      {Array.from({length:60},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}</option>))}
-                                    </select>
-                                    <select value={hasStart ? ampm : ''} onChange={(e) => {
-                                      if (!e.target.value) return
-                                      const na = e.target.value as 'AM'|'PM'
-                                      const h24 = to24h(hour12, na)
-                                      const dp = slot.schedStart ? (slot.schedStart.split(' ')[0] || '') : ''
-                                      if (dp) handleSlotChange(slot.slotIndex, 'schedStart', `${dp} ${String(h24).padStart(2,'0')}:${String(sp.minute).padStart(2,'0')}`)
-                                    }} className={`${sc} w-[32px] text-[9px]`} dir="ltr">
-                                      {!hasStart && <option value="">--</option>}
-                                      <option value="AM">AM</option>
-                                      <option value="PM">PM</option>
-                                    </select>
-                                  </>
-                                )
-                              })()}
-                              <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6 ml-0.5" />
+                              {slot.schedStart && (
+                                <span className="text-[10px] font-mono text-foreground/80 shrink-0 tabular-nums">{slot.schedStart}</span>
+                              )}
+                              <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6" />
                             </div>
 
                             {/* Stop Group – Choose Hour + Choose Minute */}
@@ -849,9 +799,9 @@ export default function Home() {
                               const stopH = isNaN(sHr) ? -1 : sHr
                               const stopM = isNaN(sMr) ? -1 : sMr
                               const hasStop = !!slot.schedStop && stopH >= 0
-                              const sc = "h-6 text-[10px] font-mono border rounded bg-background focus:outline-none cursor-pointer"
+                              const sc = "h-6 text-[10px] font-mono border rounded bg-background focus:outline-none cursor-pointer px-1"
                               return (
-                                <div className="flex gap-1 items-center bg-muted/40 px-1.5 py-1 rounded shrink-0">
+                                <div className="flex gap-1.5 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
                                   <div className="flex items-center justify-center w-[18px] h-[18px] bg-red-500/15 text-red-500 rounded-[4px] shrink-0 border border-red-500/20">
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5"><rect x="5" y="5" width="14" height="14" rx="3.5" /></svg>
                                   </div>
@@ -861,7 +811,7 @@ export default function Home() {
                                     const h = parseInt(val)
                                     const m = stopM >= 0 ? stopM : 0
                                     handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h, m))
-                                  }} className={`${sc} w-[68px]`} dir="ltr">
+                                  }} className={`${sc} w-[72px]`} dir="ltr">
                                     <option value="">{t('chooseHour')}</option>
                                     {Array.from({length:24},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}:xx</option>))}
                                   </select>
@@ -871,25 +821,25 @@ export default function Home() {
                                     const m = parseInt(val)
                                     const h = hasStop && stopH >= 0 ? stopH : 0
                                     handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h, m))
-                                  }} className={`${sc} w-[60px]`} dir="ltr">
+                                  }} className={`${sc} w-[64px]`} dir="ltr">
                                     <option value="">{t('chooseMin')}</option>
-                                    {Array.from({length:60},(_,i)=>(<option key={i} value={i}>:{String(i).padStart(2,'0')}</option>))}
+                                    {Array.from({length:60},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}</option>))}
                                   </select>
                                 </div>
                               )
                             })()}
 
                             {/* Daily / Weekly */}
-                            <div className="flex items-center gap-1 bg-muted/20 px-1.5 py-0.5 rounded border border-border/50 shrink-0">
-                              <div className="flex items-center gap-0.5">
+                            <div className="flex items-center gap-2 bg-muted/20 px-2 py-0.5 rounded border border-border/50 shrink-0">
+                              <div className="flex items-center gap-1">
                                 <Checkbox checked={slot.daily} onCheckedChange={(c) => {
                                   handleSlotChange(slot.slotIndex, 'daily', !!c)
                                   if (c) handleSlotChange(slot.slotIndex, 'weekly', false)
                                   if (!c) handleSlotChange(slot.slotIndex, 'nextRunTime', '')
                                 }} id={`daily-${slot.slotIndex}`} className="w-3 h-3" />
-                                <label htmlFor={`daily-${slot.slotIndex}`} className="text-[10px] text-muted-foreground mr-1 cursor-pointer select-none">{t('lblDaily')}</label>
+                                <label htmlFor={`daily-${slot.slotIndex}`} className="text-[10px] text-muted-foreground cursor-pointer select-none">{t('lblDaily')}</label>
                               </div>
-                              <div className="flex items-center gap-0.5">
+                              <div className="flex items-center gap-1">
                                 <Checkbox checked={slot.weekly} onCheckedChange={(c) => {
                                   handleSlotChange(slot.slotIndex, 'weekly', !!c)
                                   if (c) handleSlotChange(slot.slotIndex, 'daily', false)
@@ -899,7 +849,7 @@ export default function Home() {
                               </div>
                             </div>
                             {slot.nextRunTime && (
-                              <div className="text-[10px] text-blue-500 font-mono ml-1 shrink-0">{slot.nextRunTime}</div>
+                              <div className="text-[10px] text-blue-500 font-mono shrink-0">{slot.nextRunTime}</div>
                             )}
                           </div>
                         </td>
