@@ -821,26 +821,19 @@ export default function Home() {
                                   <div className="flex items-center justify-center w-[18px] h-[18px] bg-red-500/15 text-red-500 rounded-[4px] shrink-0 border border-red-500/20">
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5"><rect x="5" y="5" width="14" height="14" rx="3.5" /></svg>
                                   </div>
-                                  <select value={hasStop ? String(stopH) : ''} onChange={(e) => {
-                                    const val = e.target.value
-                                    if (!val) { handleSlotChange(slot.slotIndex, 'schedStop', ''); return }
-                                    const h = parseInt(val)
-                                    const m = stopM >= 0 ? stopM : 0
-                                    handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h, m))
-                                  }} className={`${sc} w-[64px]`} dir="ltr">
-                                    <option value="">{t('chooseHour')}</option>
-                                    {Array.from({length:24},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}</option>))}
-                                  </select>
-                                  <select value={hasStop && stopM >= 0 ? String(stopM) : ''} onChange={(e) => {
-                                    const val = e.target.value
-                                    if (!val) return
-                                    const m = parseInt(val)
-                                    const h = hasStop && stopH >= 0 ? stopH : 0
-                                    handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h, m))
-                                  }} className={`${sc} w-[64px]`} dir="ltr">
-                                    <option value="">{t('chooseMin')}</option>
-                                    {Array.from({length:60},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}</option>))}
-                                  </select>
+                                  <input 
+                                    type="time" 
+                                    value={stopTime} 
+                                    onChange={(e) => {
+                                      const val = e.target.value
+                                      if (!val) { handleSlotChange(slot.slotIndex, 'schedStop', ''); return }
+                                      const [h, m] = val.split(':').map(Number)
+                                      handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h, m))
+                                    }} 
+                                    className={`${sc} w-[80px]`} 
+                                    dir="ltr"
+                                    title={t('colSchedule')}
+                                  />
                                   <div className="flex bg-muted/50 rounded overflow-hidden border ml-0.5">
                                     <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-muted transition-colors border-r" title="Set to next 12:00 AM">AM</button>
                                     <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-muted transition-colors" title="Set to next 12:00 PM">PM</button>
