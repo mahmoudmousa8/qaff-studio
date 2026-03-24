@@ -464,6 +464,22 @@ export default function Home() {
     }
   }
 
+  const handleQuickSchedule = (index: number, ampm: 'AM' | 'PM') => {
+    const now = new Date()
+    const target = new Date(now)
+    if (ampm === 'AM') {
+      target.setDate(now.getDate() + 1)
+      target.setHours(0, 0, 0, 0)
+    } else {
+      if (now.getHours() >= 12) target.setDate(now.getDate() + 1)
+      target.setHours(12, 0, 0, 0)
+    }
+    const startStr = `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')} ${String(target.getHours()).padStart(2,'0')}:00`
+    const stopStr = buildStopDateTime(startStr, 11, 45)
+    handleSlotChange(index, 'schedStart', startStr)
+    handleSlotChange(index, 'schedStop', stopStr)
+  }
+
   const bulkAction = async (action: string) => {
     try {
       const res = await fetch('/api/slots/bulk', {
@@ -825,6 +841,10 @@ export default function Home() {
                                     <option value="">{t('chooseMin')}</option>
                                     {Array.from({length:60},(_,i)=>(<option key={i} value={i}>{String(i).padStart(2,'0')}</option>))}
                                   </select>
+                                  <div className="flex bg-muted/50 rounded overflow-hidden border ml-0.5">
+                                    <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-muted transition-colors border-r" title="Set to next 12:00 AM">AM</button>
+                                    <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-muted transition-colors" title="Set to next 12:00 PM">PM</button>
+                                  </div>
                                 </div>
                               )
                             })()}
@@ -866,7 +886,7 @@ export default function Home() {
                           <select
                             value={outputType}
                             onChange={(e) => handleOutputTypeChange(slot.slotIndex, e.target.value)}
-                            className="h-6 text-xs rounded-md border border-input bg-background px-2 w-full focus:outline-none focus:ring-2 focus:ring-ring"
+                            className="h-6 text-xs rounded-md border border-input bg-background px-2 w-full focus:outline-none focus:ring-2 focus:ring-ring text-center"
                             dir="ltr"
                           >
                             <option value="youtube">{t('optYouTube')}</option>
@@ -883,9 +903,9 @@ export default function Home() {
                                 <Input
                                   value={rtmpBase}
                                   readOnly
-                                  className="h-6 text-[10px] font-mono bg-muted/50 text-muted-foreground flex-1 min-w-[60px] cursor-default"
+                                  className="h-6 text-[10px] font-mono bg-muted/50 text-muted-foreground flex-none w-[66px] overflow-hidden text-ellipsis whitespace-nowrap cursor-default"
                                   dir="ltr"
-                                  title={rtmpBase}
+                                  title={rtmpBase || ''}
                                 />
                                 <DebouncedInput
                                   value={slot.streamKey}
