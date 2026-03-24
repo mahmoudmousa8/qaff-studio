@@ -854,7 +854,7 @@ export default function Home() {
                                   >
                                     <option value="">--</option>
                                     {Array.from({length:12},(_,i)=>{
-                                      const v = i === 0 ? 12 : i
+                                      const v = i + 1
                                       return <option key={v} value={v}>{String(v).padStart(2,'0')}</option>
                                     })}
                                   </select>
@@ -884,6 +884,7 @@ export default function Home() {
                                       const h12 = hasStop && stopH12 > 0 ? stopH12 : 12
                                       const m = stopM >= 0 ? stopM : 0
                                       setStopTime(h12, m, val)
+                                      e.target.blur() // Acts as 'Done'/'OK' on mobile pickers
                                     }}
                                     className={`${sc} w-[46px] font-semibold bg-muted/20`} dir="ltr"
                                   >
