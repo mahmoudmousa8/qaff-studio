@@ -474,7 +474,7 @@ export default function Home() {
       if (now.getHours() >= 12) target.setDate(now.getDate() + 1)
       target.setHours(12, 0, 0, 0)
     }
-    const startStr = `${target.getFullYear()}-${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')} ${String(target.getHours()).padStart(2,'0')}:00`
+    const startStr = `${String(target.getMonth()+1).padStart(2,'0')}-${String(target.getDate()).padStart(2,'0')} ${String(target.getHours()).padStart(2,'0')}:00`
     const stopStr = buildStopDateTime(startStr, 11, 45)
     handleSlotChange(index, 'schedStart', startStr)
     handleSlotChange(index, 'schedStop', stopStr)
