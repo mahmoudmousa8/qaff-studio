@@ -143,6 +143,44 @@ function buildStopDateTime(schedStart: string, hour: number, minute: number): st
   return `${finalDate} ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
 }
 
+// Build stop datetime by adding a duration (durH hours + durM minutes) to schedStart
+function buildStopByDuration(schedStart: string, durH: number, durM: number): string {
+  const base = schedStart || ''
+  const datePart = base.split(' ')[0] || (() => {
+    const n = new Date()
+    return `${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
+  })()
+  const timePart = base.split(' ')[1] || '00:00'
+  const [startH, startM] = timePart.split(':').map(Number)
+  const startMins = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM)
+  const totalMins = startMins + durH * 60 + durM
+  const stopH = Math.floor(totalMins / 60) % 24
+  const stopM = totalMins % 60
+  let finalDate = datePart
+  if (totalMins >= 1440) { // crosses midnight
+    const [mm, dd] = datePart.split('-').map(Number)
+    const yr = new Date().getFullYear()
+    const d = new Date(yr, (isNaN(mm) ? 1 : mm) - 1, (isNaN(dd) ? 1 : dd) + 1)
+    finalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  }
+  return `${finalDate} ${String(stopH).padStart(2, '0')}:${String(stopM).padStart(2, '0')}`
+}
+
+// Get current duration in {h, m} from schedStart and schedStop
+function getDuration(schedStart: string, schedStop: string): { h: number; m: number } {
+  if (!schedStart || !schedStop) return { h: -1, m: -1 }
+  const parseTime = (s: string) => {
+    const t = s.split(' ')[1] || ''
+    const [h, m] = t.split(':').map(Number)
+    return { h: isNaN(h) ? 0 : h, m: isNaN(m) ? 0 : m }
+  }
+  const s = parseTime(schedStart)
+  const e = parseTime(schedStop)
+  let diffMins = (e.h * 60 + e.m) - (s.h * 60 + s.m)
+  if (diffMins < 0) diffMins += 1440 // crosses midnight
+  return { h: Math.floor(diffMins / 60), m: diffMins % 60 }
+}
+
 export default function Home() {
   const router = useRouter()
   const [slots, setSlots] = useState<StreamSlot[]>([])
@@ -813,26 +851,10 @@ export default function Home() {
                               <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6" />
                             </div>
 
-                            {/* Stop Group – 12h Hour, Minute, AM/PM */}
+                            {/* Stop Group – Duration: 0-11h, 0-59m */}
                             {(() => {
-                              const stopTime = slot.schedStop ? (slot.schedStop.split(' ')[1] || '') : ''
-                              const [sHr, sMr] = stopTime.split(':').map(Number)
-                              const stopH24 = isNaN(sHr) ? -1 : sHr // Hour 0-23
-                              const stopM = isNaN(sMr) ? -1 : sMr // Min 0-59
-                              const hasStop = !!slot.schedStop && stopH24 >= 0
-
-                              const stopH12Obj = hasStop ? to12h(stopH24) : null
-                              const stopH12 = stopH12Obj ? stopH12Obj.hour12 : -1
-                              const stopAmPm = stopH12Obj ? stopH12Obj.ampm : 'AM'
-
-                              const setStopTime = (h12: number, m: number, ampm: 'AM' | 'PM') => {
-                                if (h12 < 0 || m < 0) {
-                                  handleSlotChange(slot.slotIndex, 'schedStop', '')
-                                  return
-                                }
-                                const h24 = to24h(h12, ampm)
-                                handleSlotChange(slot.slotIndex, 'schedStop', buildStopDateTime(slot.schedStart, h24, m))
-                              }
+                              const { h: durH, m: durM } = getDuration(slot.schedStart, slot.schedStop)
+                              const hasDur = durH >= 0 && durM >= 0
 
                               const sc = "h-6 text-[10px] font-mono border rounded bg-background focus:outline-none cursor-pointer px-1"
                               return (
@@ -840,56 +862,38 @@ export default function Home() {
                                   <div className="flex items-center justify-center w-[18px] h-[18px] bg-red-500/15 text-red-500 rounded-[4px] shrink-0 border border-red-500/20 mr-0.5">
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5"><rect x="5" y="5" width="14" height="14" rx="3.5" /></svg>
                                   </div>
-                                  
-                                  <select 
-                                    value={hasStop ? String(stopH12) : ''} 
+                                  <span className="text-[9px] text-muted-foreground font-semibold shrink-0">{t('stopStream')}</span>
+
+                                  <select
+                                    value={hasDur ? String(durH) : ''}
                                     onChange={(e) => {
                                       const val = e.target.value
-                                      if (!val) { setStopTime(-1, -1, 'AM'); return }
-                                      const h12 = parseInt(val)
-                                      const m = stopM >= 0 ? stopM : 0
-                                      setStopTime(h12, m, stopAmPm)
+                                      if (!val) { handleSlotChange(slot.slotIndex, 'schedStop', ''); return }
+                                      const h = parseInt(val)
+                                      const m = hasDur ? durM : 0
+                                      handleSlotChange(slot.slotIndex, 'schedStop', buildStopByDuration(slot.schedStart, h, m))
                                     }}
                                     className={`${sc} w-[42px]`} dir="ltr"
                                   >
                                     <option value="">--</option>
-                                    {Array.from({length:12},(_,i)=>{
-                                      const v = i + 1
-                                      return <option key={v} value={v}>{String(v).padStart(2,'0')}</option>
-                                    })}
+                                    {Array.from({length:12},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
                                   </select>
 
-                                  <span className="text-muted-foreground font-bold -mx-0.5">:</span>
+                                  <span className="text-muted-foreground font-bold">:</span>
 
-                                  <select 
-                                    value={hasStop && stopM >= 0 ? String(stopM) : ''} 
+                                  <select
+                                    value={hasDur ? String(durM) : ''}
                                     onChange={(e) => {
                                       const val = e.target.value
-                                      if (!val) { setStopTime(-1, -1, 'AM'); return }
+                                      if (!val) { handleSlotChange(slot.slotIndex, 'schedStop', ''); return }
                                       const m = parseInt(val)
-                                      const h12 = hasStop && stopH12 > 0 ? stopH12 : 12
-                                      setStopTime(h12, m, stopAmPm)
+                                      const h = hasDur ? durH : 0
+                                      handleSlotChange(slot.slotIndex, 'schedStop', buildStopByDuration(slot.schedStart, h, m))
                                     }}
                                     className={`${sc} w-[42px]`} dir="ltr"
                                   >
                                     <option value="">--</option>
                                     {Array.from({length:60},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
-                                  </select>
-
-                                  <select
-                                    value={hasStop ? stopAmPm : 'AM'}
-                                    onChange={(e) => {
-                                      const val = e.target.value as 'AM' | 'PM'
-                                      if (!hasStop && !val) return
-                                      const h12 = hasStop && stopH12 > 0 ? stopH12 : 12
-                                      const m = stopM >= 0 ? stopM : 0
-                                      setStopTime(h12, m, val)
-                                      e.target.blur() // Acts as 'Done'/'OK' on mobile pickers
-                                    }}
-                                    className={`${sc} w-[46px] font-semibold bg-muted/20`} dir="ltr"
-                                  >
-                                    <option value="AM">AM</option>
-                                    <option value="PM">PM</option>
                                   </select>
 
                                   {/* Reset Button */}
