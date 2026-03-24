@@ -138,6 +138,10 @@ const translations = {
         copyRtmp: 'Copy RTMP URL',
         copied: 'Copied!',
 
+        // Stop Group Dropdowns
+        chooseHour: 'Choose Hour',
+        chooseMin: 'Choose Minute',
+
         // Footer
         footerText: 'Qaff Digital © - For Sales',
         footerContact: '01202406944',
@@ -345,6 +349,10 @@ const translations = {
         copyKey: 'نسخ المفتاح',
         copyRtmp: 'نسخ رابط RTMP',
         copied: 'تم النسخ!',
+
+        // Stop Group Dropdowns
+        chooseHour: 'اختيار الساعة',
+        chooseMin: 'اختيار الدقيقة',
 
         // Footer
         footerText: 'قاف ديجيتال © للمبيعات تواصل معنا',
