@@ -799,8 +799,8 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
                     <th className="text-start text-xs font-semibold px-2 py-1.5 align-middle" style={{ width: 440 }}>
                       <div className="flex items-end gap-2 h-full">
-                        <div className="w-[164px] text-center shrink-0">{t('stopStream')}</div>
-                        <div className="w-[124px] shrink-0"></div>
+                        <div className="w-[185px] text-center shrink-0">{t('stopStream')}</div>
+                        <div className="w-[155px] shrink-0"></div>
                         <div className="w-[66px] flex items-center justify-center shrink-0 pb-[1px]">
                           <span className="text-[10px] text-muted-foreground leading-none whitespace-nowrap">{t('lblNext12')}</span>
                         </div>
@@ -888,7 +888,7 @@ export default function Home() {
 
                               const sc = "h-6 text-[10px] font-mono border rounded bg-background focus:outline-none cursor-pointer px-1"
                               return (
-                                <div className="flex gap-1 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
+                                <div className="w-[185px] flex justify-center gap-1 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
                                   <div className="flex items-center justify-center w-[18px] h-[18px] bg-red-500/15 text-red-500 rounded-[4px] shrink-0 border border-red-500/20 mr-0.5">
                                     <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5"><rect x="5" y="5" width="14" height="14" rx="3.5" /></svg>
                                   </div>
@@ -943,7 +943,7 @@ export default function Home() {
                             })()}
 
                             {/* Daily / Weekly */}
-                            <div className="flex items-center gap-2 bg-muted/20 px-2 py-0.5 rounded border border-border/50 shrink-0">
+                            <div className="w-[155px] flex justify-center items-center gap-2 bg-muted/20 px-2 py-0.5 rounded border border-border/50 shrink-0">
                               <div className="flex items-center gap-1">
                                 <Checkbox checked={slot.daily} onCheckedChange={(c) => {
                                   handleSlotChange(slot.slotIndex, 'daily', !!c)
@@ -963,7 +963,7 @@ export default function Home() {
                             </div>
 
                             {/* Quick AM/PM Targets */}
-                            <div className="flex bg-muted/50 rounded overflow-hidden border shrink-0 border-primary/20">
+                            <div className="w-[66px] flex bg-muted/50 rounded overflow-hidden border shrink-0 border-primary/20">
                               <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 w-[32px] flex items-center justify-center text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title={t('lblNext12')}>{t('btnAM')}</button>
                               <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 w-[32px] flex items-center justify-center text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title={t('lblNext12')}>{t('btnPM')}</button>
                             </div>
