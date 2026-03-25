@@ -110,6 +110,7 @@ const translations = {
         colLogs: 'Logs',
         colFolder: 'Folder',
         lblNext12: 'Set to Next 12',
+        lblScheduling: 'Scheduling',
         btnAM: 'AM',
         btnPM: 'PM',
 
@@ -325,6 +326,7 @@ const translations = {
         colLogs: 'السجلات',
         colFolder: 'المجلد',
         lblNext12: 'ضبط لأقرب 12',
+        lblScheduling: 'جدولة',
         btnAM: 'ص',
         btnPM: 'م',
 

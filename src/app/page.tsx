@@ -800,7 +800,9 @@ export default function Home() {
                     <th className="text-start text-xs font-semibold px-2 py-1.5 align-middle" style={{ width: 440 }}>
                       <div className="flex items-end gap-2 h-full">
                         <div className="w-[185px] text-center shrink-0">{t('stopStream')}</div>
-                        <div className="w-[155px] shrink-0"></div>
+                        <div className="w-[155px] flex items-center justify-center shrink-0 pb-[1px]">
+                          <span className="text-[10px] text-muted-foreground leading-none whitespace-nowrap">{t('lblScheduling')}</span>
+                        </div>
                         <div className="w-[66px] flex items-center justify-center shrink-0 pb-[1px]">
                           <span className="text-[10px] text-muted-foreground leading-none whitespace-nowrap">{t('lblNext12')}</span>
                         </div>
