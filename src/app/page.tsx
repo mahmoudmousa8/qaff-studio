@@ -788,7 +788,9 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
-                    <th className="text-start text-xs font-semibold px-4 py-1.5" style={{ width: 320 }}>{t('stopStream')}</th>
+                    <th className="text-start text-xs font-semibold px-2 py-1.5" style={{ width: 320 }}>
+                      <div className="w-[164px] text-center">{t('stopStream')}</div>
+                    </th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 310 }}>{t('colOutputSettings')}</th>
