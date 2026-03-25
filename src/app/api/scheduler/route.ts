@@ -53,35 +53,51 @@ function calculateNextRun(schedStart: string, daily: boolean, weekly: boolean): 
   }
 }
 
-function shouldTrigger(sched: string, isDaily: boolean, isWeekly: boolean): boolean {
+function shouldTrigger(sched: string, isDaily: boolean, isWeekly: boolean, isStopCheck: boolean = false): boolean {
   const now = new Date()
   const parsed = parseScheduleTime(sched)
-
   if (!parsed) return false
 
-  const currentMonth = now.getMonth() + 1
-  const currentDay = now.getDate()
-  const currentHour = now.getHours()
-  const currentMinute = now.getMinutes()
-  const currentWeekday = now.getDay()
+  // 1) Absolute Date Handling (Once)
+  if (!isDaily && !isWeekly) {
+    const targetDate = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute)
+    const diffMs = now.getTime() - targetDate.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    
+    // Up to 60 minutes grace period for Stop, 5 mins for Start
+    const grace = isStopCheck ? 60 : 5
+    return diffMins >= 0 && diffMins <= grace
+  }
+
+  // 2) Daily/Weekly Handling (Time only, ignores absolute date)
+  const currentTotal = now.getHours() * 60 + now.getMinutes()
+  const targetTotal = parsed.hour * 60 + parsed.minute
+  
+  let diff = currentTotal - targetTotal
+  if (diff < -720) diff += 1440 // crossed midnight forward
+  if (diff > 720) diff -= 1440  // crossed midnight backward
+  
+  const grace = isStopCheck ? 60 : 5
+  const timeMatches = diff >= 0 && diff <= grace
 
   if (isDaily) {
-    return parsed.hour === currentHour && parsed.minute === currentMinute
+    return timeMatches
   }
 
   if (isWeekly) {
     const refDate = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute)
     const targetWeekday = refDate.getDay()
-
-    return targetWeekday === currentWeekday &&
-      parsed.hour === currentHour &&
-      parsed.minute === currentMinute
+    
+    let currentWeekday = now.getDay()
+    // If the grace period dragged us over midnight into the next day, rollback the weekday check
+    if (diff > 0 && currentTotal < grace) {
+      currentWeekday = (currentWeekday - 1 + 7) % 7
+    }
+    
+    return targetWeekday === currentWeekday && timeMatches
   }
 
-  return parsed.month === currentMonth &&
-    parsed.day === currentDay &&
-    parsed.hour === currentHour &&
-    parsed.minute === currentMinute
+  return false
 }
 
 // GET - Run scheduler check
@@ -162,7 +178,7 @@ export async function GET() {
 
       // ── Auto-Stop ───────────────────────────────────────────
       if (slot.isRunning && slot.schedStop) {
-        if (shouldTrigger(slot.schedStop, slot.daily, slot.weekly)) {
+        if (shouldTrigger(slot.schedStop, slot.daily, slot.weekly, true)) {
 
           // Step 1: Tell stream-manager to stop FFmpeg FIRST
           // (We do this before the DB update so that if it fails, the slot

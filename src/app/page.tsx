@@ -146,6 +146,7 @@ function buildStopDateTime(schedStart: string, hour: number, minute: number): st
 // Build stop datetime by adding a duration (durH hours + durM minutes) to schedStart
 function buildStopByDuration(schedStart: string, durH: number, durM: number): string {
   let baseDate = new Date()
+  baseDate.setSeconds(0, 0)
   if (schedStart) {
     const [dPart, tPart] = schedStart.split(' ')
     if (dPart && tPart) {
@@ -171,6 +172,7 @@ function getDuration(schedStart: string, schedStop: string): { h: number; m: num
   if (!schedStop) return { h: -1, m: -1 }
   const parseDate = (s: string) => {
     const d = new Date()
+    d.setSeconds(0, 0)
     if (!s) return d
     const [dPart, tPart] = s.split(' ')
     if (dPart && tPart) {
