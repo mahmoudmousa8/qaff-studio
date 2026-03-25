@@ -145,39 +145,46 @@ function buildStopDateTime(schedStart: string, hour: number, minute: number): st
 
 // Build stop datetime by adding a duration (durH hours + durM minutes) to schedStart
 function buildStopByDuration(schedStart: string, durH: number, durM: number): string {
-  const base = schedStart || ''
-  const datePart = base.split(' ')[0] || (() => {
-    const n = new Date()
-    return `${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`
-  })()
-  const timePart = base.split(' ')[1] || '00:00'
-  const [startH, startM] = timePart.split(':').map(Number)
-  const startMins = (isNaN(startH) ? 0 : startH) * 60 + (isNaN(startM) ? 0 : startM)
-  const totalMins = startMins + durH * 60 + durM
-  const stopH = Math.floor(totalMins / 60) % 24
-  const stopM = totalMins % 60
-  let finalDate = datePart
-  if (totalMins >= 1440) { // crosses midnight
-    const [mm, dd] = datePart.split('-').map(Number)
-    const yr = new Date().getFullYear()
-    const d = new Date(yr, (isNaN(mm) ? 1 : mm) - 1, (isNaN(dd) ? 1 : dd) + 1)
-    finalDate = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  let baseDate = new Date()
+  if (schedStart) {
+    const [dPart, tPart] = schedStart.split(' ')
+    if (dPart && tPart) {
+      const yr = baseDate.getFullYear()
+      const [mm, dd] = dPart.split('-').map(Number)
+      const [hh, min] = tPart.split(':').map(Number)
+      baseDate = new Date(yr, isNaN(mm)?1:(mm - 1), isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
+    }
   }
-  return `${finalDate} ${String(stopH).padStart(2, '0')}:${String(stopM).padStart(2, '0')}`
+  
+  baseDate.setMinutes(baseDate.getMinutes() + durH * 60 + durM)
+  
+  const fMonth = String(baseDate.getMonth() + 1).padStart(2, '0')
+  const fDate = String(baseDate.getDate()).padStart(2, '0')
+  const fH = String(baseDate.getHours()).padStart(2, '0')
+  const fM = String(baseDate.getMinutes()).padStart(2, '0')
+  
+  return `${fMonth}-${fDate} ${fH}:${fM}`
 }
 
 // Get current duration in {h, m} from schedStart and schedStop
 function getDuration(schedStart: string, schedStop: string): { h: number; m: number } {
-  if (!schedStart || !schedStop) return { h: -1, m: -1 }
-  const parseTime = (s: string) => {
-    const t = s.split(' ')[1] || ''
-    const [h, m] = t.split(':').map(Number)
-    return { h: isNaN(h) ? 0 : h, m: isNaN(m) ? 0 : m }
+  if (!schedStop) return { h: -1, m: -1 }
+  const parseDate = (s: string) => {
+    const d = new Date()
+    if (!s) return d
+    const [dPart, tPart] = s.split(' ')
+    if (dPart && tPart) {
+      const yr = d.getFullYear()
+      const [mm, dd] = dPart.split('-').map(Number)
+      const [hh, min] = tPart.split(':').map(Number)
+      return new Date(yr, (isNaN(mm)?1:mm) - 1, isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
+    }
+    return d
   }
-  const s = parseTime(schedStart)
-  const e = parseTime(schedStop)
-  let diffMins = (e.h * 60 + e.m) - (s.h * 60 + s.m)
-  if (diffMins < 0) diffMins += 1440 // crosses midnight
+  const startD = parseDate(schedStart)
+  const stopD = parseDate(schedStop)
+  let diffMins = Math.round((stopD.getTime() - startD.getTime()) / 60000)
+  if (diffMins < 0) diffMins += 1440
   return { h: Math.floor(diffMins / 60), m: diffMins % 60 }
 }
 
