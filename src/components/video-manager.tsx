@@ -41,6 +41,7 @@ interface FolderItem {
   name: string
   path: string
   videoCount: number
+  sizeFormatted?: string
 }
 
 interface AllFolderItem {
@@ -818,6 +819,11 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                 <span className="flex-1 text-sm font-medium truncate" dir="auto">
                   {folder.name}
                 </span>
+                
+                <span className="text-xs text-muted-foreground shrink-0 mx-1">
+                  {folder.sizeFormatted}
+                </span>
+
                 <Badge variant="secondary" className="text-xs shrink-0">
                   {folder.videoCount} {t('items')}
                 </Badge>

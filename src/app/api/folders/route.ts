@@ -4,6 +4,25 @@ import path from 'path'
 import { VIDEOS_DIR, STREAM_MANAGER_URL } from '@/lib/paths'
 import { db } from '@/lib/db'
 
+function getDirectorySize(dirPath: string): number {
+  let size = 0
+  try {
+    const items = readdirSync(dirPath)
+    for (const item of items) {
+      const itemPath = path.join(dirPath, item)
+      const stats = statSync(itemPath)
+      if (stats.isDirectory()) {
+        size += getDirectorySize(itemPath)
+      } else {
+        size += stats.size
+      }
+    }
+  } catch (e) {
+    // Ignore permissions/access errors
+  }
+  return size
+}
+
 // Helper function to recursively get all folders
 function getAllFoldersRecursive(dir: string, basePath: string = ''): { path: string; displayPath: string }[] {
   const results: { path: string; displayPath: string }[] = []
@@ -83,7 +102,7 @@ export async function GET(request: NextRequest) {
     }
 
     const items = readdirSync(resolvedPath)
-    const folders: { name: string; path: string; videoCount: number }[] = []
+    const folders: { name: string; path: string; videoCount: number; sizeFormatted: string }[] = []
     const videos: { name: string; path: string; size: number; sizeFormatted: string; modified: string }[] = []
 
     const allowedExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.webm', '.ts']
@@ -104,10 +123,18 @@ export async function GET(request: NextRequest) {
           }
         }).length
 
+        // Calculate folder size
+        const folderSizeBytes = getDirectorySize(itemPath)
+        const folderSizeMB = folderSizeBytes / (1024 * 1024)
+        const folderSizeFormatted = folderSizeMB >= 1024
+          ? (folderSizeMB / 1024).toFixed(2) + ' GB'
+          : folderSizeMB.toFixed(2) + ' MB'
+
         folders.push({
           name: item,
           path: itemPath,
-          videoCount
+          videoCount,
+          sizeFormatted: folderSizeFormatted
         })
       } else if (allowedExtensions.includes(path.extname(item).toLowerCase())) {
         const sizeMB = stats.size / (1024 * 1024)
