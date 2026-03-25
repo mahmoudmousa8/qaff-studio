@@ -780,8 +780,12 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 200 }}>{t('startStream')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 200 }}>{t('stopStream')}</th>
+                    <th className="text-xs font-semibold px-2 py-1.5" style={{ width: 400 }}>
+                      <div className="flex justify-around">
+                        <span>{t('startStream')}</span>
+                        <span>{t('stopStream')}</span>
+                      </div>
+                    </th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 310 }}>{t('colOutputSettings')}</th>
@@ -831,29 +835,27 @@ export default function Home() {
                           </div>
                         </td>
 
-                        {/* Start Group */}
-                        <td className="px-2 py-1" style={{ overflow: 'hidden' }}>
-                          <div className="flex gap-1.5 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
-                            <div className="flex items-center justify-center w-[18px] h-[18px] bg-green-500/15 text-green-600 rounded-[4px] shrink-0 border border-green-500/20">
-                              <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 ml-[1px]">
-                                <path d="M5.5 3.5l14 8.5-14 8.5v-17z" />
-                              </svg>
-                            </div>
-                            <input
-                              type="text"
-                              value={slot.schedStart || ''}
-                              placeholder="00-00 00:00"
-                              onChange={(e) => handleSlotChange(slot.slotIndex, 'schedStart', e.target.value)}
-                              className={`w-[85px] bg-transparent border-none text-[10px] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-ring rounded px-1 ${slot.schedStart ? 'text-foreground/80' : 'text-muted-foreground/50'}`}
-                              dir="ltr"
-                            />
-                            <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6" />
-                          </div>
-                        </td>
-
-                        {/* Stop Group + Daily/Weekly */}
+                        {/* Schedule */}
                         <td className="px-2 py-1" style={{ overflow: 'hidden' }}>
                           <div className="flex flex-row items-center gap-2 flex-nowrap">
+                            {/* Start Group */}
+                            <div className="flex gap-1.5 items-center bg-muted/40 px-2 py-1 rounded shrink-0">
+                              <div className="flex items-center justify-center w-[18px] h-[18px] bg-green-500/15 text-green-600 rounded-[4px] shrink-0 border border-green-500/20">
+                                <svg viewBox="0 0 24 24" fill="currentColor" className="w-2.5 h-2.5 ml-[1px]">
+                                  <path d="M5.5 3.5l14 8.5-14 8.5v-17z" />
+                                </svg>
+                              </div>
+                              <input
+                                type="text"
+                                value={slot.schedStart || ''}
+                                placeholder="00-00 00:00"
+                                onChange={(e) => handleSlotChange(slot.slotIndex, 'schedStart', e.target.value)}
+                                className={`w-[85px] bg-transparent border-none text-[10px] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-ring rounded px-1 ${slot.schedStart ? 'text-foreground/80' : 'text-muted-foreground/50'}`}
+                                dir="ltr"
+                              />
+                              <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6" />
+                            </div>
+
                             {/* Stop Group – Duration: 0-11h, 0-59m */}
                             {(() => {
                               const { h: durH, m: durM } = getDuration(slot.schedStart, slot.schedStop)
