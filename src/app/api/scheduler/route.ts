@@ -76,6 +76,24 @@ export async function GET() {
     const now = new Date()
     const logs: string[] = []
 
+    // 1) Fetch currently active streams from Stream Manager
+    let activeInManager: Set<number> = new Set()
+    try {
+      // Abort controller so it doesn't hang the scheduler if stream-manager is completely down
+      const abortCtrl = new AbortController()
+      const t = setTimeout(() => abortCtrl.abort(), 3000)
+      const res = await fetch(`${STREAM_MANAGER_URL}/status`, { signal: abortCtrl.signal })
+      clearTimeout(t)
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data.activeStreams)) {
+          activeInManager = new Set(data.activeStreams)
+        }
+      }
+    } catch (e) {
+      console.warn('Could not reach stream manager for health check:', e)
+    }
+
     const slots = await db.streamSlot.findMany({
       where: {
         OR: [
@@ -89,6 +107,29 @@ export async function GET() {
     let stoppedCount = 0
 
     for (const slot of slots) {
+      // ── Auto-Recovery for Crashed Streams ────────────────────
+      if (slot.isRunning && activeInManager.size > 0 && !activeInManager.has(slot.slotIndex)) {
+          // The database says it should be running, but stream-manager doesn't have it!
+          // This means FFmpeg crashed or disconnected (e.g. YouTube reset the ingest).
+          // We will attempt to restart it.
+          try {
+            await fetch(`${STREAM_MANAGER_URL}/start`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                slotIndex: slot.slotIndex,
+                outputType: slot.outputType,
+                rtmpServer: slot.rtmpServer,
+                streamKey: slot.streamKey,
+                filePath: slot.filePath
+              })
+            })
+            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
+          } catch (e) {
+            logs.push(`Slot ${slot.slotIndex + 1}: Failed to auto-recover stream`)
+          }
+      }
+
       // ── Auto-Start ──────────────────────────────────────────
       // Precondition check (cheap, avoids DB round-trip for non-matching slots)
       if (slot.isScheduled && !slot.isRunning && slot.schedStart && slot.streamKey && slot.filePath) {
