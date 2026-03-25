@@ -957,9 +957,14 @@ export default function Home() {
                             </div>
 
                             {/* Quick AM/PM Targets */}
-                            <div className="flex bg-muted/50 rounded overflow-hidden border shrink-0 border-primary/20">
-                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title="Set to next 12:00 AM">AM</button>
-                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title="Set to next 12:00 PM">PM</button>
+                            <div className="flex flex-col items-center justify-center shrink-0">
+                              <span className="text-[10px] text-muted-foreground mb-[3px] font-medium" title={t('lblNext12')}>
+                                {t('lblNext12')}
+                              </span>
+                              <div className="flex bg-muted/50 rounded overflow-hidden border border-primary/20">
+                                <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-5 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title={t('lblNext12')}>AM</button>
+                                <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-5 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title={t('lblNext12')}>PM</button>
+                              </div>
                             </div>
                             {slot.nextRunTime && (
                               <div className="text-[10px] text-blue-500 font-mono shrink-0">{slot.nextRunTime}</div>

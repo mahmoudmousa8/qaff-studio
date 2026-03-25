@@ -109,6 +109,7 @@ const translations = {
         colReset: 'Reset',
         colLogs: 'Logs',
         colFolder: 'Folder',
+        lblNext12: 'Set to Next 12',
 
         startStream: 'Start Stream',
         stopStream: 'Stop Stream',
@@ -321,6 +322,7 @@ const translations = {
         colReset: 'إعادة',
         colLogs: 'السجلات',
         colFolder: 'المجلد',
+        lblNext12: 'ضبط لأقرب 12',
 
         startStream: 'بدء البث',
         stopStream: 'إيقاف البث',
