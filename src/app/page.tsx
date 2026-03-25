@@ -145,16 +145,17 @@ function buildStopDateTime(schedStart: string, hour: number, minute: number): st
 
 // Build stop datetime by adding a duration (durH hours + durM minutes) to schedStart
 function buildStopByDuration(schedStart: string, durH: number, durM: number): string {
+  if (!schedStart) return `DUR ${String(durH).padStart(2, '0')}:${String(durM).padStart(2, '0')}`
+
   let baseDate = new Date()
   baseDate.setSeconds(0, 0)
-  if (schedStart) {
-    const [dPart, tPart] = schedStart.split(' ')
-    if (dPart && tPart) {
-      const yr = baseDate.getFullYear()
-      const [mm, dd] = dPart.split('-').map(Number)
-      const [hh, min] = tPart.split(':').map(Number)
-      baseDate = new Date(yr, isNaN(mm)?1:(mm - 1), isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
-    }
+  
+  const [dPart, tPart] = schedStart.split(' ')
+  if (dPart && tPart) {
+    const yr = baseDate.getFullYear()
+    const [mm, dd] = dPart.split('-').map(Number)
+    const [hh, min] = tPart.split(':').map(Number)
+    baseDate = new Date(yr, isNaN(mm)?1:(mm - 1), isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
   }
   
   baseDate.setMinutes(baseDate.getMinutes() + durH * 60 + durM)
@@ -170,6 +171,12 @@ function buildStopByDuration(schedStart: string, durH: number, durM: number): st
 // Get current duration in {h, m} from schedStart and schedStop
 function getDuration(schedStart: string, schedStop: string): { h: number; m: number } {
   if (!schedStop) return { h: -1, m: -1 }
+  
+  if (!schedStart && schedStop.startsWith('DUR ')) {
+    const [hStr, mStr] = schedStop.replace('DUR ', '').split(':')
+    return { h: parseInt(hStr || '0'), m: parseInt(mStr || '0') }
+  }
+
   const parseDate = (s: string) => {
     const d = new Date()
     d.setSeconds(0, 0)

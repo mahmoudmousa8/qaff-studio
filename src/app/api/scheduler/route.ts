@@ -53,51 +53,21 @@ function calculateNextRun(schedStart: string, daily: boolean, weekly: boolean): 
   }
 }
 
-function shouldTrigger(sched: string, isDaily: boolean, isWeekly: boolean, isStopCheck: boolean = false): boolean {
+function shouldTrigger(sched: string, isStopCheck: boolean = false): boolean {
+  // If the schedule is completely invalid or a DUR pseudo-state, do not trigger auto
+  if (!sched || sched.startsWith('DUR')) return false
+
   const now = new Date()
   const parsed = parseScheduleTime(sched)
   if (!parsed) return false
 
-  // 1) Absolute Date Handling (Once)
-  if (!isDaily && !isWeekly) {
-    const targetDate = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute)
-    const diffMs = now.getTime() - targetDate.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    
-    // Up to 60 minutes grace period for Stop, 5 mins for Start
-    const grace = isStopCheck ? 60 : 5
-    return diffMins >= 0 && diffMins <= grace
-  }
-
-  // 2) Daily/Weekly Handling (Time only, ignores absolute date)
-  const currentTotal = now.getHours() * 60 + now.getMinutes()
-  const targetTotal = parsed.hour * 60 + parsed.minute
+  const targetDate = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute)
+  const diffMs = now.getTime() - targetDate.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
   
-  let diff = currentTotal - targetTotal
-  if (diff < -720) diff += 1440 // crossed midnight forward
-  if (diff > 720) diff -= 1440  // crossed midnight backward
-  
+  // Up to 60 minutes grace period for Stop, 5 mins for Start
   const grace = isStopCheck ? 60 : 5
-  const timeMatches = diff >= 0 && diff <= grace
-
-  if (isDaily) {
-    return timeMatches
-  }
-
-  if (isWeekly) {
-    const refDate = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute)
-    const targetWeekday = refDate.getDay()
-    
-    let currentWeekday = now.getDay()
-    // If the grace period dragged us over midnight into the next day, rollback the weekday check
-    if (diff > 0 && currentTotal < grace) {
-      currentWeekday = (currentWeekday - 1 + 7) % 7
-    }
-    
-    return targetWeekday === currentWeekday && timeMatches
-  }
-
-  return false
+  return diffMins >= 0 && diffMins <= grace
 }
 
 // GET - Run scheduler check
@@ -122,7 +92,7 @@ export async function GET() {
       // ── Auto-Start ──────────────────────────────────────────
       // Precondition check (cheap, avoids DB round-trip for non-matching slots)
       if (slot.isScheduled && !slot.isRunning && slot.schedStart && slot.streamKey && slot.filePath) {
-        if (shouldTrigger(slot.schedStart, slot.daily, slot.weekly)) {
+        if (shouldTrigger(slot.schedStart)) {
 
           // ── Atomic DB lock ──────────────────────────────────
           // updateMany with isRunning=false in the WHERE clause acts as a
@@ -178,11 +148,9 @@ export async function GET() {
 
       // ── Auto-Stop ───────────────────────────────────────────
       if (slot.isRunning && slot.schedStop) {
-        if (shouldTrigger(slot.schedStop, slot.daily, slot.weekly, true)) {
+        if (shouldTrigger(slot.schedStop, true)) {
 
           // Step 1: Tell stream-manager to stop FFmpeg FIRST
-          // (We do this before the DB update so that if it fails, the slot
-          //  stays isRunning=true in the DB and the next tick will retry)
           try {
             await fetch(`${STREAM_MANAGER_URL}/stop`, {
               method: 'POST',
@@ -190,13 +158,43 @@ export async function GET() {
               body: JSON.stringify({ slotIndex: slot.slotIndex })
             })
           } catch (e) {
-            // If stream-manager is unreachable, log and skip — will retry next tick
             logs.push(`Slot ${slot.slotIndex + 1}: Auto-stop failed (stream-manager unreachable) — will retry`)
             await db.systemLog.create({ data: { message: `Slot ${slot.slotIndex + 1}: Auto-stop failed, will retry next tick` } })
             continue
           }
 
-          // Step 2: Atomic DB update — only succeeds if still running
+          // Step 2: Calculate Next Occurrence to Advance
+          let nextStartTime = slot.schedStart || ''
+          let nextStopTime = slot.schedStop || ''
+          
+          if (slot.daily || slot.weekly) {
+            const oldStart = parseScheduleTime(slot.schedStart)
+            const oldStop = parseScheduleTime(slot.schedStop)
+            
+            if (oldStart && oldStop) {
+               // Calculate original duration safely around midnight
+               const startMins = oldStart.hour * 60 + oldStart.minute;
+               const stopMins = oldStop.hour * 60 + oldStop.minute;
+               let durMins = stopMins - startMins;
+               if (durMins < 0) durMins += 1440;
+               
+               // Advance start time
+               nextStartTime = calculateNextRun(slot.schedStart, slot.daily, slot.weekly)
+               
+               // Re-add the duration to get the advanced stop time
+               const nParsed = parseScheduleTime(nextStartTime)
+               if (nParsed) {
+                   const nDate = new Date(new Date().getFullYear(), nParsed.month - 1, nParsed.day, nParsed.hour, nParsed.minute)
+                   nDate.setMinutes(nDate.getMinutes() + durMins)
+                   const fMonth = String(nDate.getMonth() + 1).padStart(2, '0')
+                   const fDate = String(nDate.getDate()).padStart(2, '0')
+                   const fH = String(nDate.getHours()).padStart(2, '0')
+                   const fM = String(nDate.getMinutes()).padStart(2, '0')
+                   nextStopTime = `${fMonth}-${fDate} ${fH}:${fM}`
+               }
+            }
+          }
+
           const newStatus = slot.daily || slot.weekly ? 'Scheduled' : 'Stopped'
           const claimed = await db.streamSlot.updateMany({
             where: {
@@ -207,9 +205,9 @@ export async function GET() {
               isRunning: false,
               isScheduled: slot.daily || slot.weekly,
               status: newStatus,
-              nextRunTime: (slot.daily || slot.weekly)
-                ? calculateNextRun(slot.schedStart, slot.daily, slot.weekly)
-                : ''
+              schedStart: nextStartTime,
+              schedStop: nextStopTime,
+              nextRunTime: nextStartTime
             }
           })
 
