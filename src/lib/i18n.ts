@@ -110,6 +110,8 @@ const translations = {
         colLogs: 'Logs',
         colFolder: 'Folder',
         lblNext12: 'Set to Next 12',
+        btnAM: 'AM',
+        btnPM: 'PM',
 
         startStream: 'Start Stream',
         stopStream: 'Stop Stream',
@@ -323,6 +325,8 @@ const translations = {
         colLogs: 'السجلات',
         colFolder: 'المجلد',
         lblNext12: 'ضبط لأقرب 12',
+        btnAM: 'ص',
+        btnPM: 'م',
 
         startStream: 'بدء البث',
         stopStream: 'إيقاف البث',
