@@ -797,8 +797,14 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
-                    <th className="text-start text-xs font-semibold px-2 py-1.5" style={{ width: 320 }}>
-                      <div className="w-[164px] text-center">{t('stopStream')}</div>
+                    <th className="text-start text-xs font-semibold px-2 py-1.5 align-middle" style={{ width: 400 }}>
+                      <div className="flex items-end gap-2 h-full">
+                        <div className="w-[170px] text-center shrink-0">{t('stopStream')}</div>
+                        <div className="w-[125px] shrink-0"></div>
+                        <div className="w-[50px] flex items-center justify-center shrink-0">
+                          <span className="text-[10px] text-muted-foreground leading-none whitespace-nowrap">{t('lblNext12')}</span>
+                        </div>
+                      </div>
                     </th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
@@ -957,14 +963,9 @@ export default function Home() {
                             </div>
 
                             {/* Quick AM/PM Targets */}
-                            <div className="flex flex-col items-center justify-center shrink-0">
-                              <span className="text-[10px] text-muted-foreground mb-[3px] font-medium" title={t('lblNext12')}>
-                                {t('lblNext12')}
-                              </span>
-                              <div className="flex bg-muted/50 rounded overflow-hidden border border-primary/20">
-                                <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-5 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title={t('lblNext12')}>AM</button>
-                                <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-5 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title={t('lblNext12')}>PM</button>
-                              </div>
+                            <div className="flex bg-muted/50 rounded overflow-hidden border shrink-0 border-primary/20">
+                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title={t('lblNext12')}>AM</button>
+                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 px-1.5 text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title={t('lblNext12')}>PM</button>
                             </div>
                             {slot.nextRunTime && (
                               <div className="text-[10px] text-blue-500 font-mono shrink-0">{slot.nextRunTime}</div>
