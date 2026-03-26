@@ -376,11 +376,15 @@ export default function Home() {
       try { await fetch('/api/status'); fetchSlots(); fetchStats() } catch { }
     }, 5000)
 
-    const uiRefreshInterval = setInterval(async () => {
-      try { fetchSlots(); fetchLogs(); fetchStats() } catch { }
+    // Safety-net: also poll scheduler from the UI in case the server-side scheduler
+    // doesn't fire (e.g. in certain Docker/standalone environments).
+    // The atomic DB lock inside /api/scheduler prevents double-starts.
+    fetch('/api/scheduler').catch(() => {})
+    const schedulerInterval = setInterval(async () => {
+      try { await fetch('/api/scheduler'); fetchSlots(); fetchLogs(); fetchStats() } catch { }
     }, 60000)
 
-    return () => { clearInterval(statusInterval); clearInterval(uiRefreshInterval) }
+    return () => { clearInterval(statusInterval); clearInterval(schedulerInterval) }
   }, [fetchSlots, fetchLogs, fetchStats, fetchStorage])
 
   const addLog = async (message: string) => {
