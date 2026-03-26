@@ -59,7 +59,10 @@ function shouldTrigger(sched: string, isStopCheck: boolean = false): boolean {
 
   const now = new Date()
   const parsed = parseScheduleTime(sched)
-  if (!parsed) return false
+  if (!parsed) {
+    console.warn(`[Scheduler] shouldTrigger: could not parse schedule string: "${sched}"`)
+    return false
+  }
 
   const targetDate = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute)
   const diffMs = now.getTime() - targetDate.getTime()
@@ -67,13 +70,17 @@ function shouldTrigger(sched: string, isStopCheck: boolean = false): boolean {
   
   // Up to 60 minutes grace period for Stop, 5 mins for Start
   const grace = isStopCheck ? 60 : 5
-  return diffMins >= 0 && diffMins <= grace
+  const result = diffMins >= 0 && diffMins <= grace
+
+  console.log(`[Scheduler] shouldTrigger("${sched}", stop=${isStopCheck}): now=${now.toISOString()}, target=${targetDate.toISOString()}, diffMins=${diffMins}, grace=${grace}, trigger=${result}`)
+  return result
 }
 
 // GET - Run scheduler check
 export async function GET() {
   try {
     const now = new Date()
+    console.log(`[Scheduler] Tick at ${now.toISOString()} (local: ${now.toLocaleString()})`)
     const logs: string[] = []
 
     // 1) Fetch currently active streams from Stream Manager
@@ -107,6 +114,11 @@ export async function GET() {
 
     let startedCount = 0
     let stoppedCount = 0
+
+    console.log(`[Scheduler] Found ${slots.length} slot(s) to evaluate`)
+    for (const s of slots) {
+      console.log(`[Scheduler]   Slot ${s.slotIndex + 1}: isScheduled=${s.isScheduled}, isRunning=${s.isRunning}, schedStart="${s.schedStart}", schedStop="${s.schedStop}"`)
+    }
 
     for (const slot of slots) {
       // ── Auto-Recovery for Crashed Streams ────────────────────
