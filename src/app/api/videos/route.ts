@@ -11,7 +11,7 @@ export async function GET() {
     }
 
     const files = readdirSync(VIDEOS_DIR)
-    const allowedExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.flv']
+    const allowedExtensions = ['.mp4']
 
     const videos = files
       .filter(f => allowedExtensions.includes(path.extname(f).toLowerCase()))

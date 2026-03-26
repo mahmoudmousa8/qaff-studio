@@ -372,18 +372,15 @@ export default function Home() {
   useEffect(() => {
     fetchSlots(); fetchLogs(); fetchStats(); fetchStorage()
 
-    // Fire the scheduler once immediately on mount
-    fetch('/api/scheduler').catch(() => {})
-
     const statusInterval = setInterval(async () => {
       try { await fetch('/api/status'); fetchSlots(); fetchStats() } catch { }
     }, 5000)
 
-    const schedulerInterval = setInterval(async () => {
-      try { await fetch('/api/scheduler'); fetchSlots(); fetchLogs(); fetchStats() } catch { }
+    const uiRefreshInterval = setInterval(async () => {
+      try { fetchSlots(); fetchLogs(); fetchStats() } catch { }
     }, 60000)
 
-    return () => { clearInterval(statusInterval); clearInterval(schedulerInterval) }
+    return () => { clearInterval(statusInterval); clearInterval(uiRefreshInterval) }
   }, [fetchSlots, fetchLogs, fetchStats, fetchStorage])
 
   const addLog = async (message: string) => {

@@ -78,6 +78,7 @@ export async function GET() {
 
     // 1) Fetch currently active streams from Stream Manager
     let activeInManager: Set<number> = new Set()
+    let streamManagerResponded = false
     try {
       // Abort controller so it doesn't hang the scheduler if stream-manager is completely down
       const abortCtrl = new AbortController()
@@ -85,6 +86,7 @@ export async function GET() {
       const res = await fetch(`${STREAM_MANAGER_URL}/status`, { signal: abortCtrl.signal })
       clearTimeout(t)
       if (res.ok) {
+        streamManagerResponded = true
         const data = await res.json()
         if (Array.isArray(data.activeStreams)) {
           activeInManager = new Set(data.activeStreams)
@@ -108,12 +110,12 @@ export async function GET() {
 
     for (const slot of slots) {
       // ── Auto-Recovery for Crashed Streams ────────────────────
-      if (slot.isRunning && activeInManager.size > 0 && !activeInManager.has(slot.slotIndex)) {
+      if (slot.isRunning && streamManagerResponded && !activeInManager.has(slot.slotIndex)) {
           // The database says it should be running, but stream-manager doesn't have it!
           // This means FFmpeg crashed or disconnected (e.g. YouTube reset the ingest).
           // We will attempt to restart it.
           try {
-            await fetch(`${STREAM_MANAGER_URL}/start`, {
+            const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -124,9 +126,14 @@ export async function GET() {
                 filePath: slot.filePath
               })
             })
-            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
-          } catch (e) {
-            logs.push(`Slot ${slot.slotIndex + 1}: Failed to auto-recover stream`)
+            const data = await res.json()
+            if (res.ok && data.success) {
+              logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
+            } else {
+              logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || 'stream-manager rejected start'}`)
+            }
+          } catch (e: any) {
+            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
           }
       }
 

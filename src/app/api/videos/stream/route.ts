@@ -23,6 +23,10 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: 'Access denied' }, { status: 403 })
         }
 
+        if (url.pathname.toLowerCase().endsWith('.mp4') === false && relativePath.toLowerCase().endsWith('.mp4') === false) {
+             return NextResponse.json({ error: 'Only MP4 streaming is allowed' }, { status: 400 })
+        }
+
         let stat: ReturnType<typeof statSync>
         try {
             stat = statSync(fullPath)

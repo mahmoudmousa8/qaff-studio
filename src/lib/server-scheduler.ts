@@ -23,6 +23,7 @@ export function startServerScheduler() {
 }
 
 async function runSchedulerTick() {
+  console.log(`[ServerScheduler] Tick started at ${new Date().toISOString()}`)
   try {
     // Call our own scheduler API internally so all logic stays in one place
     // This is a loopback fetch using the same host
@@ -30,11 +31,15 @@ async function runSchedulerTick() {
       || process.env.NEXT_PUBLIC_BASE_URL
       || 'http://localhost:3000'
 
-    await fetch(`${baseUrl}/api/scheduler`, {
+    const res = await fetch(`${baseUrl}/api/scheduler`, {
       cache: 'no-store',
       headers: { 'X-Internal-Scheduler': '1' }
     })
-  } catch {
-    // Silent — scheduler will retry next tick
+
+    if (!res.ok) {
+        console.error(`[ServerScheduler] Tick failed: HTTP ${res.status} from ${baseUrl}/api/scheduler`)
+    }
+  } catch (err: any) {
+    console.error(`[ServerScheduler] Tick failed completely: ${err.message || String(err)}`)
   }
 }

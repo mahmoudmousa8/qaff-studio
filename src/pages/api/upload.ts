@@ -125,7 +125,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
                 try { originalName = decodeURIComponent(encodedName) } catch { }
             }
 
-            const allowedExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.ts', '.webm', '.wmv']
+            const allowedExtensions = ['.mp4']
             const ext = path.extname(originalName).toLowerCase()
             if (!allowedExtensions.includes(ext)) {
                 file.resume()

@@ -19,13 +19,14 @@ interface ProbeResult {
     fps: number
     width: number
     height: number
+    formatName: string
 }
 
 function probeFile(filePath: string): ProbeResult {
-    const defaultResult: ProbeResult = { videoCodec: 'unknown', hasAudio: false, bitrate: 0, fps: 30, width: 0, height: 0 }
+    const defaultResult: ProbeResult = { videoCodec: 'unknown', hasAudio: false, bitrate: 0, fps: 30, width: 0, height: 0, formatName: '' }
     try {
         const jsonStr = execSync(
-            `"${FFPROBE_PATH}" -v error -show_entries format=bit_rate -show_entries stream=codec_type,codec_name,bit_rate,r_frame_rate,width,height -of json "${filePath}"`,
+            `"${FFPROBE_PATH}" -v error -show_entries format=bit_rate,format_name -show_entries stream=codec_type,codec_name,bit_rate,r_frame_rate,width,height -of json "${filePath}"`,
             { encoding: 'utf-8', timeout: 15000 }
         )
         const data = JSON.parse(jsonStr)
@@ -33,6 +34,7 @@ function probeFile(filePath: string): ProbeResult {
         const formatBitrate = parseInt(data.format?.bit_rate || '0', 10)
 
         let result = { ...defaultResult }
+        result.formatName = data.format?.format_name || ''
 
         for (const stream of streams) {
             if (stream.codec_type === 'video') {
@@ -64,8 +66,17 @@ function probeFile(filePath: string): ProbeResult {
 export async function validateVideoFile(filepath: string): Promise<{ allowed: boolean, reason?: string }> {
     if (!existsSync(filepath)) return { allowed: false, reason: "File not found" }
 
+    const ext = path.extname(filepath).toLowerCase()
+    if (ext !== '.mp4') {
+        return { allowed: false, reason: `مرفوض: الامتداد غير مسموح | Rejected: Invalid extension (${ext})` }
+    }
+
     const probe = probeFile(filepath)
-    console.log(`[validator] Analyzed ${path.basename(filepath)}: Bitrate=${Math.round(probe.bitrate / 1000)}k, Codec=${probe.videoCodec}`)
+    console.log(`[validator] Analyzed ${path.basename(filepath)}: Bitrate=${Math.round(probe.bitrate / 1000)}k, Codec=${probe.videoCodec}, Format=${probe.formatName}`)
+
+    if (!probe.formatName.toLowerCase().includes('mp4')) {
+        return { allowed: false, reason: `مرفوض: حاوية الملف غير صالحة | Rejected: Invalid container format (${probe.formatName})` }
+    }
 
     if (probe.videoCodec !== 'h264') {
         return { allowed: false, reason: `مرفوض: ترميز غير مدعوم | Rejected: Unsupported codec (${probe.videoCodec})` }

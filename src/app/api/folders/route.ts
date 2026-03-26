@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     const folders: { name: string; path: string; videoCount: number; sizeFormatted: string }[] = []
     const videos: { name: string; path: string; size: number; sizeFormatted: string; modified: string }[] = []
 
-    const allowedExtensions = ['.mp4', '.mkv', '.avi', '.mov', '.flv', '.webm', '.ts']
+    const allowedExtensions = ['.mp4']
 
     for (const item of items) {
       const itemPath = path.join(resolvedPath, item)

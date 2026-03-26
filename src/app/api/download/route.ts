@@ -206,13 +206,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Enforce strict mp4-only rule
-    const MP4_ONLY = ['.mp4']
-    const ext = path.extname(targetFilename).toLowerCase()
-    if (!MP4_ONLY.includes(ext)) {
-      targetFilename = path.basename(targetFilename, path.extname(targetFilename)) + '.mp4'
-    }
-
     // Sanitize filename — preserve Unicode/Arabic
     const extFinal = path.extname(targetFilename)
     const baseName = path.basename(targetFilename, extFinal)
