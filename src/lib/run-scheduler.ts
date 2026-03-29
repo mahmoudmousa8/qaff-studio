@@ -143,24 +143,10 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
 
   for (const slot of slots) {
 
-    // ── Auto-Recovery ───────────────────────────────────────
-    if (slot.isRunning && streamManagerResponded && !activeInManager.has(slot.slotIndex)) {
-      try {
-        const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slotIndex: slot.slotIndex, outputType: slot.outputType, rtmpServer: slot.rtmpServer, streamKey: slot.streamKey, filePath: slot.filePath })
-        })
-        const data = await res.json()
-        if (res.ok && data.success) {
-          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
-        } else {
-          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || 'stream-manager rejected start'}`)
-        }
-      } catch (e: any) {
-        logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
-      }
-    }
+
+    // NOTE: Auto-Recovery is intentionally disabled.
+    // The stream-manager has its own auto-resume at startup.
+    // Scheduler-triggered restarts cause false positives and YouTube buffering.
 
     // ── Auto-Start ──────────────────────────────────────────
     if (slot.isScheduled && !slot.isRunning && slot.schedStart && slot.streamKey && slot.filePath) {
