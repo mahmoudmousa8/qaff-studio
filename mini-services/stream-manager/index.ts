@@ -118,7 +118,7 @@ function probeFile(filePath: string): ProbeResult {
 function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; profile: string } {
   const probe = probeFile(filePath);
   
-  // 1) Direct copy profile for standard MP4 files
+  // 1) Direct copy profile for standard MP4 files (ZERO CPU)
   if (probe.compatible) {
     log(`  Profile: Direct Copy (source is H264+AAC, fps=${probe.fps})`);
     return {
@@ -138,36 +138,8 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
     };
   }
 
-  // 2) Fallback Transcode profile for unsupported files (H265, broken headers, VFR)
-  const fps = probe.fps || 30;
-  const gop = fps * 2;
-  log(`  Profile: Transcode (${probe.videoCodec}+${probe.audioCodec} -> H264+AAC, fps=${fps}, gop=${gop})`);
-
-  return {
-    profile: 'transcode',
-    args: [
-      '-re',
-      '-stream_loop', '-1',
-      '-i', filePath,
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-profile:v', 'high',
-      '-level', '4.1',
-      '-pix_fmt', 'yuv420p',
-      '-b:v', '3000k',
-      '-maxrate', '3000k',
-      '-bufsize', '6000k',
-      '-g', String(gop),
-      '-keyint_min', String(gop),
-      '-sc_threshold', '0',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-ar', '44100',
-      '-f', 'flv',
-      '-flvflags', 'no_duration_filesize',
-      rtmpUrl
-    ]
-  };
+  // 2) Reject everything else to enforce strictly ZERO processor usage
+  throw new Error(`Incompatible video format (${probe.videoCodec}+${probe.audioCodec}). Strict Zero-CPU policy blocks transcoding. Please upload a standard H.264/AAC MP4.`)
 }
 
 // ── Build final RTMP URL from outputType + server + key ─────
