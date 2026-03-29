@@ -122,14 +122,14 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
   return {
     profile: 'copy',
     args: [
-      '-re', '-stream_loop', '-1',
+      '-re',
+      '-stream_loop', '-1',
+      '-fflags', '+genpts+igndts',
       '-i', filePath,
       '-c:v', 'copy',
       '-c:a', 'copy',
       '-avoid_negative_ts', 'make_zero',
-      '-fflags', '+genpts',
-      '-bsf:v', 'h264_mp4toannexb',
-      '-max_muxing_queue_size', '1024',
+      '-max_muxing_queue_size', '4096',
       '-f', 'flv',
       '-flvflags', 'no_duration_filesize',
       rtmpUrl
