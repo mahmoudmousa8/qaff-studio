@@ -124,10 +124,13 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
     args: [
       '-re',
       '-stream_loop', '-1',
+      '-fflags', '+genpts',
       '-i', filePath,
       '-c', 'copy',
       '-avoid_negative_ts', 'make_zero',
+      '-max_muxing_queue_size', '1024',
       '-f', 'flv',
+      '-flvflags', 'no_duration_filesize',
       rtmpUrl
     ]
   }

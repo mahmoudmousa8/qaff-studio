@@ -107,7 +107,7 @@ else
   if [ -n "$BANDWIDTH_LIMIT_MBPS" ] && [ "$BANDWIDTH_LIMIT_MBPS" -gt 0 ] 2>/dev/null; then
     echo "Applying Bandwidth Limit: ${BANDWIDTH_LIMIT_MBPS} Mbps..."
     tc qdisc del dev eth0 root 2>/dev/null || true
-    tc qdisc add dev eth0 root tbf rate ${BANDWIDTH_LIMIT_MBPS}mbit burst 32kbit latency 400ms
+    tc qdisc add dev eth0 root tbf rate ${BANDWIDTH_LIMIT_MBPS}mbit burst 2000kbit latency 50ms
   fi
 
   echo "Booting Next.js Web Server (Port 3000)..."
