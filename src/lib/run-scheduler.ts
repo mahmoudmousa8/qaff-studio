@@ -84,6 +84,28 @@ export interface SchedulerResult {
 
 export async function runSchedulerTick(): Promise<SchedulerResult> {
   const now = new Date()
+
+  // ── Distributed lock: prevent concurrent execution across multiple Next.js workers ──
+  // Check the last scheduler run time stored in DB. If it ran less than 55s ago, skip.
+  const LOCK_KEY = '__scheduler_last_run__'
+  const LOCK_INTERVAL_MS = 55_000
+
+  const lastRunLog = await db.systemLog.findFirst({
+    where: { message: { startsWith: LOCK_KEY } },
+    orderBy: { timestamp: 'desc' }
+  })
+
+  if (lastRunLog) {
+    const elapsed = now.getTime() - new Date(lastRunLog.timestamp).getTime()
+    if (elapsed < LOCK_INTERVAL_MS) {
+      // Another worker already ran recently — skip silently
+      return { started: 0, stopped: 0, logs: [], timestamp: now.toISOString() }
+    }
+  }
+
+  // Claim the lock by writing timestamp immediately
+  await db.systemLog.create({ data: { message: `${LOCK_KEY}${now.toISOString()}` } })
+
   console.log(`[Scheduler] Tick at ${now.toISOString()}`)
   const logs: string[] = []
   let startedCount = 0
