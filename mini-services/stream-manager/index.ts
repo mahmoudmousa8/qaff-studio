@@ -123,7 +123,6 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
     profile: 'copy',
     args: [
       '-re',
-      '-fflags', '+genpts+igndts',
       '-stream_loop', '-1',
       '-i', filePath,
       '-c:v', 'copy',
