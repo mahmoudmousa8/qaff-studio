@@ -116,50 +116,20 @@ function probeFile(filePath: string): ProbeResult {
 
 // ── Build FFmpeg args ────────────────────────────────────────
 function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; profile: string } {
-  const probe = probeFile(filePath);
-  
-  if (probe.compatible) {
-    log(`  Profile: Direct Copy (source is H264+AAC, fps=${probe.fps})`);
-    return {
-      profile: 'copy',
-      args: [
-        '-re', '-stream_loop', '-1',
-        '-i', filePath,
-        '-c:v', 'copy',
-        '-c:a', 'copy',
-        '-avoid_negative_ts', 'make_zero',
-        '-fflags', '+genpts',
-        '-bsf:v', 'h264_mp4toannexb',
-        '-f', 'flv',
-        '-flvflags', 'no_duration_filesize',
-        rtmpUrl
-      ]
-    };
-  }
-
-  const fps = probe.fps || 30;
-  const gop = fps * 2;
-  log(`  Profile: Transcode (${probe.videoCodec}+${probe.audioCodec} -> H264+AAC, fps=${fps}, gop=${gop})`);
-
+  // STRICT ZERO-CPU ARCHITECTURE AS DEMANDED.
+  // No transcoding fallback allowed under any circumstances.
+  log(`  Profile: Direct Copy (Strict Zero-CPU Mode)`);
   return {
-    profile: 'transcode',
+    profile: 'copy',
     args: [
       '-re', '-stream_loop', '-1',
       '-i', filePath,
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-profile:v', 'high',
-      '-level', '4.1',
-      '-pix_fmt', 'yuv420p',
-      '-b:v', '3000k',
-      '-maxrate', '3000k',
-      '-bufsize', '6000k',
-      '-g', String(gop),
-      '-keyint_min', String(gop),
-      '-sc_threshold', '0',
-      '-c:a', 'aac',
-      '-b:a', '128k',
-      '-ar', '44100',
+      '-c:v', 'copy',
+      '-c:a', 'copy',
+      '-avoid_negative_ts', 'make_zero',
+      '-fflags', '+genpts',
+      '-bsf:v', 'h264_mp4toannexb',
+      '-max_muxing_queue_size', '1024',
       '-f', 'flv',
       '-flvflags', 'no_duration_filesize',
       rtmpUrl
