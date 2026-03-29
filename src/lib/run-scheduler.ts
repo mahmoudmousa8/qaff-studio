@@ -11,6 +11,10 @@
 import { db } from '@/lib/db'
 import { STREAM_MANAGER_URL } from '@/lib/paths'
 
+// Tracks how many consecutive ticks each slot has been absent from stream-manager.
+// Requires 2 missed ticks before triggering auto-recovery to prevent spurious restarts.
+const missCounters = new Map<string, number>()
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function parseScheduleTime(sched: string): { month: number; day: number; hour: number; minute: number } | null {
@@ -122,22 +126,38 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
   for (const slot of slots) {
 
     // ── Auto-Recovery ───────────────────────────────────────
+    // IMPORTANT: Only attempt auto-recovery if stream-manager responded AND
+    // the slot has been missing for 2 consecutive ticks (dead-zone protection).
+    // This prevents spurious restarts caused by brief stream-manager reporting gaps.
     if (slot.isRunning && streamManagerResponded && !activeInManager.has(slot.slotIndex)) {
-      try {
-        const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slotIndex: slot.slotIndex, outputType: slot.outputType, rtmpServer: slot.rtmpServer, streamKey: slot.streamKey, filePath: slot.filePath })
-        })
-        const data = await res.json()
-        if (res.ok && data.success) {
-          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
-        } else {
-          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || 'stream-manager rejected start'}`)
+      const missKey = `miss_${slot.slotIndex}`
+      const missCount = (missCounters.get(missKey) ?? 0) + 1
+      missCounters.set(missKey, missCount)
+
+      if (missCount >= 2) {
+        // Slot confirmed missing for 2 consecutive ticks — safe to attempt recovery
+        missCounters.set(missKey, 0)
+        try {
+          const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ slotIndex: slot.slotIndex, outputType: slot.outputType, rtmpServer: slot.rtmpServer, streamKey: slot.streamKey, filePath: slot.filePath })
+          })
+          const data = await res.json()
+          if (res.ok && data.success) {
+            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
+          } else {
+            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || 'stream-manager rejected start'}`)
+          }
+        } catch (e: any) {
+          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
         }
-      } catch (e: any) {
-        logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
+      } else {
+        console.log(`[Scheduler] Slot ${slot.slotIndex + 1} not in manager — waiting for confirmation (miss count: ${missCount}/2)`)
       }
+    } else if (slot.isRunning && activeInManager.has(slot.slotIndex)) {
+      // Slot is healthy — reset miss counter
+      missCounters.set(`miss_${slot.slotIndex}`, 0)
     }
 
     // ── Auto-Start ──────────────────────────────────────────
