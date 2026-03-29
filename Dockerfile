@@ -3,12 +3,12 @@
 # ==========================================
 # STAGE 1: BUILDER
 # ==========================================
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
 # Install build dependencies (libc compat + native addon build tools for better-sqlite3)
-RUN apk add --no-cache libc6-compat python3 make g++
+RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 # Copy package files first to leverage Docker layer caching
 COPY package.json package-lock.json* ./
@@ -31,10 +31,10 @@ RUN npm run build
 # ==========================================
 # STAGE 2: RUNNER (Production Image)
 # ==========================================
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 
 # Install necessary runtime system packages
-RUN apk add --no-cache ffmpeg sqlite iproute2 openssl
+RUN apt-get update && apt-get install -y ffmpeg sqlite3 iproute2 openssl procps wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
