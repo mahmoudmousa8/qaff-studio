@@ -104,16 +104,43 @@ EOF
 sudo bash /tmp/qaff-tune.sh
 echo -e "  ✅ Kernel Limits and BBR Congestion Control customized."
 
-# Cleanup previous aggressive NIC tuning (fixed Hostinger bufferbloat issue)
-sudo systemctl stop qaff-nic-tune.service 2>/dev/null || true
-sudo systemctl disable qaff-nic-tune.service 2>/dev/null || true
-sudo rm -f /etc/systemd/system/qaff-nic-tune.service /usr/local/bin/qaff-nic-tune.sh /tmp/qaff-nic-tune.sh
-sudo systemctl daemon-reload 2>/dev/null || true
+# Setup Persistent NIC Tuning (txqueuelen, ethtool ring buffers / CPU queues)
+cat << 'NIC_TUNE' > /tmp/qaff-nic-tune.sh
+#!/bin/bash
 MAIN_IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
 if [ -n "$MAIN_IFACE" ]; then
-    sudo ip link set "$MAIN_IFACE" txqueuelen 1000 2>/dev/null || true
+    ip link set "$MAIN_IFACE" txqueuelen 10000 2>/dev/null || true
+    ethtool -G "$MAIN_IFACE" rx 4096 tx 4096 2>/dev/null || true
+    CPU=$(nproc)
+    ethtool -L "$MAIN_IFACE" combined $CPU 2>/dev/null || \
+    ethtool -L "$MAIN_IFACE" rx $CPU tx $CPU 2>/dev/null || true
 fi
-echo -e "  ✅ Reverted excessive NIC Queue to default (Fixed RTMP Jitter / Bufferbloat)."
+NIC_TUNE
+
+sudo apt-get install -y ethtool >/dev/null 2>&1 || true
+sudo mv /tmp/qaff-nic-tune.sh /usr/local/bin/qaff-nic-tune.sh
+sudo chmod +x /usr/local/bin/qaff-nic-tune.sh
+
+cat << 'NIC_SERVICE' > /tmp/qaff-nic-tune.service
+[Unit]
+Description=Qaff Studio NIC Advanced Tuning
+After=network.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/qaff-nic-tune.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+NIC_SERVICE
+
+sudo mv /tmp/qaff-nic-tune.service /etc/systemd/system/qaff-nic-tune.service
+sudo systemctl daemon-reload 2>/dev/null || true
+sudo systemctl enable qaff-nic-tune.service 2>/dev/null || true
+sudo systemctl start qaff-nic-tune.service 2>/dev/null || true
+
+echo -e "  ✅ Advanced NIC Queue and Ring Buffer Tuning configured."
 
 echo -e "\n${CYAN}[3/6] Installing new dependencies...${NC}"
 sudo npm install --production=false 2>&1 | tail -3

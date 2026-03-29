@@ -116,25 +116,24 @@ function probeFile(filePath: string): ProbeResult {
 
 // ── Build FFmpeg args ────────────────────────────────────────
 function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; profile: string } {
-  // STRICT ZERO-CPU ARCHITECTURE AS DEMANDED.
-  // No transcoding fallback allowed under any circumstances.
-  log(`  Profile: Direct Copy (Strict Zero-CPU Mode)`);
+  // Enforce zero-CPU direct copy architecture. All heavy lifting is now 
+  // exclusively processed during upload/download processing to enforce the single-storage strategy.
+  log(`  Profile: Direct Copy (Zero-CPU)`)
   return {
     profile: 'copy',
     args: [
-      '-re', '-stream_loop', '-1',
+      '-re',
+      '-fflags', '+genpts+igndts',
+      '-stream_loop', '-1',
       '-i', filePath,
       '-c:v', 'copy',
       '-c:a', 'copy',
-      '-avoid_negative_ts', 'make_zero',
-      '-fflags', '+genpts',
-      '-bsf:v', 'h264_mp4toannexb',
       '-max_muxing_queue_size', '1024',
       '-f', 'flv',
       '-flvflags', 'no_duration_filesize',
       rtmpUrl
     ]
-  };
+  }
 }
 
 // ── Build final RTMP URL from outputType + server + key ─────

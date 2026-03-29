@@ -1,0 +1,159 @@
+﻿diff --git a/mini-services/stream-manager/index.ts b/mini-services/stream-manager/index.ts
+index 41120ec..50a8b17 100644
+--- a/mini-services/stream-manager/index.ts
++++ b/mini-services/stream-manager/index.ts
+@@ -116,25 +116,24 @@ function probeFile(filePath: string): ProbeResult {
+ 
+ // ΓöÇΓöÇ Build FFmpeg args ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; profile: string } {
+-  // STRICT ZERO-CPU ARCHITECTURE AS DEMANDED.
+-  // No transcoding fallback allowed under any circumstances.
+-  log(`  Profile: Direct Copy (Strict Zero-CPU Mode)`);
++  // Enforce zero-CPU direct copy architecture. All heavy lifting is now 
++  // exclusively processed during upload/download processing to enforce the single-storage strategy.
++  log(`  Profile: Direct Copy (Zero-CPU)`)
+   return {
+     profile: 'copy',
+     args: [
+-      '-re', '-stream_loop', '-1',
++      '-re',
++      '-fflags', '+genpts+igndts',
++      '-stream_loop', '-1',
+       '-i', filePath,
+       '-c:v', 'copy',
+       '-c:a', 'copy',
+-      '-avoid_negative_ts', 'make_zero',
+-      '-fflags', '+genpts',
+-      '-bsf:v', 'h264_mp4toannexb',
+       '-max_muxing_queue_size', '1024',
+       '-f', 'flv',
+       '-flvflags', 'no_duration_filesize',
+       rtmpUrl
+     ]
+-  };
++  }
+ }
+ 
+ // ΓöÇΓöÇ Build final RTMP URL from outputType + server + key ΓöÇΓöÇΓöÇΓöÇΓöÇ
+diff --git a/src/lib/run-scheduler.ts b/src/lib/run-scheduler.ts
+index 628289e..764d9cb 100644
+--- a/src/lib/run-scheduler.ts
++++ b/src/lib/run-scheduler.ts
+@@ -11,10 +11,6 @@
+ import { db } from '@/lib/db'
+ import { STREAM_MANAGER_URL } from '@/lib/paths'
+ 
+-// Tracks how many consecutive ticks each slot has been absent from stream-manager.
+-// Requires 2 missed ticks before triggering auto-recovery to prevent spurious restarts.
+-const missCounters = new Map<string, number>()
+-
+ // ΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+ function parseScheduleTime(sched: string): { month: number; day: number; hour: number; minute: number } | null {
+@@ -126,38 +122,22 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
+   for (const slot of slots) {
+ 
+     // ΓöÇΓöÇ Auto-Recovery ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-    // IMPORTANT: Only attempt auto-recovery if stream-manager responded AND
+-    // the slot has been missing for 2 consecutive ticks (dead-zone protection).
+-    // This prevents spurious restarts caused by brief stream-manager reporting gaps.
+     if (slot.isRunning && streamManagerResponded && !activeInManager.has(slot.slotIndex)) {
+-      const missKey = `miss_${slot.slotIndex}`
+-      const missCount = (missCounters.get(missKey) ?? 0) + 1
+-      missCounters.set(missKey, missCount)
+-
+-      if (missCount >= 2) {
+-        // Slot confirmed missing for 2 consecutive ticks ΓÇö safe to attempt recovery
+-        missCounters.set(missKey, 0)
+-        try {
+-          const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
+-            method: 'POST',
+-            headers: { 'Content-Type': 'application/json' },
+-            body: JSON.stringify({ slotIndex: slot.slotIndex, outputType: slot.outputType, rtmpServer: slot.rtmpServer, streamKey: slot.streamKey, filePath: slot.filePath })
+-          })
+-          const data = await res.json()
+-          if (res.ok && data.success) {
+-            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
+-          } else {
+-            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || 'stream-manager rejected start'}`)
+-          }
+-        } catch (e: any) {
+-          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
++      try {
++        const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
++          method: 'POST',
++          headers: { 'Content-Type': 'application/json' },
++          body: JSON.stringify({ slotIndex: slot.slotIndex, outputType: slot.outputType, rtmpServer: slot.rtmpServer, streamKey: slot.streamKey, filePath: slot.filePath })
++        })
++        const data = await res.json()
++        if (res.ok && data.success) {
++          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
++        } else {
++          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || 'stream-manager rejected start'}`)
+         }
+-      } else {
+-        console.log(`[Scheduler] Slot ${slot.slotIndex + 1} not in manager ΓÇö waiting for confirmation (miss count: ${missCount}/2)`)
++      } catch (e: any) {
++        logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
+       }
+-    } else if (slot.isRunning && activeInManager.has(slot.slotIndex)) {
+-      // Slot is healthy ΓÇö reset miss counter
+-      missCounters.set(`miss_${slot.slotIndex}`, 0)
+     }
+ 
+     // ΓöÇΓöÇ Auto-Start ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+diff --git a/update.sh b/update.sh
+index cb88fb9..be0c0b6 100755
+--- a/update.sh
++++ b/update.sh
+@@ -104,16 +104,43 @@ EOF
+ sudo bash /tmp/qaff-tune.sh
+ echo -e "  Γ£à Kernel Limits and BBR Congestion Control customized."
+ 
+-# Cleanup previous aggressive NIC tuning (fixed Hostinger bufferbloat issue)
+-sudo systemctl stop qaff-nic-tune.service 2>/dev/null || true
+-sudo systemctl disable qaff-nic-tune.service 2>/dev/null || true
+-sudo rm -f /etc/systemd/system/qaff-nic-tune.service /usr/local/bin/qaff-nic-tune.sh /tmp/qaff-nic-tune.sh
+-sudo systemctl daemon-reload 2>/dev/null || true
++# Setup Persistent NIC Tuning (txqueuelen, ethtool ring buffers / CPU queues)
++cat << 'NIC_TUNE' > /tmp/qaff-nic-tune.sh
++#!/bin/bash
+ MAIN_IFACE=$(ip route | grep default | awk '{print $5}' | head -n1)
+ if [ -n "$MAIN_IFACE" ]; then
+-    sudo ip link set "$MAIN_IFACE" txqueuelen 1000 2>/dev/null || true
++    ip link set "$MAIN_IFACE" txqueuelen 10000 2>/dev/null || true
++    ethtool -G "$MAIN_IFACE" rx 4096 tx 4096 2>/dev/null || true
++    CPU=$(nproc)
++    ethtool -L "$MAIN_IFACE" combined $CPU 2>/dev/null || \
++    ethtool -L "$MAIN_IFACE" rx $CPU tx $CPU 2>/dev/null || true
+ fi
+-echo -e "  Γ£à Reverted excessive NIC Queue to default (Fixed RTMP Jitter / Bufferbloat)."
++NIC_TUNE
++
++sudo apt-get install -y ethtool >/dev/null 2>&1 || true
++sudo mv /tmp/qaff-nic-tune.sh /usr/local/bin/qaff-nic-tune.sh
++sudo chmod +x /usr/local/bin/qaff-nic-tune.sh
++
++cat << 'NIC_SERVICE' > /tmp/qaff-nic-tune.service
++[Unit]
++Description=Qaff Studio NIC Advanced Tuning
++After=network.target
++
++[Service]
++Type=oneshot
++ExecStart=/usr/local/bin/qaff-nic-tune.sh
++RemainAfterExit=yes
++
++[Install]
++WantedBy=multi-user.target
++NIC_SERVICE
++
++sudo mv /tmp/qaff-nic-tune.service /etc/systemd/system/qaff-nic-tune.service
++sudo systemctl daemon-reload 2>/dev/null || true
++sudo systemctl enable qaff-nic-tune.service 2>/dev/null || true
++sudo systemctl start qaff-nic-tune.service 2>/dev/null || true
++
++echo -e "  Γ£à Advanced NIC Queue and Ring Buffer Tuning configured."
+ 
+ echo -e "\n${CYAN}[3/6] Installing new dependencies...${NC}"
+ sudo npm install --production=false 2>&1 | tail -3
