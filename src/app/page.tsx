@@ -14,7 +14,7 @@ import {
   Play, Square, Clock, RotateCcw, Save, RefreshCw,
   Sun, Moon, Calendar, AlertCircle,
   Loader2, ChevronLeft, ChevronRight, FolderOpen, Activity, HardDrive,
-  Film, Globe, LogOut, Copy, Check, FileText, Wifi
+  Film, Globe, LogOut, Copy, Check, FileText, Wifi, Search
 } from 'lucide-react'
 import Image from 'next/image'
 import {
@@ -205,6 +205,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalSlots, setTotalSlots] = useState(0)
+  const [searchQuery, setSearchQuery] = useState('')
   const [stats, setStats] = useState({ streaming: 0, scheduled: 0, stopped: 0, configured: 0, dailyCount: 0, weeklyCount: 0, renewalDate: null as string | null })
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; action: string; onConfirm: () => void } | null>(null)
   const [videoSelectorSlot, setVideoSelectorSlot] = useState<number | null>(null)
@@ -770,18 +771,29 @@ export default function Home() {
           <CardHeader className="py-2 px-4 shrink-0">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">{t('slots')}</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" className="h-7" disabled={currentPage <= 1}
-                  onClick={() => setCurrentPage(p => p - 1)}>
-                  <ChevronLeft className="w-4 h-4" />
-                </Button>
-                <span className="text-xs text-muted-foreground min-w-[80px] text-center" dir="ltr">
-                  {currentPage} / {totalPages}
-                </span>
-                <Button size="sm" variant="outline" className="h-7" disabled={currentPage >= totalPages}
-                  onClick={() => setCurrentPage(p => p + 1)}>
-                  <ChevronRight className="w-4 h-4" />
-                </Button>
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute inset-y-0 start-2 my-auto text-muted-foreground" />
+                  <Input 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={locale === 'ar' ? 'بحث في الملاحظات...' : 'Search notes...'}
+                    className="h-7 w-[200px] ps-8 text-xs focus-visible:ring-1"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" className="h-7" disabled={currentPage <= 1}
+                    onClick={() => setCurrentPage(p => p - 1)}>
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  <span className="text-xs text-muted-foreground min-w-[80px] text-center" dir="ltr">
+                    {currentPage} / {totalPages}
+                  </span>
+                  <Button size="sm" variant="outline" className="h-7" disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage(p => p + 1)}>
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </CardHeader>
@@ -812,7 +824,7 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {slots.map((slot) => {
+                  {slots.filter(slot => !searchQuery || (slot.channelName || '').toLowerCase().includes(searchQuery.toLowerCase())).map((slot) => {
                     const outputType = slot.outputType || 'youtube'
                     const isYtFb = outputType === 'youtube' || outputType === 'facebook'
                     const rtmpBase = RTMP_BASES[outputType] || ''
