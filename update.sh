@@ -35,11 +35,14 @@ echo -e "  ✅ Code updated to latest commit."
 
 echo -e "\n${CYAN}[2/6] Applying High-Load Kernel & Network limits (Auto-Tuning)...${NC}"
 
+# Clear any previous temp file to avoid permission issues
+sudo rm -f /tmp/qaff-tune.sh
+
 cat << 'EOF' > /tmp/qaff-tune.sh
 #!/bin/bash
 TARGET_CONF="/etc/sysctl.d/99-qaff-tuning.conf"
-rm -f $TARGET_CONF
-touch $TARGET_CONF
+sudo rm -f $TARGET_CONF
+sudo touch $TARGET_CONF
 
 ensure_min_sysctl() {
     local key=$1
