@@ -697,10 +697,6 @@ export default function Home() {
                 onClick={() => confirmBulkAction('startAll', t('confirmStartAll'))}>
                 <Play className="w-3.5 h-3.5 mr-1" />{t('startAll')}
               </Button>
-              <Button size="sm" variant="outline" className="border-green-600 text-green-600 hover:bg-green-50 h-7 text-xs w-auto px-3"
-                onClick={() => confirmBulkAction('scheduleAll', t('confirmScheduleAll'))}>
-                <Clock className="w-3.5 h-3.5 mr-1" />{t('scheduleAllExt')}
-              </Button>
               <Button size="sm" variant="destructive" className="h-7 text-xs w-[100px]"
                 onClick={() => confirmBulkAction('stopAll', t('confirmStopAll'))}>
                 <Square className="w-3.5 h-3.5 mr-1" />{t('stopAll')}
@@ -770,9 +766,9 @@ export default function Home() {
         <Card className="flex-1 flex flex-col overflow-hidden">
           <CardHeader className="py-2 px-4 shrink-0">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">{t('slots')}</CardTitle>
               <div className="flex items-center gap-4">
-                <div className="relative">
+                <CardTitle className="text-base">{t('slots')}</CardTitle>
+                <div className="relative font-normal">
                   <Search className="w-4 h-4 absolute inset-y-0 start-2 my-auto text-muted-foreground" />
                   <Input 
                     value={searchQuery}
@@ -781,19 +777,19 @@ export default function Home() {
                     className="h-7 w-[200px] ps-8 text-xs focus-visible:ring-1"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" variant="outline" className="h-7" disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage(p => p - 1)}>
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-                  <span className="text-xs text-muted-foreground min-w-[80px] text-center" dir="ltr">
-                    {currentPage} / {totalPages}
-                  </span>
-                  <Button size="sm" variant="outline" className="h-7" disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage(p => p + 1)}>
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" className="h-7" disabled={currentPage <= 1}
+                  onClick={() => setCurrentPage(p => p - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <span className="text-xs text-muted-foreground min-w-[80px] text-center" dir="ltr">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button size="sm" variant="outline" className="h-7" disabled={currentPage >= totalPages}
+                  onClick={() => setCurrentPage(p => p + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
               </div>
             </div>
           </CardHeader>
