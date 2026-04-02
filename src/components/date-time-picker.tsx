@@ -52,8 +52,7 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     // Selected values
     const [selMonth, setSelMonth] = React.useState<number | null>(value ? parsed.month : null)
     const [selDay, setSelDay] = React.useState<number | null>(value ? parsed.day : null)
-    const [selHour, setSelHour] = React.useState(parsed.hour % 12 === 0 ? 12 : parsed.hour % 12)
-    const [selAmPm, setSelAmPm] = React.useState<'AM'|'PM'>(parsed.hour < 12 ? 'AM' : 'PM')
+    const [selHour, setSelHour] = React.useState(parsed.hour)
     const [selMinute, setSelMinute] = React.useState(parsed.minute)
 
     const hourRef = React.useRef<HTMLDivElement>(null)
@@ -67,8 +66,7 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
             setViewYear(now.getFullYear())
             setSelMonth(value ? p.month : null)
             setSelDay(value ? p.day : null)
-            setSelHour(p.hour % 12 === 0 ? 12 : p.hour % 12)
-            setSelAmPm(p.hour < 12 ? 'AM' : 'PM')
+            setSelHour(p.hour)
             setSelMinute(p.minute)
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,22 +91,12 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     function handleDayClick(day: number) {
         setSelDay(day)
         setSelMonth(viewMonth)
-        const h24 = selAmPm === 'PM' ? (selHour === 12 ? 12 : selHour + 12) : (selHour === 12 ? 0 : selHour)
-        onChange(buildValue(viewMonth, day, h24, selMinute))
+        onChange(buildValue(viewMonth, day, selHour, selMinute))
     }
 
-    function handleHourClick(h12: number) {
-        setSelHour(h12)
+    function handleHourClick(h24: number) {
+        setSelHour(h24)
         if (selDay !== null && selMonth !== null) {
-            const h24 = selAmPm === 'PM' ? (h12 === 12 ? 12 : h12 + 12) : (h12 === 12 ? 0 : h12)
-            onChange(buildValue(selMonth, selDay, h24, selMinute))
-        }
-    }
-
-    function handleAmPmClick(ap: 'AM'|'PM') {
-        setSelAmPm(ap)
-        if (selDay !== null && selMonth !== null) {
-            const h24 = ap === 'PM' ? (selHour === 12 ? 12 : selHour + 12) : (selHour === 12 ? 0 : selHour)
             onChange(buildValue(selMonth, selDay, h24, selMinute))
         }
     }
@@ -116,8 +104,7 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     function handleMinuteClick(m: number) {
         setSelMinute(m)
         if (selDay !== null && selMonth !== null) {
-            const h24 = selAmPm === 'PM' ? (selHour === 12 ? 12 : selHour + 12) : (selHour === 12 ? 0 : selHour)
-            onChange(buildValue(selMonth, selDay, h24, m))
+            onChange(buildValue(selMonth, selDay, selHour, m))
         }
     }
 
@@ -137,12 +124,10 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
         const d = n.getDate()
         const h24 = n.getHours()
         const min = n.getMinutes()
-        const h12 = h24 % 12 === 0 ? 12 : h24 % 12
-        const ap: 'AM'|'PM' = h24 < 12 ? 'AM' : 'PM'
-        setSelMonth(m); setSelDay(d); setSelHour(h12); setSelAmPm(ap); setSelMinute(min)
+        setSelMonth(m); setSelDay(d); setSelHour(h24); setSelMinute(min)
         setViewMonth(m); setViewYear(n.getFullYear())
         onChange(buildValue(m, d, h24, min))
-        scrollToItem(hourRef, h12 - 1)
+        scrollToItem(hourRef, h24)
         scrollToItem(minuteRef, min)
     }
 
@@ -159,7 +144,6 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December']
     const DAY_NAMES = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']
-
     // Build calendar grid
     const firstDayOfWeek = new Date(viewYear, viewMonth - 1, 1).getDay() // 0 = Sun
     const totalDays = daysInMonth(viewYear, viewMonth)
@@ -183,145 +167,130 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="p-0 w-auto" align="start" sideOffset={4}>
-                <div className="flex bg-popover rounded-md shadow-lg border overflow-hidden" style={{ minWidth: 340 }}>
-                    {/* ── Calendar panel ── */}
-                    <div className="p-3 border-r select-none min-w-[210px]">
-                        {/* Month navigation */}
-                        <div className="flex items-center justify-between mb-2">
-                            <button
-                                onClick={prevMonth}
-                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                                ←
-                            </button>
-                            <span className="text-sm font-semibold">
-                                {MONTH_NAMES[viewMonth - 1]} {viewYear}
-                            </span>
-                            <button
-                                onClick={nextMonth}
-                                className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-                            >
-                                →
-                            </button>
-                        </div>
-
-                        {/* Day-of-week headers */}
-                        <div className="grid grid-cols-7 mb-1">
-                            {DAY_NAMES.map(d => (
-                                <div key={d} className="text-center text-[10px] font-medium text-muted-foreground py-0.5">{d}</div>
-                            ))}
-                        </div>
-
-                        {/* Day cells */}
-                        <div className="grid grid-cols-7 gap-y-0.5">
-                            {cells.map((day, i) =>
-                                day === null ? (
-                                    <div key={`empty-${i}`} />
-                                ) : (
-                                    <button
-                                        key={day}
-                                        onClick={() => handleDayClick(day)}
-                                        className={cn(
-                                            'text-xs h-7 w-7 mx-auto rounded-md transition-colors flex items-center justify-center font-medium',
-                                            isSelectedDay(day)
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'hover:bg-muted text-foreground'
-                                        )}
-                                    >
-                                        {day}
-                                    </button>
-                                )
-                            )}
-                        </div>
-
-                        {/* Clear / Now / Done */}
-                        <div className="flex justify-between items-center mt-2 pt-2 border-t">
-                            <button
-                                onClick={handleClear}
-                                className="text-xs text-muted-foreground hover:text-foreground font-medium"
-                            >
-                                {t('clear') || 'Clear'}
-                            </button>
-                            <div className="flex gap-3">
+                <div className="flex flex-col bg-popover rounded-md shadow-lg border overflow-hidden" style={{ minWidth: 340 }}>
+                    <div className="flex">
+                        {/* ── Calendar panel ── */}
+                        <div className="p-3 border-r select-none min-w-[210px]">
+                            {/* Month navigation */}
+                            <div className="flex items-center justify-between mb-2">
                                 <button
-                                    onClick={handleToday}
-                                    className="text-xs text-primary hover:underline font-medium"
+                                    onClick={prevMonth}
+                                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                 >
-                                    {t('now') || 'Now'}
+                                    ←
                                 </button>
+                                <span className="text-sm font-semibold">
+                                    {MONTH_NAMES[viewMonth - 1]} {viewYear}
+                                </span>
                                 <button
-                                    onClick={handleDone}
-                                    className="text-xs bg-primary text-primary-foreground hover:bg-primary/90 px-2.5 py-1 rounded font-semibold"
+                                    onClick={nextMonth}
+                                    className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
                                 >
-                                    {t('done') || 'Done'}
+                                    →
                                 </button>
                             </div>
-                        </div>
-                    </div>
 
-                    {/* ── Time panel ── */}
-                    <div className="flex divide-x" style={{ width: 150 }}>
-                        {/* Hours 1-12 */}
-                        <div
-                            ref={hourRef}
-                            className="flex-1 overflow-y-auto scroll-smooth"
-                            style={{ maxHeight: 280 }}
-                        >
-                            {Array.from({ length: 12 }, (_, i) => {
-                                const h = i + 1
-                                return (
+                            {/* Day-of-week headers */}
+                            <div className="grid grid-cols-7 mb-1">
+                                {DAY_NAMES.map(d => (
+                                    <div key={d} className="text-center text-[10px] font-medium text-muted-foreground py-0.5">{d}</div>
+                                ))}
+                            </div>
+
+                            {/* Day cells */}
+                            <div className="grid grid-cols-7 gap-y-0.5">
+                                {cells.map((day, i) =>
+                                    day === null ? (
+                                        <div key={`empty-${i}`} />
+                                    ) : (
+                                        <button
+                                            key={day}
+                                            onClick={() => handleDayClick(day)}
+                                            className={cn(
+                                                'text-xs h-7 w-7 mx-auto rounded-md transition-colors flex items-center justify-center font-medium',
+                                                isSelectedDay(day)
+                                                    ? 'bg-primary text-primary-foreground'
+                                                    : 'hover:bg-muted text-foreground'
+                                            )}
+                                        >
+                                            {day}
+                                        </button>
+                                    )
+                                )}
+                            </div>
+                        </div>
+
+                        {/* ── Time panel ── */}
+                        <div className="flex divide-x" style={{ width: 130 }}>
+                            {/* Hours 00-23 */}
+                            <div
+                                ref={hourRef}
+                                className="flex-1 overflow-y-auto scroll-smooth"
+                                style={{ maxHeight: 240 }}
+                            >
+                                {Array.from({ length: 24 }, (_, i) => {
+                                    const h = i
+                                    return (
+                                        <button
+                                            key={h}
+                                            onClick={() => handleHourClick(h)}
+                                            className={cn(
+                                                'w-full h-9 text-sm font-mono flex items-center justify-center transition-colors',
+                                                selHour === h
+                                                    ? 'bg-primary text-primary-foreground font-bold'
+                                                    : 'hover:bg-muted text-foreground'
+                                            )}
+                                        >
+                                            {String(h).padStart(2, '0')}
+                                        </button>
+                                    )
+                                })}
+                            </div>
+                            {/* Minutes */}
+                            <div
+                                ref={minuteRef}
+                                className="flex-1 overflow-y-auto scroll-smooth"
+                                style={{ maxHeight: 240 }}
+                            >
+                                {Array.from({ length: 60 }, (_, m) => (
                                     <button
-                                        key={h}
-                                        onClick={() => handleHourClick(h)}
+                                        key={m}
+                                        onClick={() => handleMinuteClick(m)}
                                         className={cn(
                                             'w-full h-9 text-sm font-mono flex items-center justify-center transition-colors',
-                                            selHour === h
+                                            selMinute === m
                                                 ? 'bg-primary text-primary-foreground font-bold'
                                                 : 'hover:bg-muted text-foreground'
                                         )}
                                     >
-                                        {String(h).padStart(2, '0')}
+                                        {String(m).padStart(2, '0')}
                                     </button>
-                                )
-                            })}
+                                ))}
+                            </div>
                         </div>
-                        {/* Minutes */}
-                        <div
-                            ref={minuteRef}
-                            className="flex-1 overflow-y-auto scroll-smooth"
-                            style={{ maxHeight: 280 }}
+                    </div>
+
+                    {/* Clear / Now / Done */}
+                    <div className="flex justify-between items-center p-2 border-t bg-muted/20">
+                        <button
+                            onClick={handleClear}
+                            className="text-xs text-muted-foreground hover:text-foreground font-medium px-2"
                         >
-                            {Array.from({ length: 60 }, (_, m) => (
-                                <button
-                                    key={m}
-                                    onClick={() => handleMinuteClick(m)}
-                                    className={cn(
-                                        'w-full h-9 text-sm font-mono flex items-center justify-center transition-colors',
-                                        selMinute === m
-                                            ? 'bg-primary text-primary-foreground font-bold'
-                                            : 'hover:bg-muted text-foreground'
-                                    )}
-                                >
-                                    {String(m).padStart(2, '0')}
-                                </button>
-                            ))}
-                        </div>
-                        {/* AM / PM */}
-                        <div className="flex flex-col justify-center divide-y" style={{ minWidth: 46 }}>
-                            {(['AM', 'PM'] as const).map(ap => (
-                                <button
-                                    key={ap}
-                                    onClick={() => handleAmPmClick(ap)}
-                                    className={cn(
-                                        'flex-1 text-sm font-semibold flex items-center justify-center transition-colors',
-                                        selAmPm === ap
-                                            ? 'bg-primary text-primary-foreground'
-                                            : 'hover:bg-muted text-foreground'
-                                    )}
-                                >
-                                    {ap}
-                                </button>
-                            ))}
+                            {t('clear') || 'Clear'}
+                        </button>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleToday}
+                                className="text-xs text-primary hover:underline font-medium"
+                            >
+                                {t('now') || 'Now'}
+                            </button>
+                            <button
+                                onClick={handleDone}
+                                className="text-xs bg-primary text-primary-foreground hover:bg-primary/90 px-4 py-1.5 rounded font-semibold"
+                            >
+                                {t('done') || 'Done'}
+                            </button>
                         </div>
                     </div>
                 </div>
