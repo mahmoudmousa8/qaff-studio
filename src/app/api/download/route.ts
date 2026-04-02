@@ -20,6 +20,7 @@ interface DownloadJob {
   lastSpeedCheck: number
   lastSpeedBytes: number
   speedBps: number
+  originalNameRequested?: boolean
 }
 
 // Global download jobs map
@@ -89,6 +90,48 @@ function downloadFile(url: string, destPath: string, job: DownloadJob, maxRedire
           }
         })
         return
+      }
+
+      // Extract original filename from header if requested
+      if (job.originalNameRequested) {
+        const disposition = res.headers['content-disposition']
+        if (disposition && disposition.includes('filename=')) {
+          let extractedName = ''
+          const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+          if (utf8Match && utf8Match[1]) {
+            extractedName = decodeURIComponent(utf8Match[1])
+          } else {
+            const normalMatch = disposition.match(/filename="?([^"]+)"?/i)
+            if (normalMatch && normalMatch[1]) {
+              // Sometimes headers are ISO-8859-1 encoded; this tries to fix utf-8 broken strings
+              extractedName = Buffer.from(normalMatch[1], 'latin1').toString('utf8')
+            }
+          }
+
+          if (extractedName) {
+            let sanitized = sanitizeFilename(extractedName)
+            if (!sanitized.includes('.')) {
+              sanitized += '.mp4'
+            }
+            
+            job.filename = sanitized
+            let newPath = path.join(path.dirname(destPath), job.filename)
+            
+            // Auto-increment if file exists
+            if (existsSync(newPath) && newPath !== destPath) {
+              let counter = 1
+              const extFinal = path.extname(job.filename)
+              const baseName = path.basename(job.filename, extFinal)
+              while (existsSync(newPath)) {
+                job.filename = `${baseName} (${counter})${extFinal}`
+                newPath = path.join(path.dirname(destPath), job.filename)
+                counter++
+              }
+            }
+            destPath = newPath
+            job.filePath = newPath
+          }
+        }
       }
 
       const totalBytes = parseInt(res.headers['content-length'] || '0', 10)
@@ -195,7 +238,14 @@ export async function POST(request: NextRequest) {
 
     // Generate filename if not provided
     let targetFilename = filename
+    let originalNameRequested = false
+
+    if (targetFilename && !targetFilename.includes('.')) {
+      targetFilename += '.mp4' // Force .mp4 if user didn't type an extension
+    }
+
     if (!targetFilename) {
+      originalNameRequested = true
       // Extract from URL or generate
       try {
         const urlPath = new URL(url).pathname
@@ -248,6 +298,7 @@ export async function POST(request: NextRequest) {
       lastSpeedCheck: Date.now(),
       lastSpeedBytes: 0,
       speedBps: 0,
+      originalNameRequested
     }
     downloadJobs.set(jobId, job)
 
