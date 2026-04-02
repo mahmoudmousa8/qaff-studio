@@ -35,11 +35,6 @@ echo -e "  ✅ Code updated to latest commit."
 
 echo -e "\n${CYAN}[2/6] Applying High-Load Kernel & Network limits (Auto-Tuning)...${NC}"
 
-# Clear any previous temp file to avoid permission issues
-sudo rm -f /tmp/qaff-tune.sh
-
-cat << 'EOF' > /tmp/qaff-tune.sh
-#!/bin/bash
 TARGET_CONF="/etc/sysctl.d/99-qaff-tuning.conf"
 sudo rm -f $TARGET_CONF
 sudo touch $TARGET_CONF
@@ -49,9 +44,9 @@ ensure_min_sysctl() {
     local req=$2
     local cur=$(sysctl -n $key 2>/dev/null || echo 0)
     if [ "$cur" -ge "$req" ] 2>/dev/null; then
-        echo "$key = $cur" >> $TARGET_CONF
+        echo "$key = $cur" | sudo tee -a $TARGET_CONF >/dev/null
     else
-        echo "$key = $req" >> $TARGET_CONF
+        echo "$key = $req" | sudo tee -a $TARGET_CONF >/dev/null
     fi
 }
 
@@ -70,41 +65,39 @@ ensure_min_sysctl "net.core.rmem_max" 16777216
 ensure_min_sysctl "net.core.wmem_max" 16777216
 
 # Ensure conntrack module is loaded before applying sysctl
-modprobe nf_conntrack 2>/dev/null || true
+sudo modprobe nf_conntrack 2>/dev/null || true
 ensure_min_sysctl "net.netfilter.nf_conntrack_max" 2000000
 
 # Overwrite string/multi-value parameters safely
-echo "net.ipv4.ip_local_port_range = 1024 65535" >> $TARGET_CONF
-echo "net.core.default_qdisc = fq" >> $TARGET_CONF
-echo "net.ipv4.tcp_congestion_control = bbr" >> $TARGET_CONF
-echo "net.ipv4.tcp_wmem = 4096 65536 16777216" >> $TARGET_CONF
-echo "net.netfilter.nf_conntrack_tcp_timeout_established = 7200" >> $TARGET_CONF
-echo "net.netfilter.nf_conntrack_tcp_timeout_time_wait = 10" >> $TARGET_CONF
+echo "net.ipv4.ip_local_port_range = 1024 65535" | sudo tee -a $TARGET_CONF >/dev/null
+echo "net.core.default_qdisc = fq" | sudo tee -a $TARGET_CONF >/dev/null
+echo "net.ipv4.tcp_congestion_control = bbr" | sudo tee -a $TARGET_CONF >/dev/null
+echo "net.ipv4.tcp_wmem = 4096 65536 16777216" | sudo tee -a $TARGET_CONF >/dev/null
+echo "net.netfilter.nf_conntrack_tcp_timeout_established = 7200" | sudo tee -a $TARGET_CONF >/dev/null
+echo "net.netfilter.nf_conntrack_tcp_timeout_time_wait = 10" | sudo tee -a $TARGET_CONF >/dev/null
 
-sysctl -p $TARGET_CONF >/dev/null 2>&1
+sudo sysctl -p $TARGET_CONF >/dev/null 2>&1
 
 # Setup security limits
-mkdir -p /etc/security/limits.d
-cat << 'LIMITS' > /etc/security/limits.d/99-qaff.conf
+sudo mkdir -p /etc/security/limits.d
+sudo bash -c "cat << 'LIMITS' > /etc/security/limits.d/99-qaff.conf
 * soft nofile 2097152
 * hard nofile 2097152
 * soft nproc 2097152
 * hard nproc 2097152
 root soft nofile 2097152
 root hard nofile 2097152
-LIMITS
+LIMITS"
 
 # Setup systemd global limits
-mkdir -p /etc/systemd/system.conf.d/
-cat << 'SYSCONF' > /etc/systemd/system.conf.d/limits.conf
+sudo mkdir -p /etc/systemd/system.conf.d/
+sudo bash -c "cat << 'SYSCONF' > /etc/systemd/system.conf.d/limits.conf
 [Manager]
 DefaultLimitNOFILE=2097152
 DefaultLimitNPROC=2097152
-SYSCONF
-systemctl daemon-reload
-EOF
+SYSCONF"
 
-sudo bash /tmp/qaff-tune.sh
+sudo systemctl daemon-reload
 echo -e "  ✅ Kernel Limits and BBR Congestion Control customized."
 
 # Cleanup previous aggressive NIC tuning (fixed Hostinger bufferbloat issue)
