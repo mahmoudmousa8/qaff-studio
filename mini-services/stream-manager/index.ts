@@ -106,8 +106,10 @@ function probeFile(filePath: string): ProbeResult {
       }
     } catch { }
 
-    const compatible = vCodec.toLowerCase() === 'h264' && aCodec.toLowerCase() === 'aac'
-    return { videoCodec: vCodec, audioCodec: aCodec, fps, compatible }
+    const cleanVCodec = vCodec.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    const cleanACodec = aCodec.replace(/[^a-zA-Z0-9]/g, '').toLowerCase()
+    const compatible = cleanVCodec.includes('h264') && cleanACodec.includes('aac')
+    return { videoCodec: cleanVCodec, audioCodec: cleanACodec, fps, compatible }
   } catch (err) {
     log(`FFprobe error: ${err instanceof Error ? err.message : err}`)
     return defaultResult

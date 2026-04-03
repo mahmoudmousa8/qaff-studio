@@ -78,7 +78,7 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
         return { allowed: false, reason: `مرفوض: حاوية الملف غير صالحة | Rejected: Invalid container format (${probe.formatName})` }
     }
 
-    if (probe.videoCodec !== 'h264') {
+    if (!probe.videoCodec.toLowerCase().includes('h264')) {
         return { allowed: false, reason: `مرفوض: الفيديو ترميزه ليس H.264 | Rejected: Video codec is not H.264` }
     }
 
