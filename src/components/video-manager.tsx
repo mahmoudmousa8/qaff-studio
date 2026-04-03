@@ -785,9 +785,15 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
           <RefreshCw className="w-4 h-4" />
         </Button>
 
-        {/* Bulk move + delete */}
+        {/* Bulk tools */}
         {selectedFiles.size > 0 && mode === 'manage' && (
           <>
+            <a href={`/api/videos/zip?paths=${Array.from(selectedFiles).map(encodeURIComponent).join(',')}&name=${encodeURIComponent('download.zip')}`} download="download.zip" target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="outline" className="text-green-600 border-green-600/30 hover:bg-green-500/10">
+                <Download className="w-4 h-4 mr-1" />
+                {getLocale() === 'en' ? 'Download All' : 'تحميل الكل'} ({selectedFiles.size})
+              </Button>
+            </a>
             <Button size="sm" variant="outline" onClick={() => { setBulkMoveDialog(true); setBulkMoveTarget('') }}>
               <Move className="w-4 h-4 mr-1" />
               {t('move')} ({selectedFiles.size})
@@ -829,6 +835,11 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                 </Badge>
                 {mode === 'manage' && (
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <a href={`/api/videos/zip?paths=${encodeURIComponent(folder.path)}&name=${encodeURIComponent(folder.name + '.zip')}`} onClick={e => e.stopPropagation()} download={`${folder.name}.zip`} target="_blank" rel="noopener noreferrer">
+                      <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" title={getLocale() === 'ar' ? 'تحميل' : 'Download'}>
+                        <Download className="w-3.5 h-3.5" />
+                      </Button>
+                    </a>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => {
                       e.stopPropagation()
                       openRenameDialog(folder, true)
@@ -1150,40 +1161,58 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
         </DialogContent>
       </Dialog>
 
-      {/* ═══ Recommended Output Dialog ═══ */}
+      {/* ═══ Compatible Settings Dialog ═══ */}
       <Dialog open={recommendedOutputDialog} onOpenChange={setRecommendedOutputDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-primary">
               <AlertCircle className="w-5 h-5" />
-              {t('recommendedOutput')}
+              {getLocale() === 'en' ? 'Compatible Settings' : 'الإعدادات المتوافقة'}
             </DialogTitle>
+            <DialogDescription>
+              {getLocale() === 'en' ? 
+              'This is a Validation Platform. Files must strictly match these settings or they will be rejected without transcoding.' : 
+              'هذه المنصة للقبول فقط (Validation Platform) ولا تقوم بمعالجة أو إعادة ترميز. سيتم رفض الملفات غير المطابقة للشروط فوراً.'}
+            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 text-sm" dir="ltr">
-            <div className="bg-muted p-4 rounded-md space-y-2">
-              <p className="font-semibold text-amber-500 mb-2">🔹 Format</p>
-              <ul className="space-y-1 list-none pl-4">
-                <li><strong>H.264</strong></li>
-                <li>Audio: <strong>AAC</strong></li>
-              </ul>
+          <ScrollArea className="max-h-[60vh]">
+            <div className={`space-y-4 text-sm ${getLocale() === 'en' ? 'dir-ltr' : 'dir-rtl'}`}>
+              <div className="bg-muted p-4 rounded-md space-y-3">
+                
+                <div>
+                  <p className="font-semibold text-amber-500 mb-1">🎥 {getLocale() === 'en' ? 'Video Rules' : 'الفيديو'}</p>
+                  <ul className="space-y-1 list-none pl-4 pr-1">
+                    <li>✅ Codec: <strong className="text-green-600">H.264 ONLY</strong></li>
+                    <li>✅ FPS: <strong className="text-green-600">24, 25, or 30 ONLY</strong></li>
+                    <li>✅ Type: <strong className="text-green-600">CFR (Constant Frame Rate) ONLY</strong> (❌ VFR rejected)</li>
+                    <li>✅ Keyframe (GOP): <strong className="text-green-600">Every 2 seconds</strong> (Max: 4 seconds)</li>
+                    <li>✅ Scan Type: <strong className="text-green-600">Progressive ONLY</strong> (❌ Interlaced rejected)</li>
+                  </ul>
+                </div>
 
-              <div className="my-4 border-t border-border" />
+                <div className="border-t border-border" />
 
-              <p className="font-semibold text-amber-500 mb-2">🔹 Video</p>
-              <ul className="space-y-1 list-none pl-4">
-                <li>Resolution: <strong>1920x1080</strong> {getLocale() === 'en' ? 'or' : 'أو'} <strong>1280x720</strong></li>
-                <li>Frame Rate: <strong>25</strong> {getLocale() === 'en' ? 'or' : 'أو'} <strong>30 fps</strong></li>
-              </ul>
+                <div>
+                  <p className="font-semibold text-amber-500 mb-1">🔊 {getLocale() === 'en' ? 'Audio Rules' : 'الصوت'}</p>
+                  <ul className="space-y-1 list-none pl-4 pr-1">
+                    <li>✅ Codec: <strong className="text-green-600">AAC ONLY</strong></li>
+                    <li>✅ Channels: <strong className="text-green-600">Stereo (2 Channels) ONLY</strong></li>
+                    <li>✅ Sample Rate: <strong className="text-green-600">44.1kHz or 48kHz ONLY</strong></li>
+                  </ul>
+                </div>
 
-              <div className="my-4 border-t border-border" />
+                <div className="border-t border-border" />
 
-              <p className="font-semibold text-amber-500 mb-2">🔹 Bitrate</p>
-              <ul className="space-y-1 list-none pl-4">
-                <li>Bitrate Encoding: <strong>CBR</strong> {getLocale() === 'en' ? 'or' : 'أو'} <strong>VBR 1 Pass</strong></li>
-                <li>Target Bitrate: <strong>2000 - 2500 Kbps</strong></li>
-              </ul>
+                <div>
+                  <p className="font-semibold text-amber-500 mb-1">📡 {getLocale() === 'en' ? 'Bitrate Rules' : 'معدل البت'}</p>
+                  <ul className="space-y-1 list-none pl-4 pr-1">
+                    <li>✅ Mode: <strong className="text-green-600">CBR (Constant Bitrate) ONLY</strong> (❌ VBR rejected)</li>
+                  </ul>
+                </div>
+
+              </div>
             </div>
-          </div>
+          </ScrollArea>
           <DialogFooter>
             <Button variant="outline" onClick={() => setRecommendedOutputDialog(false)}>
               {t('close')}
