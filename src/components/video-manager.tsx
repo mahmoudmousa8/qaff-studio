@@ -108,7 +108,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
 
   const [deleteDialog, setDeleteDialog] = useState<{ item: VideoFile | FolderItem; isFolder: boolean } | null>(null)
 
-  const [moveDialog, setMoveDialog] = useState<{ item: VideoFile } | null>(null)
+  const [moveDialog, setMoveDialog] = useState<{ item: VideoFile | FolderItem } | null>(null)
   const [moveTarget, setMoveTarget] = useState<string>('')
 
   const [createFolderDialog, setCreateFolderDialog] = useState(false)
@@ -842,6 +842,12 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                     </a>
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => {
                       e.stopPropagation()
+                      setMoveDialog({ item: folder })
+                    }} title={t('move')}>
+                      <Move className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => {
+                      e.stopPropagation()
                       openRenameDialog(folder, true)
                     }}>
                       <Edit3 className="w-3.5 h-3.5" />
@@ -1169,11 +1175,6 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
               <AlertCircle className="w-5 h-5" />
               {getLocale() === 'en' ? 'Compatible Settings' : 'الإعدادات المتوافقة'}
             </DialogTitle>
-            <DialogDescription>
-              {getLocale() === 'en' ? 
-              'This is a Validation Platform. Files must strictly match these settings or they will be rejected without transcoding.' : 
-              'هذه المنصة للقبول فقط (Validation Platform) ولا تقوم بمعالجة أو إعادة ترميز. سيتم رفض الملفات غير المطابقة للشروط فوراً.'}
-            </DialogDescription>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
             <div className={`space-y-4 text-sm ${getLocale() === 'en' ? 'dir-ltr' : 'dir-rtl'}`}>
@@ -1186,7 +1187,6 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                     <li>✅ FPS: <strong className="text-green-600">24, 25, or 30 ONLY</strong></li>
                     <li>✅ Type: <strong className="text-green-600">CFR (Constant Frame Rate) ONLY</strong> (❌ VFR rejected)</li>
                     <li>✅ Keyframe (GOP): <strong className="text-green-600">Every 2 seconds</strong> (Max: 4 seconds)</li>
-                    <li>✅ Scan Type: <strong className="text-green-600">Progressive ONLY</strong> (❌ Interlaced rejected)</li>
                   </ul>
                 </div>
 
@@ -1204,9 +1204,10 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                 <div className="border-t border-border" />
 
                 <div>
-                  <p className="font-semibold text-amber-500 mb-1">📡 {getLocale() === 'en' ? 'Bitrate Rules' : 'معدل البت'}</p>
+                  <p className="font-semibold text-amber-500 mb-1">📡 {getLocale() === 'en' ? 'Recommended Bitrate' : 'معدل البت ريت الموصى به'}</p>
                   <ul className="space-y-1 list-none pl-4 pr-1">
                     <li>✅ Mode: <strong className="text-green-600">CBR (Constant Bitrate) ONLY</strong> (❌ VBR rejected)</li>
+                    <li>✅ Bitrate: <strong className="text-green-600">1500 to 2500 Kbps</strong></li>
                   </ul>
                 </div>
 
