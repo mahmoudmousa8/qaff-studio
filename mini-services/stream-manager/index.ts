@@ -138,8 +138,8 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
     };
   }
 
-  // 2) Reject everything else to enforce strictly ZERO processor usage
-  throw new Error(`Incompatible video format (${probe.videoCodec}+${probe.audioCodec}). Strict Zero-CPU policy blocks transcoding. Please upload a standard H.264/AAC MP4.`)
+  // 2) Reject everything else to adhere strictly to server design
+  throw new Error(`Incompatible video format (${probe.videoCodec}+${probe.audioCodec}). Transcoding is disabled. Please upload a standard H.264/AAC MP4.`)
 }
 
 // ── Build final RTMP URL from outputType + server + key ─────

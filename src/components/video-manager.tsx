@@ -894,6 +894,11 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                         onClick={() => setPreviewVideo(video)}>
                         <Play className="w-3.5 h-3.5" />
                       </Button>
+                      <a href={`/api/videos/stream?path=${encodeURIComponent(video.path)}&download=1`} download={video.name} target="_blank" rel="noopener noreferrer">
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" title={getLocale() === 'ar' ? 'تحميل مباشر' : 'Direct Download'}>
+                          <Download className="w-3.5 h-3.5" />
+                        </Button>
+                      </a>
                       <Button size="icon" variant="ghost" className="h-7 w-7" title={t('rename')}
                         onClick={() => openRenameDialog(video, false)}>
                         <Edit3 className="w-3.5 h-3.5" />

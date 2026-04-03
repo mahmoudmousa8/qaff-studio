@@ -74,14 +74,23 @@ export async function GET(request: NextRequest) {
                 },
             })
 
+            const isDownload = url.searchParams.get('download') === '1'
+            const filename = fullPath.split(/[\/\\]/).pop() || 'video.mp4'
+
+            const headers: Record<string, string> = {
+                'Content-Length': String(fileSize),
+                'Content-Type': 'video/mp4',
+                'Accept-Ranges': 'bytes',
+                'Cache-Control': 'no-cache',
+            }
+
+            if (isDownload) {
+                headers['Content-Disposition'] = `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+            }
+
             return new NextResponse(webStream, {
                 status: 200,
-                headers: {
-                    'Content-Length': String(fileSize),
-                    'Content-Type': 'video/mp4',
-                    'Accept-Ranges': 'bytes',
-                    'Cache-Control': 'no-cache',
-                },
+                headers,
             })
         }
     } catch (error) {

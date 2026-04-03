@@ -79,7 +79,7 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
     }
 
     if (probe.videoCodec !== 'h264') {
-        return { allowed: false, reason: `مرفوض: ترميز غير مدعوم | Rejected: Unsupported codec (${probe.videoCodec})` }
+        return { allowed: false, reason: `مرفوض: الفيديو ترميزه ليس H.264 | Rejected: Video codec is not H.264` }
     }
 
     if (!probe.hasAudio) {
