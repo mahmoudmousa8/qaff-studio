@@ -746,7 +746,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
         </Button>
         <Button size="sm" variant="outline" onClick={() => setRecommendedOutputDialog(true)}>
           <AlertCircle className="w-4 h-4 mr-1 text-amber-500" />
-          <span className="hidden sm:inline">{t('recommendedOutput')}</span>
+          <span className="hidden sm:inline">{getLocale() === 'en' ? 'Compatible Settings' : 'الإعدادات المتوافقة'}</span>
         </Button>
         <Button size="sm" variant="outline" onClick={() => setDownloadDialog(true)}>
           <Link2 className="w-4 h-4 mr-1" />
@@ -1177,38 +1177,38 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
             </DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[60vh]">
-            <div className={`space-y-4 text-sm ${getLocale() === 'en' ? 'dir-ltr' : 'dir-rtl'}`}>
-              <div className="bg-muted p-4 rounded-md space-y-3">
+            <div className="space-y-4 text-sm dir-ltr">
+              <div className="bg-muted p-4 rounded-md space-y-3 font-mono">
                 
                 <div>
-                  <p className="font-semibold text-amber-500 mb-1">🎥 {getLocale() === 'en' ? 'Video Rules' : 'الفيديو'}</p>
-                  <ul className="space-y-1 list-none pl-4 pr-1">
-                    <li>✅ Codec: <strong className="text-green-600">H.264 ONLY</strong></li>
-                    <li>✅ FPS: <strong className="text-green-600">24, 25, or 30 ONLY</strong></li>
-                    <li>✅ Type: <strong className="text-green-600">CFR (Constant Frame Rate) ONLY</strong> (❌ VFR rejected)</li>
-                    <li>✅ Keyframe (GOP): <strong className="text-green-600">Every 2 seconds</strong> (Max: 4 seconds)</li>
-                  </ul>
+                  <p className="font-semibold text-amber-500 mb-1">🎥 Video</p>
+                  <div className="pl-4 space-y-0.5 text-[13px]">
+                    <div>Codec: H.264 only</div>
+                    <div>FPS: 24 / 25 / 30</div>
+                    <div>Frame Type: CFR only (no VFR)</div>
+                    <div>Keyframe : 2s (max 4s)</div>
+                  </div>
                 </div>
 
                 <div className="border-t border-border" />
 
                 <div>
-                  <p className="font-semibold text-amber-500 mb-1">🔊 {getLocale() === 'en' ? 'Audio Rules' : 'الصوت'}</p>
-                  <ul className="space-y-1 list-none pl-4 pr-1">
-                    <li>✅ Codec: <strong className="text-green-600">AAC ONLY</strong></li>
-                    <li>✅ Channels: <strong className="text-green-600">Stereo (2 Channels) ONLY</strong></li>
-                    <li>✅ Sample Rate: <strong className="text-green-600">44.1kHz or 48kHz ONLY</strong></li>
-                  </ul>
+                  <p className="font-semibold text-amber-500 mb-1">🔊 Audio</p>
+                  <div className="pl-4 space-y-0.5 text-[13px]">
+                    <div>Codec: AAC only</div>
+                    <div>Channels: Stereo (2.0)</div>
+                    <div>Sample Rate: 44.1 kHz / 48 kHz</div>
+                  </div>
                 </div>
 
                 <div className="border-t border-border" />
 
                 <div>
-                  <p className="font-semibold text-amber-500 mb-1">📡 {getLocale() === 'en' ? 'Recommended Bitrate' : 'معدل البت ريت الموصى به'}</p>
-                  <ul className="space-y-1 list-none pl-4 pr-1">
-                    <li>✅ Mode: <strong className="text-green-600">CBR (Constant Bitrate) ONLY</strong> (❌ VBR rejected)</li>
-                    <li>✅ Bitrate: <strong className="text-green-600">1500 to 2500 Kbps</strong></li>
-                  </ul>
+                  <p className="font-semibold text-amber-500 mb-1">📡 Bitrate</p>
+                  <div className="pl-4 space-y-0.5 text-[13px]">
+                    <div>Mode: CBR only (no VBR)</div>
+                    <div>Recommended Bitrate : 1500–2500 Kbps</div>
+                  </div>
                 </div>
 
               </div>
