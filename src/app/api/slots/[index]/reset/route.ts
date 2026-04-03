@@ -26,7 +26,7 @@ export async function POST(
     const updatedSlot = await db.streamSlot.update({
       where: { slotIndex },
       data: {
-        channelName: `Channel ${slotIndex + 1}`,
+        channelName: '',
         outputType: 'youtube',
         filePath: '',
         streamKey: '',

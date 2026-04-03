@@ -179,6 +179,7 @@ export async function POST(request: NextRequest) {
 
         const result = await db.streamSlot.updateMany({
           data: {
+            channelName: '',
             filePath: '',
             streamKey: '',
             schedStart: '',
