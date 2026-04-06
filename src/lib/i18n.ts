@@ -90,7 +90,7 @@ const translations = {
         resetAll: 'Reset All',
         autoSave: 'Auto-Save',
 
-        colDetails: 'Optional',
+        colDetails: 'Stream Name',
         colOutput: 'Output',
         colPlatform: 'Platform',
         colOutputSettings: 'Settings',
@@ -174,7 +174,7 @@ const translations = {
         timezoneLoading: 'Loading...',
         timezoneSave: 'Save',
 
-        optional: 'Notes',
+        optional: 'Stream Name',
         timezoneBtn: 'Timezone',
 
         // Language
@@ -306,7 +306,7 @@ const translations = {
         resetAll: 'إعادة تعيين الكل',
         autoSave: 'حفظ تلقائي',
 
-        colDetails: 'ملاحظات',
+        colDetails: 'إسم البث',
         colOutput: 'الإخراج',
         colPlatform: 'المنصة',
         colOutputSettings: 'الإعدادات',
@@ -390,7 +390,7 @@ const translations = {
         timezoneLoading: 'جاري التحميل...',
         timezoneSave: 'حفظ',
 
-        optional: 'ملاحظات',
+        optional: 'إسم البث',
         timezoneBtn: 'المنطقة الزمنية',
 
         // Language

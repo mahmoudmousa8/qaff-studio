@@ -799,6 +799,7 @@ export default function Home() {
                 <thead className="sticky top-0 bg-card z-10 shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
@@ -813,10 +814,9 @@ export default function Home() {
                         </div>
                       </div>
                     </th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 310 }}>{t('colOutputSettings')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -831,6 +831,13 @@ export default function Home() {
                         {/* # */}
                         <td className="text-center font-mono text-xs font-medium px-2 py-1 text-muted-foreground">
                           {slot.slotIndex + 1}
+                        </td>
+
+                        {/* Status */}
+                        <td className="text-center px-2 py-1">
+                          <Badge className={`${getStatusColor(slot.status)} text-white text-[10px] font-medium`}>
+                            {slot.status}
+                          </Badge>
                         </td>
 
                         {/* Channel Name */}
@@ -850,7 +857,7 @@ export default function Home() {
                             <Input
                               readOnly
                               value={slot.filePath ? slot.filePath.split(/[/\\]/).pop() : ''}
-                              className="h-6 text-[11px] flex-1 font-mono bg-muted/10 text-muted-foreground cursor-default outline-none"
+                              className="h-6 text-[11px] flex-1 font-mono bg-muted/10 hover:bg-muted-foreground/15 hover:text-foreground transition-colors text-muted-foreground cursor-default outline-none"
                               placeholder={t('phFilePath')}
                               title={slot.filePath}
                               dir="ltr"
@@ -980,11 +987,27 @@ export default function Home() {
                           </div>
                         </td>
 
-                        {/* Status */}
-                        <td className="text-center px-2 py-1">
-                          <Badge className={`${getStatusColor(slot.status)} text-white text-[10px] font-medium`}>
-                            {slot.status}
-                          </Badge>
+                        {/* Actions */}
+                        <td className="px-2 py-1">
+                          <div className="flex gap-1 justify-center flex-nowrap">
+                            <Button size="sm" variant="default" className="h-6 w-6 p-0 bg-green-600 hover:bg-green-700"
+                              disabled={slot.isRunning}
+                              onClick={() => handlePlayButton(slot.slotIndex)}
+                              title={slot.schedStart ? t('scheduleStream') : t('startStream')}>
+                              <Play className="w-3 h-3" />
+                            </Button>
+                            <Button size="sm" variant="destructive" className="h-6 w-6 p-0"
+                              disabled={!slot.isRunning && !slot.isScheduled}
+                              onClick={() => stopStream(slot.slotIndex)}
+                              title={t('stopStream')}>
+                              <Square className="w-3 h-3" />
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-muted"
+                              onClick={() => resetSlot(slot.slotIndex)}
+                              title={t('resetSlot')}>
+                              <RotateCcw className="w-3 h-3" />
+                            </Button>
+                          </div>
                         </td>
 
                         {/* Platform (Dropdown) */}
@@ -1040,29 +1063,6 @@ export default function Home() {
                                 />
                               </>
                             )}
-                          </div>
-                        </td>
-
-                        {/* Actions */}
-                        <td className="px-2 py-1">
-                          <div className="flex gap-1 justify-center flex-nowrap">
-                            <Button size="sm" variant="default" className="h-6 w-6 p-0 bg-green-600 hover:bg-green-700"
-                              disabled={slot.isRunning}
-                              onClick={() => handlePlayButton(slot.slotIndex)}
-                              title={slot.schedStart ? t('scheduleStream') : t('startStream')}>
-                              <Play className="w-3 h-3" />
-                            </Button>
-                            <Button size="sm" variant="destructive" className="h-6 w-6 p-0"
-                              disabled={!slot.isRunning && !slot.isScheduled}
-                              onClick={() => stopStream(slot.slotIndex)}
-                              title={t('stopStream')}>
-                              <Square className="w-3 h-3" />
-                            </Button>
-                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-muted"
-                              onClick={() => resetSlot(slot.slotIndex)}
-                              title={t('resetSlot')}>
-                              <RotateCcw className="w-3 h-3" />
-                            </Button>
                           </div>
                         </td>
                       </tr>
