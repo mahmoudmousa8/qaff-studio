@@ -12,12 +12,11 @@ export async function GET(request: NextRequest) {
   // Find the exact timezone the client chose
   let currentTZ = Intl.DateTimeFormat().resolvedOptions().timeZone
   try {
-    const envPath = path.join(process.cwd(), '.env')
-    const envContent = readFileSync(envPath, 'utf-8')
-    const match = envContent.match(/^TZ=(.*)$/m)
-    if (match) currentTZ = match[1].trim()
+    const tzPath = path.join(process.env.APP_DATA_DIR || process.cwd(), 'timezone.txt')
+    const tzContent = readFileSync(tzPath, 'utf-8').trim()
+    if (tzContent) currentTZ = tzContent
   } catch {
-    // Ignore if .env doesn't exist, fallback to system TZ
+    // Ignore if timezone.txt doesn't exist, fallback to system TZ
   }
 
   // Format time strictly in the selected timezone

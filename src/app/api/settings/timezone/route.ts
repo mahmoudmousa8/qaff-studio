@@ -9,15 +9,14 @@ const execAsync = promisify(exec)
 
 export async function GET() {
     try {
-        const envPath = path.join(process.cwd(), '.env')
+        const tzPath = path.join(process.env.APP_DATA_DIR || process.cwd(), 'timezone.txt')
         let currentTZ = Intl.DateTimeFormat().resolvedOptions().timeZone
 
         try {
-            const envContent = readFileSync(envPath, 'utf-8')
-            const match = envContent.match(/^TZ=(.*)$/m)
-            if (match) currentTZ = match[1].trim()
+            const tzContent = readFileSync(tzPath, 'utf-8').trim()
+            if (tzContent) currentTZ = tzContent
         } catch {
-            // Ignore if .env doesn't exist
+            // Ignore if timezone.txt doesn't exist
         }
 
         return NextResponse.json({ timezone: currentTZ, success: true })
@@ -31,20 +30,9 @@ export async function POST(request: NextRequest) {
         const { timezone } = await request.json()
         if (!timezone) return NextResponse.json({ error: 'Timezone required' }, { status: 400 })
 
-        // 1. Update .env file with new TZ
-        const envPath = path.join(process.cwd(), '.env')
-        let envContent = ''
-        try {
-            envContent = readFileSync(envPath, 'utf-8')
-        } catch { } // If not exists, create it
-
-        if (envContent.match(/^TZ=.*$/m)) {
-            envContent = envContent.replace(/^TZ=.*$/m, `TZ=${timezone}`)
-        } else {
-            envContent += `\nTZ=${timezone}\n`
-        }
-
-        writeFileSync(envPath, envContent.trim() + '\n')
+        // 1. Save timezone to text file in the persistent data volume
+        const tzPath = path.join(process.env.APP_DATA_DIR || process.cwd(), 'timezone.txt')
+        writeFileSync(tzPath, timezone + '\n')
 
         // 2. Restart Container by escaping the Node process 
         // Docker's restart=always policy will instantly catch the exit and cleanly rebuild the environment.

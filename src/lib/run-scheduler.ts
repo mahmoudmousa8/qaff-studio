@@ -69,15 +69,14 @@ function shouldTrigger(sched: string, isStopCheck = false): boolean {
     return false
   }
 
-  // Read configured TZ from .env to ensure timezone-aware comparison
-  let currentTZ = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone
+  // Read configured TZ from timezone.txt to ensure timezone-aware comparison
+  let currentTZ = Intl.DateTimeFormat().resolvedOptions().timeZone
   try {
     const { readFileSync } = require('fs')
     const path = require('path')
-    const envPath = path.join(process.cwd(), '.env')
-    const envContent = readFileSync(envPath, 'utf-8')
-    const match = envContent.match(/^TZ=(.*)$/m)
-    if (match) currentTZ = match[1].trim()
+    const tzPath = path.join(process.env.APP_DATA_DIR || process.cwd(), 'timezone.txt')
+    const tzContent = readFileSync(tzPath, 'utf-8').trim()
+    if (tzContent) currentTZ = tzContent
   } catch { /* use fallback */ }
 
   // Get "now" formatted in server's configured timezone (MM, DD, HH, mm)

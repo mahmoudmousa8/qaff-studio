@@ -101,6 +101,12 @@ if [ "$QAFF_SUSPENDED" = "true" ]; then
   "
 else
   echo "Booting Stream Manager Daemon (Port 3002) in background..."
+  
+  if [ -f "/app/data/timezone.txt" ]; then
+    export TZ=$(cat /app/data/timezone.txt)
+    echo "Using Container Timezone: $TZ"
+  fi
+
   NODE_ENV=production tsx /app/mini-services/stream-manager/index.ts &
   
   # Apply egress bandwidth throttling if a limit is set
