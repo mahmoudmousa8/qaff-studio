@@ -118,17 +118,34 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
         else setViewMonth(m => m + 1)
     }
 
-    function handleToday() {
-        const n = new Date(Date.now() + 5 * 60000) // Add 5 minutes
-        const m = n.getMonth() + 1
-        const d = n.getDate()
-        const h24 = n.getHours()
-        const min = n.getMinutes()
-        setSelMonth(m); setSelDay(d); setSelHour(h24); setSelMinute(min)
-        setViewMonth(m); setViewYear(n.getFullYear())
-        onChange(buildValue(m, d, h24, min))
-        scrollToItem(hourRef, h24)
-        scrollToItem(minuteRef, min)
+    async function handleToday() {
+        try {
+            const res = await fetch('/api/server-time?addMinutes=5')
+            const data = await res.json()
+            const y = parseInt(data.year)
+            const m = parseInt(data.month)
+            const d = parseInt(data.day)
+            const h24 = parseInt(data.hours)
+            const min = parseInt(data.minutes)
+            
+            setSelMonth(m); setSelDay(d); setSelHour(h24); setSelMinute(min)
+            setViewMonth(m); setViewYear(y)
+            onChange(buildValue(m, d, h24, min))
+            scrollToItem(hourRef, h24)
+            scrollToItem(minuteRef, min)
+        } catch {
+            // Fallback to local time if API fails
+            const n = new Date(Date.now() + 5 * 60000)
+            const m = n.getMonth() + 1
+            const d = n.getDate()
+            const h24 = n.getHours()
+            const min = n.getMinutes()
+            setSelMonth(m); setSelDay(d); setSelHour(h24); setSelMinute(min)
+            setViewMonth(m); setViewYear(n.getFullYear())
+            onChange(buildValue(m, d, h24, min))
+            scrollToItem(hourRef, h24)
+            scrollToItem(minuteRef, min)
+        }
     }
 
     function handleClear() {
