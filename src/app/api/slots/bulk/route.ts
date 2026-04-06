@@ -26,6 +26,16 @@ export async function POST(request: NextRequest) {
         // Use staggered start - call stream-manager for each slot
         for (const slot of slots) {
           try {
+            let updatedSchedStart = slot.schedStart;
+            if (!updatedSchedStart && (slot.daily || slot.weekly)) {
+              const now = new Date();
+              const sMonth = String(now.getMonth() + 1).padStart(2, '0');
+              const sDate = String(now.getDate()).padStart(2, '0');
+              const sH = String(now.getHours()).padStart(2, '0');
+              const sM = String(now.getMinutes()).padStart(2, '0');
+              updatedSchedStart = `${sMonth}-${sDate} ${sH}:${sM}`;
+            }
+
             let updatedSchedStop = slot.schedStop;
             if (updatedSchedStop && updatedSchedStop.startsWith('DUR ')) {
               const [hStr, mStr] = updatedSchedStop.replace('DUR ', '').split(':');
@@ -44,7 +54,7 @@ export async function POST(request: NextRequest) {
             // Set to Starting immediately
             await db.streamSlot.update({
               where: { slotIndex: slot.slotIndex },
-              data: { status: 'Starting', isRunning: false, schedStop: updatedSchedStop }
+              data: { status: 'Starting', isRunning: false, schedStart: updatedSchedStart, schedStop: updatedSchedStop }
             })
 
             const response = await fetch(`${BULK_STREAM_MANAGER}/start`, {
