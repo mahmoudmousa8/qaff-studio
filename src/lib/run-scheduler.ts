@@ -63,17 +63,43 @@ function calculateNextRun(schedStart: string, daily: boolean, weekly: boolean): 
 
 function shouldTrigger(sched: string, isStopCheck = false): boolean {
   if (!sched || sched.startsWith('DUR')) return false
-  const now = new Date()
   const parsed = parseScheduleTime(sched)
   if (!parsed) {
     console.warn(`[Scheduler] Cannot parse schedule: "${sched}"`)
     return false
   }
-  const targetDate = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute)
-  const diffMins = Math.floor((now.getTime() - targetDate.getTime()) / 60000)
-  const grace = isStopCheck ? 60 : 5
+
+  // Read configured TZ from .env to ensure timezone-aware comparison
+  let currentTZ = process.env.TZ || Intl.DateTimeFormat().resolvedOptions().timeZone
+  try {
+    const { readFileSync } = require('fs')
+    const path = require('path')
+    const envPath = path.join(process.cwd(), '.env')
+    const envContent = readFileSync(envPath, 'utf-8')
+    const match = envContent.match(/^TZ=(.*)$/m)
+    if (match) currentTZ = match[1].trim()
+  } catch { /* use fallback */ }
+
+  // Get "now" formatted in server's configured timezone (MM, DD, HH, mm)
+  const now = new Date()
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: currentTZ,
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+    hour12: false
+  })
+  const parts = fmt.formatToParts(now)
+  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0')
+  const nowMonth = get('month'), nowDay = get('day'), nowHour = get('hour'), nowMin = get('minute')
+
+  // Compute difference in minutes
+  const nowTotalMins = nowMonth * 43200 + nowDay * 1440 + nowHour * 60 + nowMin
+  const schedTotalMins = parsed.month * 43200 + parsed.day * 1440 + parsed.hour * 60 + parsed.minute
+  const diffMins = nowTotalMins - schedTotalMins
+
+  const grace = isStopCheck ? 60 : 10
   const result = diffMins >= 0 && diffMins <= grace
-  console.log(`[Scheduler] shouldTrigger("${sched}", stop=${isStopCheck}): now=${now.toISOString()}, target=${targetDate.toISOString()}, diffMins=${diffMins}, grace=${grace}, trigger=${result}`)
+  console.log(`[Scheduler] shouldTrigger("${sched}", stop=${isStopCheck}): tz=${currentTZ}, now=${nowMonth}-${String(nowDay).padStart(2,'0')} ${String(nowHour).padStart(2,'0')}:${String(nowMin).padStart(2,'0')}, diffMins=${diffMins}, grace=${grace}, trigger=${result}`)
   return result
 }
 
