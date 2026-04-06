@@ -97,7 +97,7 @@ function shouldTrigger(sched: string, isStopCheck = false): boolean {
   const schedTotalMins = parsed.month * 43200 + parsed.day * 1440 + parsed.hour * 60 + parsed.minute
   const diffMins = nowTotalMins - schedTotalMins
 
-  const grace = isStopCheck ? 60 : 10
+  const grace = isStopCheck ? 60 : 5
   const result = diffMins >= 0 && diffMins <= grace
   console.log(`[Scheduler] shouldTrigger("${sched}", stop=${isStopCheck}): tz=${currentTZ}, now=${nowMonth}-${String(nowDay).padStart(2,'0')} ${String(nowHour).padStart(2,'0')}:${String(nowMin).padStart(2,'0')}, diffMins=${diffMins}, grace=${grace}, trigger=${result}`)
   return result
