@@ -77,10 +77,16 @@ function probeFile(filePath: string): ProbeResult {
         // Fast GOP check (scan first 60 seconds of video I-frames)
         try {
             const keyframesStr = execSync(
-                `"${FFPROBE_PATH}" -v error -select_streams v:0 -skip_frame nokey -show_entries frame=pkt_pts_time -of default=noprint_wrappers=1:nokey=1 -read_intervals "%+60" "${filePath}"`,
+                `"${FFPROBE_PATH}" -v error -select_streams v:0 -skip_frame nokey -show_entries frame=pkt_pts_time,pkt_dts_time -of csv=p=0 -read_intervals "%+60" "${filePath}"`,
                 { encoding: 'utf-8', timeout: 15000 }
             )
-            const ptsLines = keyframesStr.trim().split('\n').map(l => parseFloat(l.trim())).filter(n => !isNaN(n))
+            const ptsLines = keyframesStr.trim().split('\n').map(l => {
+                const parts = l.split(',')
+                const pts = parseFloat(parts[0])
+                if (!isNaN(pts)) return pts
+                return parseFloat(parts[1])
+            }).filter(n => !isNaN(n))
+            
             let maxGop = 0
             if (ptsLines.length > 1) {
                 for (let i = 1; i < ptsLines.length; i++) {
@@ -127,7 +133,15 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
     }
 
     // CFR Check
-    if (probe.rFrameRate !== probe.avgFrameRate && probe.avgFrameRate !== '0/0') {
+    const parseFps = (str: string) => {
+        if (!str || !str.includes('/')) return parseFloat(str) || 0
+        const [num, den] = str.split('/').map(Number)
+        return den > 0 ? num / den : 0
+    }
+    const rfps = parseFps(probe.rFrameRate)
+    const afps = parseFps(probe.avgFrameRate)
+    
+    if (Math.abs(rfps - afps) > 0.05 && afps !== 0) {
         return { allowed: false, reason: `مرفوض: الفيديو بنظام الإطارات المتغيرة (VFR) يجب أن يكون (CFR) | Rejected: Variable Frame Rate (VFR) detected, must be CFR` }
     }
 
