@@ -42,7 +42,7 @@ export async function POST(
     }
 
     let updatedSchedStart = slot.schedStart;
-    if (!updatedSchedStart && (slot.daily || slot.weekly)) {
+    if (!updatedSchedStart) {
       const now = new Date();
       const sMonth = String(now.getMonth() + 1).padStart(2, '0');
       const sDate = String(now.getDate()).padStart(2, '0');
