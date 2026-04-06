@@ -119,7 +119,7 @@ export function DateTimePicker({ value, onChange, className }: DateTimePickerPro
     }
 
     function handleToday() {
-        const n = new Date()
+        const n = new Date(Date.now() + 5 * 60000) // Add 5 minutes
         const m = n.getMonth() + 1
         const d = n.getDate()
         const h24 = n.getHours()
