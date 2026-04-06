@@ -799,7 +799,6 @@ export default function Home() {
                 <thead className="sticky top-0 bg-card z-10 shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
@@ -814,6 +813,7 @@ export default function Home() {
                         </div>
                       </div>
                     </th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 310 }}>{t('colOutputSettings')}</th>
@@ -831,13 +831,6 @@ export default function Home() {
                         {/* # */}
                         <td className="text-center font-mono text-xs font-medium px-2 py-1 text-muted-foreground">
                           {slot.slotIndex + 1}
-                        </td>
-
-                        {/* Status */}
-                        <td className="text-center px-2 py-1">
-                          <Badge className={`${getStatusColor(slot.status)} text-white text-[10px] font-medium`}>
-                            {slot.status}
-                          </Badge>
                         </td>
 
                         {/* Channel Name */}
@@ -985,6 +978,13 @@ export default function Home() {
                               <div className="text-[10px] text-blue-500 font-mono shrink-0">{slot.nextRunTime}</div>
                             )}
                           </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="text-center px-2 py-1">
+                          <Badge className={`${getStatusColor(slot.status)} text-white text-[10px] font-medium`}>
+                            {slot.status}
+                          </Badge>
                         </td>
 
                         {/* Actions */}
