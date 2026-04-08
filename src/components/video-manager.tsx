@@ -25,7 +25,7 @@ import {
 import {
   FolderOpen, File, Upload, Download, Trash2, Edit3, Move,
   ChevronRight, FolderPlus, ArrowLeft, Home, RefreshCw, Link2, Loader2,
-  Check, AlertCircle, Play, HardDrive, X, Zap
+  Check, AlertCircle, Play, HardDrive, X, Zap, Search
 } from 'lucide-react'
 import { t, getLocale, type TranslationKey } from '@/lib/i18n'
 
