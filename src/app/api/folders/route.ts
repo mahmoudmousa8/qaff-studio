@@ -158,8 +158,8 @@ export async function GET(request: NextRequest) {
       : null
 
     return NextResponse.json({
-      folders: folders.sort((a, b) => a.name.localeCompare(b.name)),
-      videos: videos.sort((a, b) => b.modified.localeCompare(a.modified)),
+      folders: folders.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })),
+      videos: videos.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' })),
       currentFolder,
       parentFolder,
       currentPath: resolvedPath

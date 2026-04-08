@@ -827,7 +827,7 @@ export default function Home() {
                     const finalRtmpUrl = getFinalRtmpUrl(slot)
 
                     return (
-                      <tr key={slot.id} className="hover:bg-muted-foreground/10 transition-colors border-b border-border/50">
+                      <tr key={slot.id} className="hover:bg-orange-500/15 transition-colors border-b border-border/50">
                         {/* # */}
                         <td className="text-center font-mono text-xs font-medium px-2 py-1 text-muted-foreground">
                           {slot.slotIndex + 1}

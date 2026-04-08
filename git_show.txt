@@ -1,0 +1,11 @@
+﻿commit 3eff95a879a1eb2d008b015e696874e0e468f0a6
+Author: Mahmoud Mousa <mahmoudmousa8@github.com>
+Date:   Sun Mar 29 04:08:20 2026 +0200
+
+    fix: revert to previous manual backup of scheduler, network tuning, and stream-manager
+
+ diff_output.txt                       | 159 ++++++++++++++++++++++++++++++++++
+ mini-services/stream-manager/index.ts |  15 ++--
+ src/lib/run-scheduler.ts              |  46 +++-------
+ update.sh                             |  41 +++++++--
+ 4 files changed, 213 insertions(+), 48 deletions(-)

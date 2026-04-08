@@ -61,7 +61,7 @@ function calculateNextRun(schedStart: string, daily: boolean, weekly: boolean): 
   }
 }
 
-function shouldTrigger(sched: string, isStopCheck = false): boolean {
+function shouldTrigger(sched: string, slotIndex: number, isStopCheck = false): boolean {
   if (!sched || sched.startsWith('DUR')) return false
   const parsed = parseScheduleTime(sched)
   if (!parsed) {
@@ -69,36 +69,32 @@ function shouldTrigger(sched: string, isStopCheck = false): boolean {
     return false
   }
 
-  // Read configured TZ from timezone.txt to ensure timezone-aware comparison
-  let currentTZ = Intl.DateTimeFormat().resolvedOptions().timeZone
-  try {
-    const { readFileSync } = require('fs')
-    const path = require('path')
-    const tzPath = path.join(process.env.APP_DATA_DIR || process.cwd(), 'timezone.txt')
-    const tzContent = readFileSync(tzPath, 'utf-8').trim()
-    if (tzContent) currentTZ = tzContent
-  } catch { /* use fallback */ }
-
-  // Get "now" formatted in server's configured timezone (MM, DD, HH, mm)
   const now = new Date()
-  const fmt = new Intl.DateTimeFormat('en-GB', {
-    timeZone: currentTZ,
-    month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit',
-    hour12: false
-  })
-  const parts = fmt.formatToParts(now)
-  const get = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0')
-  const nowMonth = get('month'), nowDay = get('day'), nowHour = get('hour'), nowMin = get('minute')
+  const target = new Date(now.getFullYear(), parsed.month - 1, parsed.day, parsed.hour, parsed.minute, 0)
 
-  // Compute difference in minutes
-  const nowTotalMins = nowMonth * 43200 + nowDay * 1440 + nowHour * 60 + nowMin
-  const schedTotalMins = parsed.month * 43200 + parsed.day * 1440 + parsed.hour * 60 + parsed.minute
-  const diffMins = nowTotalMins - schedTotalMins
+  // Cross-year normalization
+  if (now.getTime() - target.getTime() > 1000 * 60 * 60 * 24 * 180) {
+     target.setFullYear(now.getFullYear() + 1)
+  } else if (target.getTime() - now.getTime() > 1000 * 60 * 60 * 24 * 180) {
+     target.setFullYear(now.getFullYear() - 1)
+  }
 
-  const grace = isStopCheck ? 60 : 5
-  const result = diffMins >= 0 && diffMins <= grace
-  console.log(`[Scheduler] shouldTrigger("${sched}", stop=${isStopCheck}): tz=${currentTZ}, now=${nowMonth}-${String(nowDay).padStart(2,'0')} ${String(nowHour).padStart(2,'0')}:${String(nowMin).padStart(2,'0')}, diffMins=${diffMins}, grace=${grace}, trigger=${result}`)
+  // Pseudo-random deterministic hash based on schedule string and slot index
+  const seedString = `${sched}_${slotIndex}_${isStopCheck ? 'stop' : 'start'}`
+  let hash = 0
+  for (let i = 0; i < seedString.length; i++) hash = Math.imul(31, hash) + seedString.charCodeAt(i)
+  hash = Math.abs(hash)
+
+  // Apply deterministic jitter between -150 to +150 seconds
+  const jitterSecs = (hash % 301) - 150
+  target.setSeconds(target.getSeconds() + jitterSecs)
+
+  const diffSecs = Math.floor((now.getTime() - target.getTime()) / 1000)
+  const graceSecs = isStopCheck ? 3600 : 300 // 60 mins stop grace, 5 mins start grace
+
+  const result = diffSecs >= 0 && diffSecs <= graceSecs
+  console.log(`[Scheduler] shouldTrigger(Slot ${slotIndex + 1}, ${isStopCheck ? 'STOP' : 'START'}): sched="${sched}", jitter=${jitterSecs}s, diffSecs=${diffSecs}, target=${target.toLocaleTimeString()}, trigger=${result}`)
+  
   return result
 }
 
@@ -114,10 +110,10 @@ export interface SchedulerResult {
 export async function runSchedulerTick(): Promise<SchedulerResult> {
   const now = new Date()
 
-  // ── Distributed lock: prevent concurrent execution across multiple Next.js workers ──
-  // Check the last scheduler run time stored in DB. If it ran less than 55s ago, skip.
+  // Distributed lock: prevent concurrent execution across multiple Next.js workers.
+  // Check the last scheduler run time stored in DB. Adjusted to 10s for 15s ticks.
   const LOCK_KEY = '__scheduler_last_run__'
-  const LOCK_INTERVAL_MS = 55_000
+  const LOCK_INTERVAL_MS = 10_000
 
   const lastRunLog = await db.systemLog.findFirst({
     where: { message: { startsWith: LOCK_KEY } },
@@ -182,8 +178,8 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       const missCount = (missCounters.get(missKey) ?? 0) + 1
       missCounters.set(missKey, missCount)
 
-      if (missCount >= 2) {
-        // Slot confirmed missing for 2 consecutive ticks — safe to attempt recovery
+      if (missCount >= 4) {
+        // Slot confirmed missing for 4 consecutive ticks (~60 seconds) — safe to attempt recovery
         missCounters.set(missKey, 0)
         try {
           const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
@@ -210,7 +206,7 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
 
     // ── Auto-Start ──────────────────────────────────────────
     if (slot.isScheduled && !slot.isRunning && slot.schedStart && slot.streamKey && slot.filePath) {
-      if (shouldTrigger(slot.schedStart)) {
+      if (shouldTrigger(slot.schedStart, slot.slotIndex, false)) {
         const claimed = await db.streamSlot.updateMany({
           where: { slotIndex: slot.slotIndex, isRunning: false, isScheduled: true },
           data: { isRunning: true, isScheduled: false, status: 'Streaming' }
@@ -236,7 +232,7 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
     }
 
     // ── Auto-Stop ──────────────────────────────────────────
-    if (slot.isRunning && slot.schedStop && shouldTrigger(slot.schedStop, true)) {
+    if (slot.isRunning && slot.schedStop && shouldTrigger(slot.schedStop, slot.slotIndex, true)) {
       try {
         await fetch(`${STREAM_MANAGER_URL}/stop`, {
           method: 'POST',

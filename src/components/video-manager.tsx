@@ -147,6 +147,9 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
   // Selected items for bulk actions
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
 
+  // Search filter
+  const [searchQuery, setSearchQuery] = useState('')
+
   // Fetch videos and folders
   const fetchData = useCallback(async (folder: string = '') => {
     setLoading(true)
@@ -739,6 +742,18 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
 
         <div className="flex-1" />
 
+        <div className="relative shrink-0 hidden sm:block">
+          <Search className="absolute left-2.5 top-1.5 h-4 w-4 text-muted-foreground" />
+          <Input 
+             type="text" 
+             placeholder={getLocale() === 'en' ? 'Search files...' : 'بحث في الملفات...'} 
+             value={searchQuery}
+             onChange={e => setSearchQuery(e.target.value)}
+             className="h-8 w-[140px] sm:w-[180px] pl-8 text-xs bg-background"
+             dir="auto"
+          />
+        </div>
+
         {/* Actions */}
         <Button size="sm" variant="outline" onClick={() => setCreateFolderDialog(true)}>
           <FolderPlus className="w-4 h-4 mr-1" />
@@ -815,7 +830,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
         ) : (
           <div className="space-y-0.5">
             {/* Folders */}
-            {folders.map((folder) => (
+            {folders.filter(f => !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase())).map((folder) => (
               <div
                 key={folder.path}
                 className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 cursor-pointer transition-colors group"
@@ -864,7 +879,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
             ))}
 
             {/* Videos */}
-            {videos.map((video) => (
+            {videos.filter(v => !searchQuery || v.name.toLowerCase().includes(searchQuery.toLowerCase())).map((video) => (
               <div
                 key={video.path}
                 className="flex items-center gap-3 px-3 py-2 rounded-md hover:bg-muted/50 transition-colors group"

@@ -1,0 +1,30 @@
+﻿be29ebd fix(docker): switch from Alpine/musl to Debian/glibc to fix FFmpeg timing/pacing jitter that causes Youtube buffering
+4c9d909 fix: ffmpeg stability flags for RTMP bufferbloat and docker tc burst limit
+a1f72d7 fix: disable scheduler auto-recovery to prevent false ffmpeg restarts
+fb70b7c fix: add DB distributed lock to prevent multi-worker scheduler storms
+47e438c fix: add avoid_negative_ts to prevent timestamp jump on loop
+f3bb67f fix: match exact ffmpeg args from working local program
+3a03625 fix: remove invalid bitstream filter for FLV rtmp outputs
+7568df3 fix: restore ffmpeg rtmp timestamps and network rx buffer constraints
+3eff95a fix: revert to previous manual backup of scheduler, network tuning, and stream-manager
+e760507 fix: enforce 0-CPU mode strictly and remove harmful network ring buffers
+6881e1a fix(ffmpeg): restore smart probe fallback to transcode incompatible h265/vfr videos to fix zero-cpu stuttering
+99cbd21 fix(ffmpeg): integrate robust RTMP copy flags for VBR and PTS alignment
+6845b0b fix(stream-manager): remove +genpts+igndts from copy profile destroying rtmp timestamps
+3896499 fix: prevent auto-recovery from interrupting active streams (2-tick dead-zone)
+3a29863 refactor: extract scheduler to run-scheduler.ts, remove loopback HTTP
+cb1b560 fix: restore scheduler safety-net polling and add diagnostics
+1ac0627 debug: add scheduler diagnostic logging
+da1d698 feat: strict mp4 validation and scheduler reliability patches
+ff51131 feat: add scheduling column header text above daily/weekly
+45f4dcf style: strict fixed width table columns for label alignment
+33ba819 style: fix Next 12 Arabic label layout and button sizes
+8fa7171 feat: calculate and display folder sizes in video manager
+849f494 feat: localize AM/PM button text
+f145b3f style: move Next 12 label to column header instead of repeating per row
+6a6a7ee feat: add Set to Next 12 Arabic label over AM/PM scheduling buttons
+67bbe87 fix: auto-recovery logic in scheduler to revive crashed or interrupted streams
+c8df3a9 fix: DUR pseudo-state for empty start times & absolute date auto-advance for scheduler
+e419a04 fix: UI drops minute when updating dur & scheduler fails to stop if minute missed
+6c06a5f UI R12: use 164px wrapper for stopStream header to perfectly center over inputs
+e7ccf54 UI R11: align stop stream header to match inputs

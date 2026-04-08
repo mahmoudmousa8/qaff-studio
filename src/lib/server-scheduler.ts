@@ -16,11 +16,11 @@ export function startServerScheduler() {
   if (g.__schedulerStarted) return
   g.__schedulerStarted = true
 
-  console.log('[ServerScheduler] Started — fires every 60s (direct, no loopback)')
+  console.log('[ServerScheduler] Started — fires every 15s (direct, no loopback)')
 
-  // Fire immediately on boot, then every 60 seconds
+  // Fire immediately on boot, then every 15 seconds to allow fine-grained seconds jitter
   tick()
-  setInterval(tick, 60_000)
+  setInterval(tick, 15_000)
 }
 
 async function tick() {
