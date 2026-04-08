@@ -609,7 +609,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
   const breadcrumbParts = currentFolder ? currentFolder.split('/') : []
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
       {/* Storage bar */}
       {storageInfo && (
         <div className="flex items-center gap-3 px-1 pb-2 shrink-0">
@@ -822,7 +822,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
       </div>
 
       {/* File list */}
-      <ScrollArea className="flex-1 mt-2">
+      <ScrollArea className="flex-1 mt-2 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
