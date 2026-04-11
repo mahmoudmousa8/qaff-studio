@@ -31,6 +31,59 @@ function parseScheduleTime(sched: string): { month: number; day: number; hour: n
   }
 }
 
+// Normalize a date to the current-year context (handles cross-year schedules up to ±180 days)
+function normalizeToNow(d: Date, now: Date): Date {
+  if (now.getTime() - d.getTime() > 1000 * 60 * 60 * 24 * 180) {
+    d.setFullYear(now.getFullYear() + 1)
+  } else if (d.getTime() - now.getTime() > 1000 * 60 * 60 * 24 * 180) {
+    d.setFullYear(now.getFullYear() - 1)
+  }
+  return d
+}
+
+/**
+ * resolveStopDate
+ *
+ * Converts schedStop to an actual Date regardless of format:
+ *  - "MM-DD HH:MM"  → direct parse
+ *  - "DUR HH:MM"    → anchorDate + duration minutes
+ *
+ * anchorDate is schedStart date (for window checks) or now (for live start).
+ */
+function resolveStopDate(schedStop: string, anchorDate: Date, now: Date): Date | null {
+  if (!schedStop) return null
+
+  if (schedStop.startsWith('DUR ')) {
+    const [hStr, mStr] = schedStop.replace('DUR ', '').split(':')
+    const durMins = parseInt(hStr || '0') * 60 + parseInt(mStr || '0')
+    if (isNaN(durMins) || durMins <= 0) return null
+    return new Date(anchorDate.getTime() + durMins * 60 * 1000)
+  }
+
+  const parsedStop = parseScheduleTime(schedStop)
+  if (!parsedStop) return null
+  return normalizeToNow(
+    new Date(now.getFullYear(), parsedStop.month - 1, parsedStop.day, parsedStop.hour, parsedStop.minute, 0),
+    now
+  )
+}
+
+/**
+ * durToActualStop
+ *
+ * If schedStop is in "DUR HH:MM" format, converts it to "MM-DD HH:MM" string
+ * based on the given startDate. Used when the scheduler auto-starts a stream
+ * so the DB always stores the real stop datetime for the auto-stop check.
+ */
+function durToActualStop(schedStop: string, startDate: Date): string {
+  if (!schedStop || !schedStop.startsWith('DUR ')) return schedStop
+  const [hStr, mStr] = schedStop.replace('DUR ', '').split(':')
+  const durMins = parseInt(hStr || '0') * 60 + parseInt(mStr || '0')
+  if (isNaN(durMins) || durMins <= 0) return schedStop
+  const stopAt = new Date(startDate.getTime() + durMins * 60 * 1000)
+  return `${String(stopAt.getMonth() + 1).padStart(2, '0')}-${String(stopAt.getDate()).padStart(2, '0')} ${String(stopAt.getHours()).padStart(2, '0')}:${String(stopAt.getMinutes()).padStart(2, '0')}`
+}
+
 function calculateNextRun(schedStart: string, daily: boolean, weekly: boolean): string {
   if (!schedStart) return ''
   const now = new Date()
@@ -61,29 +114,18 @@ function calculateNextRun(schedStart: string, daily: boolean, weekly: boolean): 
   }
 }
 
-// Normalize a date to the current-year context (handles cross-year schedules up to ±180 days)
-function normalizeToNow(d: Date, now: Date): Date {
-  if (now.getTime() - d.getTime() > 1000 * 60 * 60 * 24 * 180) {
-    d.setFullYear(now.getFullYear() + 1)
-  } else if (d.getTime() - now.getTime() > 1000 * 60 * 60 * 24 * 180) {
-    d.setFullYear(now.getFullYear() - 1)
-  }
-  return d
-}
-
 /**
  * isWithinActiveWindow
  *
- * Returns true if the current time is between schedStart and schedStop.
- * Uses the actual stored dates for precision (handles overnight windows too).
+ * Returns true if now is inside [schedStart, schedStop).
+ * Handles both "MM-DD HH:MM" and "DUR HH:MM" for schedStop.
  *
- * Example: schedStart="04-11 12:00", schedStop="04-11 18:00", now=15:00 → true
- *          schedStart="04-12 12:00", schedStop="04-12 18:00", now=15:00 → false (tomorrow)
+ * For DUR format: stop = schedStart + duration.
+ * Example: schedStart="04-11 00:00", schedStop="DUR 11:45", now=03:00 → TRUE
  */
 function isWithinActiveWindow(schedStart: string, schedStop: string): boolean {
   const parsedStart = parseScheduleTime(schedStart)
-  const parsedStop = parseScheduleTime(schedStop)
-  if (!parsedStart || !parsedStop) return false
+  if (!parsedStart) return false
 
   const now = new Date()
 
@@ -91,12 +133,12 @@ function isWithinActiveWindow(schedStart: string, schedStop: string): boolean {
     new Date(now.getFullYear(), parsedStart.month - 1, parsedStart.day, parsedStart.hour, parsedStart.minute, 0),
     now
   )
-  const stopDate = normalizeToNow(
-    new Date(now.getFullYear(), parsedStop.month - 1, parsedStop.day, parsedStop.hour, parsedStop.minute, 0),
-    now
-  )
 
-  // We're within the window: start has passed AND stop hasn't happened yet
+  // For DUR format: compute stop relative to the stored schedStart date
+  const stopDate = resolveStopDate(schedStop, startDate, now)
+  if (!stopDate) return false
+
+  // We're in the window: start has passed, stop hasn't yet
   const result = startDate <= now && now < stopDate
   console.log(`[Scheduler] isWithinActiveWindow: start=${startDate.toISOString()}, stop=${stopDate.toISOString()}, now=${now.toISOString()}, result=${result}`)
   return result
@@ -116,18 +158,16 @@ function shouldTrigger(sched: string, slotIndex: number, isStopCheck = false): b
     now
   )
 
-  // Pseudo-random deterministic hash based on schedule string and slot index
+  // Pseudo-random deterministic jitter between -150 to +150 seconds
   const seedString = `${sched}_${slotIndex}_${isStopCheck ? 'stop' : 'start'}`
   let hash = 0
   for (let i = 0; i < seedString.length; i++) hash = Math.imul(31, hash) + seedString.charCodeAt(i)
   hash = Math.abs(hash)
-
-  // Apply deterministic jitter between -150 to +150 seconds
   const jitterSecs = (hash % 301) - 150
   target.setSeconds(target.getSeconds() + jitterSecs)
 
   const diffSecs = Math.floor((now.getTime() - target.getTime()) / 1000)
-  // 60 min stop grace (already running), 5 min start exact trigger
+  // 60 min stop grace, 5 min exact start trigger
   const graceSecs = isStopCheck ? 3600 : 300
 
   const result = diffSecs >= 0 && diffSecs <= graceSecs
@@ -201,14 +241,13 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
     console.log(`[Scheduler]   Slot ${s.slotIndex + 1}: isScheduled=${s.isScheduled}, isRunning=${s.isRunning}, schedStart="${s.schedStart}", schedStop="${s.schedStop}"`)
   }
 
-  // We collect slots-to-start separately so we can start them sequentially
-  // (stops are processed inline first, as they must happen before potential re-queuing)
+  // Collect slots-to-start separately for sequential processing.
+  // Stops are processed inline (must happen before potential next-day re-queue).
   const slotsToStart: typeof slots = []
 
   for (const slot of slots) {
 
     // ── Auto-Recovery ───────────────────────────────────────
-    // Only attempt if stream-manager responded AND slot has been missing 4+ ticks (~60s)
     if (slot.isRunning && streamManagerResponded && !activeInManager.has(slot.slotIndex)) {
       const missKey = `miss_${slot.slotIndex}`
       const missCount = (missCounters.get(missKey) ?? 0) + 1
@@ -217,9 +256,9 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       if (missCount >= 4) {
         missCounters.set(missKey, 0)
 
-        // Skip recovery if the stream recently stopped naturally at its schedStop
+        // Skip recovery if stream ended naturally within 10 min of its schedStop
         let skipRecovery = false
-        if (slot.schedStop) {
+        if (slot.schedStop && !slot.schedStop.startsWith('DUR')) {
           const parsedStop = parseScheduleTime(slot.schedStop)
           if (parsedStop) {
             const stopDate = normalizeToNow(
@@ -227,7 +266,6 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
               now
             )
             const msSinceStop = now.getTime() - stopDate.getTime()
-            // If we are within 10 minutes after the scheduled stop, it ended naturally
             if (msSinceStop >= 0 && msSinceStop < 10 * 60 * 1000) {
               skipRecovery = true
               console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Skipping auto-recovery — ended naturally near schedStop`)
@@ -262,7 +300,6 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
         console.log(`[Scheduler] Slot ${slot.slotIndex + 1} not in manager — waiting for confirmation (miss count: ${missCount}/4)`)
       }
     } else if (slot.isRunning && activeInManager.has(slot.slotIndex)) {
-      // Slot is healthy — reset miss counter
       missCounters.set(`miss_${slot.slotIndex}`, 0)
     }
 
@@ -314,37 +351,48 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       if (claimed.count === 0) continue
       stoppedCount++
       logs.push(`Slot ${slot.slotIndex + 1}: Auto-stopped`)
-      continue // slot just stopped — don't also try to start it this tick
+      continue // just stopped — don't also queue for start this tick
     }
 
     // ── Collect for Sequential Auto-Start ──────────────────
     if (slot.isScheduled && !slot.isRunning && slot.schedStart && slot.streamKey && slot.filePath) {
-      // Exact trigger: within 5 minutes of scheduled start time
+      // Exact trigger: within 5 minutes of the exact scheduled start time
       const exactTrigger = shouldTrigger(slot.schedStart, slot.slotIndex, false)
 
-      // Window trigger: currently inside the [schedStart, schedStop] window
-      // Works for daily/weekly AND one-time schedules that have a stop time set
+      // Window trigger: now is inside [schedStart, schedStop) window
+      // Handles both "MM-DD HH:MM" and "DUR HH:MM" schedStop formats
       const withinWindow = slot.schedStop
         ? isWithinActiveWindow(slot.schedStart, slot.schedStop)
         : false
 
       if (exactTrigger || withinWindow) {
         slotsToStart.push(slot)
-        console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Queued for sequential start (exactTrigger=${exactTrigger}, withinWindow=${withinWindow})`)
+        console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Queued for start (exactTrigger=${exactTrigger}, withinWindow=${withinWindow})`)
       }
     }
   }
 
   // ── Sequential Start: 1s delay between each slot ───────────────────────
   // stream-manager itself staggers by STAGGER_DELAY_MS=3000ms internally,
-  // so combined delay is ~4 seconds per slot start.
+  // so combined delay between consecutive stream starts is ~4 seconds.
   for (let i = 0; i < slotsToStart.length; i++) {
     const slot = slotsToStart[i]
 
-    // Atomic claim: only proceed if this slot is still scheduled and not running
+    // If schedStop is still in DUR format, convert it to actual datetime NOW
+    // so the auto-stop check works correctly when the time comes
+    const actualSchedStop = slot.schedStop
+      ? durToActualStop(slot.schedStop, now)
+      : slot.schedStop
+
+    // Atomic claim: only proceed if slot is still scheduled and not running
     const claimed = await db.streamSlot.updateMany({
       where: { slotIndex: slot.slotIndex, isRunning: false, isScheduled: true },
-      data: { isRunning: true, isScheduled: false, status: 'Streaming' }
+      data: {
+        isRunning: true,
+        isScheduled: false,
+        status: 'Streaming',
+        ...(actualSchedStop !== slot.schedStop ? { schedStop: actualSchedStop } : {})
+      }
     })
     if (claimed.count === 0) {
       console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Skipped — already claimed by another worker`)
@@ -369,7 +417,12 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       // Roll back DB claim if stream-manager couldn't be reached
       await db.streamSlot.update({
         where: { slotIndex: slot.slotIndex },
-        data: { isRunning: false, isScheduled: true, status: 'Scheduled' }
+        data: {
+          isRunning: false,
+          isScheduled: true,
+          status: 'Scheduled',
+          schedStop: slot.schedStop // restore original DUR format
+        }
       })
       logs.push(`Slot ${slot.slotIndex + 1}: Failed to auto-start (rolled back)`)
     }
