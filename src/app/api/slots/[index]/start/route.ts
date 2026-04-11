@@ -56,8 +56,30 @@ export async function POST(
       const [hStr, mStr] = updatedSchedStop.replace('DUR ', '').split(':');
       const dursMins = parseInt(hStr || '0') * 60 + parseInt(mStr || '0');
       if (dursMins > 0) {
-        const targetDate = new Date();
-        targetDate.setMinutes(targetDate.getMinutes() + dursMins);
+        // Anchor to schedStart (original scheduled time), NOT to now.
+        // This ensures: 8h duration from 00:00 always stops at 08:00,
+        // even if the stream is manually started at 03:00.
+        let anchor = new Date();
+        if (updatedSchedStart) {
+          try {
+            const parts = updatedSchedStart.split(' ');
+            if (parts.length === 2) {
+              const [month, day] = parts[0].split('-').map(Number);
+              const [hour, minute] = parts[1].split(':').map(Number);
+              if (!isNaN(month) && !isNaN(day) && !isNaN(hour) && !isNaN(minute)) {
+                const candidate = new Date(anchor.getFullYear(), month - 1, day, hour, minute, 0);
+                // Cross-year normalization: pick the year that makes candidate closest to now
+                if (anchor.getTime() - candidate.getTime() > 1000 * 60 * 60 * 24 * 180) {
+                  candidate.setFullYear(anchor.getFullYear() + 1);
+                } else if (candidate.getTime() - anchor.getTime() > 1000 * 60 * 60 * 24 * 180) {
+                  candidate.setFullYear(anchor.getFullYear() - 1);
+                }
+                anchor = candidate;
+              }
+            }
+          } catch { /* keep anchor = now on parse failure */ }
+        }
+        const targetDate = new Date(anchor.getTime() + dursMins * 60 * 1000);
         const fMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
         const fDate = String(targetDate.getDate()).padStart(2, '0');
         const fH = String(targetDate.getHours()).padStart(2, '0');
