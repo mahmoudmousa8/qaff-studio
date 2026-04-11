@@ -15,7 +15,7 @@ const PORT = parseInt(process.env.STREAM_MANAGER_PORT || '3002', 10)
 const VIDEOS_DIR = resolve(PROJECT_ROOT, process.env.VIDEOS_DIR || './data/videos')
 const LOGS_DIR = resolve(PROJECT_ROOT, process.env.LOGS_DIR || './data/logs')
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_STREAMS || '500', 10)
-const STAGGER_DELAY_MS = parseInt(process.env.STAGGER_MS || '3000', 10)
+const STAGGER_DELAY_MS = parseInt(process.env.STAGGER_MS || '1000', 10)
 
 // ── Boot: ensure dirs ────────────────────────────────────────
 const ALL_DIRS = [

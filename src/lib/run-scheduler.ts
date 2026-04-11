@@ -427,9 +427,9 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       logs.push(`Slot ${slot.slotIndex + 1}: Failed to auto-start (rolled back)`)
     }
 
-    // 1 second gap between consecutive starts (stream-manager adds another 3s internally)
+    // Brief gap between HTTP sends — stream-manager handles the real 1s stagger internally
     if (i < slotsToStart.length - 1) {
-      await new Promise(r => setTimeout(r, 1000))
+      await new Promise(r => setTimeout(r, 200))
     }
   }
 
