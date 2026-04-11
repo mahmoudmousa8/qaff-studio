@@ -167,8 +167,9 @@ function shouldTrigger(sched: string, slotIndex: number, isStopCheck = false): b
   target.setSeconds(target.getSeconds() + jitterSecs)
 
   const diffSecs = Math.floor((now.getTime() - target.getTime()) / 1000)
-  // 60 min stop grace, 5 min exact start trigger
-  const graceSecs = isStopCheck ? 3600 : 300
+  // Stop: 5-minute grace window (generous for 15s tick interval)
+  // Start: 5-minute exact trigger window
+  const graceSecs = 300
 
   const result = diffSecs >= 0 && diffSecs <= graceSecs
   console.log(`[Scheduler] shouldTrigger(Slot ${slotIndex + 1}, ${isStopCheck ? 'STOP' : 'START'}): sched="${sched}", jitter=${jitterSecs}s, diffSecs=${diffSecs}, target=${target.toLocaleTimeString()}, trigger=${result}`)
@@ -350,7 +351,8 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       })
       if (claimed.count === 0) continue
       stoppedCount++
-      logs.push(`Slot ${slot.slotIndex + 1}: Auto-stopped`)
+      const stopReason = `schedStop=${slot.schedStop}, daily=${slot.daily}, weekly=${slot.weekly}`
+      logs.push(`Slot ${slot.slotIndex + 1}: Auto-stopped (${stopReason}) → nextStart=${nextStartTime}`)
       continue // just stopped — don't also queue for start this tick
     }
 
@@ -378,11 +380,21 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
   for (let i = 0; i < slotsToStart.length; i++) {
     const slot = slotsToStart[i]
 
-    // If schedStop is still in DUR format, convert it to actual datetime NOW
-    // so the auto-stop check works correctly when the time comes
-    const actualSchedStop = slot.schedStop
-      ? durToActualStop(slot.schedStop, now)
-      : slot.schedStop
+    // Convert DUR format to real datetime — anchored to schedStart (not now!)
+    // This ensures stop time = original_scheduled_start + duration, regardless of late start
+    let actualSchedStop = slot.schedStop
+    if (slot.schedStop && slot.schedStop.startsWith('DUR ') && slot.schedStart) {
+      const parsedStart = parseScheduleTime(slot.schedStart)
+      if (parsedStart) {
+        const schedStartDate = normalizeToNow(
+          new Date(now.getFullYear(), parsedStart.month - 1, parsedStart.day, parsedStart.hour, parsedStart.minute, 0),
+          now
+        )
+        actualSchedStop = durToActualStop(slot.schedStop, schedStartDate)
+      } else {
+        actualSchedStop = durToActualStop(slot.schedStop, now)
+      }
+    }
 
     // Atomic claim: only proceed if slot is still scheduled and not running
     const claimed = await db.streamSlot.updateMany({
