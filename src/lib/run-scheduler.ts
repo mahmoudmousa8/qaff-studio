@@ -234,7 +234,16 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
   }
 
   const slots = await db.streamSlot.findMany({
-    where: { OR: [{ isScheduled: true }, { isRunning: true }] }
+    where: {
+      OR: [
+        { isScheduled: true },
+        { isRunning: true },
+        // Orphaned daily/weekly streams: has recurring schedule but got stuck as stopped
+        // (e.g. after manual stop, server crash, or schedStop without daily reschedule)
+        { daily: true, isRunning: false, isScheduled: false, schedStart: { not: '' } },
+        { weekly: true, isRunning: false, isScheduled: false, schedStart: { not: '' } },
+      ]
+    }
   })
 
   console.log(`[Scheduler] Found ${slots.length} slot(s) to evaluate`)
