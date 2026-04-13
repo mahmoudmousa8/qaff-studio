@@ -995,19 +995,19 @@ export default function Home() {
                         {/* Actions */}
                         <td className="px-2 py-1">
                           <div className="flex gap-2 justify-center flex-nowrap">
-                            <Button size="sm" variant="default" className="h-8 w-8 p-0 rounded-md shadow-sm bg-green-600 hover:bg-green-700 hover:scale-105 transition-all"
+                            <Button size="sm" variant="default" className="h-8 w-8 p-0 rounded-md shadow-sm bg-green-600 hover:bg-green-500 hover:scale-110 hover:-translate-y-0.5 hover:shadow-md hover:shadow-green-500/40 relative z-0 hover:z-10 transition-all duration-200"
                               disabled={slot.isRunning}
                               onClick={() => handlePlayButton(slot.slotIndex)}
                               title={slot.schedStart ? t('scheduleStream') : t('startStream')}>
                               <Play className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="destructive" className="h-8 w-8 p-0 rounded-md shadow-sm hover:scale-105 transition-all"
+                            <Button size="sm" variant="destructive" className="h-8 w-8 p-0 rounded-md shadow-sm hover:scale-110 hover:-translate-y-0.5 hover:shadow-md hover:shadow-red-500/40 relative z-0 hover:z-10 transition-all duration-200"
                               disabled={!slot.isRunning && !slot.isScheduled}
                               onClick={() => stopStream(slot.slotIndex)}
                               title={t('stopStream')}>
                               <Square className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-md bg-transparent hover:bg-muted hover:scale-105 transition-all"
+                            <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-md bg-background hover:bg-muted hover:scale-110 hover:-translate-y-0.5 hover:shadow-md relative z-0 hover:z-10 transition-all duration-200"
                               onClick={() => resetSlot(slot.slotIndex)}
                               title={t('resetSlot')}>
                               <RotateCcw className="w-4 h-4" />
