@@ -814,8 +814,8 @@ export default function Home() {
                         </div>
                       </div>
                     </th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colOutputSettings')}</th>
                   </tr>
@@ -992,13 +992,6 @@ export default function Home() {
                           </div>
                         </td>
 
-                        {/* Status */}
-                        <td className="text-center px-2 py-1">
-                          <Badge className={`${getStatusColor(slot.status)} text-white text-[10px] font-medium`}>
-                            {slot.status}
-                          </Badge>
-                        </td>
-
                         {/* Actions */}
                         <td className="px-2 py-1">
                           <div className="flex gap-1 justify-center flex-nowrap">
@@ -1020,6 +1013,13 @@ export default function Home() {
                               <RotateCcw className="w-3 h-3" />
                             </Button>
                           </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="text-center px-2 py-1">
+                          <Badge className={`${getStatusColor(slot.status)} text-white text-[10px] font-medium`}>
+                            {slot.status}
+                          </Badge>
                         </td>
 
                         {/* Platform (Dropdown) */}
