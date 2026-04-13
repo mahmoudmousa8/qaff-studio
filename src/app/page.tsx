@@ -801,6 +801,7 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colStreamKey')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
                     <th className="text-start text-xs font-semibold px-2 py-1.5 align-middle" style={{ width: 440 }}>
                       <div className="flex items-end gap-2 h-full">
@@ -816,7 +817,7 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 310 }}>{t('colOutputSettings')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colOutputSettings')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -860,6 +861,17 @@ export default function Home() {
                               <FolderOpen className="w-3 h-3" />
                             </Button>
                           </div>
+                        </td>
+
+                        {/* Stream Key */}
+                        <td className="px-2 py-1">
+                          <DebouncedInput
+                            value={slot.streamKey}
+                            onChange={(val) => handleSlotChange(slot.slotIndex, 'streamKey', val)}
+                            className="h-6 text-[11px] font-mono w-full"
+                            placeholder={t('phStreamKey')}
+                            dir="ltr"
+                          />
                         </td>
 
                         {/* Start Schedule */}
@@ -1028,40 +1040,22 @@ export default function Home() {
                         <td className="px-2 py-1">
                           <div className="flex flex-row gap-1 items-center w-full flex-nowrap">
                             {isYtFb ? (
-                              <>
-                                <Input
-                                  value={rtmpBase}
-                                  readOnly
-                                  className="h-6 text-[10px] font-mono bg-muted/50 text-muted-foreground flex-none w-[66px] overflow-hidden text-ellipsis whitespace-nowrap cursor-default"
-                                  dir="ltr"
-                                  title={rtmpBase || ''}
-                                />
-                                <DebouncedInput
-                                  value={slot.streamKey}
-                                  onChange={(val) => handleSlotChange(slot.slotIndex, 'streamKey', val)}
-                                  className="h-6 text-[11px] font-mono flex-1 min-w-0"
-                                  placeholder={t('phStreamKey')}
-                                  dir="ltr"
-                                />
-                              </>
+                              <Input
+                                value={rtmpBase}
+                                readOnly
+                                className="h-6 text-[10px] font-mono bg-muted/50 text-muted-foreground w-full overflow-hidden text-ellipsis whitespace-nowrap cursor-default"
+                                dir="ltr"
+                                title={rtmpBase || ''}
+                              />
                             ) : (
-                              <>
-                                <DebouncedInput
-                                  value={slot.rtmpServer}
-                                  onChange={(val) => handleSlotChange(slot.slotIndex, 'rtmpServer', val)}
-                                  className="h-6 text-[10px] font-mono w-[140px] shrink-0"
-                                  placeholder={t('phCustomServer')}
-                                  dir="ltr"
-                                  title={t('rtmpBaseLabel')}
-                                />
-                                <DebouncedInput
-                                  value={slot.streamKey}
-                                  onChange={(val) => handleSlotChange(slot.slotIndex, 'streamKey', val)}
-                                  className="h-6 text-[11px] font-mono flex-1 min-w-0"
-                                  placeholder={t('phStreamKey')}
-                                  dir="ltr"
-                                />
-                              </>
+                              <DebouncedInput
+                                value={slot.rtmpServer}
+                                onChange={(val) => handleSlotChange(slot.slotIndex, 'rtmpServer', val)}
+                                className="h-6 text-[10px] font-mono w-full shrink-0"
+                                placeholder={t('phCustomServer')}
+                                dir="ltr"
+                                title={t('rtmpBaseLabel')}
+                              />
                             )}
                           </div>
                         </td>
