@@ -795,13 +795,13 @@ export default function Home() {
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
             <div className="h-full overflow-auto">
-              <table className="w-full border-collapse" style={{ minWidth: 1440, tableLayout: 'fixed' }}>
+              <table className="w-full border-collapse" style={{ minWidth: 1405, tableLayout: 'fixed' }}>
                 <thead className="sticky top-0 bg-card z-10 shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 210 }}>{t('colStreamKey')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 175 }}>{t('colStreamKey')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
                     <th className="text-start text-xs font-semibold px-2 py-1.5 align-middle" style={{ width: 440 }}>
                       <div className="flex items-end gap-2 h-full">
@@ -995,22 +995,22 @@ export default function Home() {
                         {/* Actions */}
                         <td className="px-2 py-1">
                           <div className="flex gap-2 justify-center flex-nowrap">
-                            <Button size="sm" variant="default" className="h-8 w-8 p-0 rounded-md shadow-sm bg-green-600 hover:bg-green-500 hover:scale-110 hover:-translate-y-0.5 hover:shadow-md hover:shadow-green-500/40 relative z-0 hover:z-10 transition-all duration-200"
+                            <Button size="sm" variant="default" className="h-7 w-7 p-0 rounded-md shadow-sm bg-green-600 hover:bg-green-500 hover:scale-110 hover:-translate-y-0.5 hover:shadow-md hover:shadow-green-500/40 relative z-0 hover:z-10 transition-all duration-200"
                               disabled={slot.isRunning}
                               onClick={() => handlePlayButton(slot.slotIndex)}
                               title={slot.schedStart ? t('scheduleStream') : t('startStream')}>
-                              <Play className="w-4 h-4" />
+                              <Play className="w-3.5 h-3.5" />
                             </Button>
-                            <Button size="sm" variant="destructive" className="h-8 w-8 p-0 rounded-md shadow-sm hover:scale-110 hover:-translate-y-0.5 hover:shadow-md hover:shadow-red-500/40 relative z-0 hover:z-10 transition-all duration-200"
+                            <Button size="sm" variant="destructive" className="h-7 w-7 p-0 rounded-md shadow-sm hover:scale-110 hover:-translate-y-0.5 hover:shadow-md hover:shadow-red-500/40 relative z-0 hover:z-10 transition-all duration-200"
                               disabled={!slot.isRunning && !slot.isScheduled}
                               onClick={() => stopStream(slot.slotIndex)}
                               title={t('stopStream')}>
-                              <Square className="w-4 h-4" />
+                              <Square className="w-3.5 h-3.5" />
                             </Button>
-                            <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-md bg-background hover:bg-muted hover:scale-110 hover:-translate-y-0.5 hover:shadow-md relative z-0 hover:z-10 transition-all duration-200"
+                            <Button size="sm" variant="outline" className="h-7 w-7 p-0 rounded-md bg-background hover:bg-muted hover:scale-110 hover:-translate-y-0.5 hover:shadow-md relative z-0 hover:z-10 transition-all duration-200"
                               onClick={() => resetSlot(slot.slotIndex)}
                               title={t('resetSlot')}>
-                              <RotateCcw className="w-4 h-4" />
+                              <RotateCcw className="w-3.5 h-3.5" />
                             </Button>
                           </div>
                         </td>
