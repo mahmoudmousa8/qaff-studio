@@ -801,7 +801,7 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 170 }}>{t('colDetails')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colFilePath')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colStreamKey')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 210 }}>{t('colStreamKey')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 140 }}>{t('startStream')}</th>
                     <th className="text-start text-xs font-semibold px-2 py-1.5 align-middle" style={{ width: 440 }}>
                       <div className="flex items-end gap-2 h-full">
@@ -817,7 +817,7 @@ export default function Home() {
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 150 }}>{t('colActions')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colOutputSettings')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 100 }}>{t('colOutputSettings')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -994,20 +994,20 @@ export default function Home() {
 
                         {/* Actions */}
                         <td className="px-2 py-1">
-                          <div className="flex gap-1.5 justify-center flex-nowrap">
-                            <Button size="sm" variant="default" className="h-7 w-9 p-0 bg-green-600 hover:bg-green-700"
+                          <div className="flex gap-2 justify-center flex-nowrap">
+                            <Button size="sm" variant="default" className="h-8 w-8 p-0 rounded-md shadow-sm bg-green-600 hover:bg-green-700 hover:scale-105 transition-all"
                               disabled={slot.isRunning}
                               onClick={() => handlePlayButton(slot.slotIndex)}
                               title={slot.schedStart ? t('scheduleStream') : t('startStream')}>
                               <Play className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="destructive" className="h-7 w-9 p-0"
+                            <Button size="sm" variant="destructive" className="h-8 w-8 p-0 rounded-md shadow-sm hover:scale-105 transition-all"
                               disabled={!slot.isRunning && !slot.isScheduled}
                               onClick={() => stopStream(slot.slotIndex)}
                               title={t('stopStream')}>
                               <Square className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-7 w-9 p-0 hover:bg-muted"
+                            <Button size="sm" variant="outline" className="h-8 w-8 p-0 rounded-md bg-transparent hover:bg-muted hover:scale-105 transition-all"
                               onClick={() => resetSlot(slot.slotIndex)}
                               title={t('resetSlot')}>
                               <RotateCcw className="w-4 h-4" />
