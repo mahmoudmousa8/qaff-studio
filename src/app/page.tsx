@@ -795,7 +795,7 @@ export default function Home() {
           </CardHeader>
           <CardContent className="flex-1 overflow-hidden p-0">
             <div className="h-full overflow-auto">
-              <table className="w-full border-collapse" style={{ minWidth: 1410, tableLayout: 'fixed' }}>
+              <table className="w-full border-collapse" style={{ minWidth: 1440, tableLayout: 'fixed' }}>
                 <thead className="sticky top-0 bg-card z-10 shadow-sm">
                   <tr className="bg-muted/50 border-b">
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 28 }}>#</th>
@@ -814,7 +814,7 @@ export default function Home() {
                         </div>
                       </div>
                     </th>
-                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 120 }}>{t('colActions')}</th>
+                    <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 150 }}>{t('colActions')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 70 }}>{t('colStatus')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 90 }}>{t('colPlatform')}</th>
                     <th className="text-center text-xs font-semibold px-2 py-1.5" style={{ width: 155 }}>{t('colOutputSettings')}</th>
@@ -994,23 +994,23 @@ export default function Home() {
 
                         {/* Actions */}
                         <td className="px-2 py-1">
-                          <div className="flex gap-1 justify-center flex-nowrap">
-                            <Button size="sm" variant="default" className="h-6 w-6 p-0 bg-green-600 hover:bg-green-700"
+                          <div className="flex gap-1.5 justify-center flex-nowrap">
+                            <Button size="sm" variant="default" className="h-7 w-9 p-0 bg-green-600 hover:bg-green-700"
                               disabled={slot.isRunning}
                               onClick={() => handlePlayButton(slot.slotIndex)}
                               title={slot.schedStart ? t('scheduleStream') : t('startStream')}>
-                              <Play className="w-3 h-3" />
+                              <Play className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="destructive" className="h-6 w-6 p-0"
+                            <Button size="sm" variant="destructive" className="h-7 w-9 p-0"
                               disabled={!slot.isRunning && !slot.isScheduled}
                               onClick={() => stopStream(slot.slotIndex)}
                               title={t('stopStream')}>
-                              <Square className="w-3 h-3" />
+                              <Square className="w-4 h-4" />
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-6 w-6 p-0 hover:bg-muted"
+                            <Button size="sm" variant="ghost" className="h-7 w-9 p-0 hover:bg-muted"
                               onClick={() => resetSlot(slot.slotIndex)}
                               title={t('resetSlot')}>
-                              <RotateCcw className="w-3 h-3" />
+                              <RotateCcw className="w-4 h-4" />
                             </Button>
                           </div>
                         </td>
