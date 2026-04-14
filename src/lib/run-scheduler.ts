@@ -242,6 +242,8 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
         // (e.g. after manual stop, server crash, or schedStop without daily reschedule)
         { daily: true, isRunning: false, isScheduled: false, schedStart: { not: '' } },
         { weekly: true, isRunning: false, isScheduled: false, schedStart: { not: '' } },
+        // Catch-all: streams that should be running (were not manually stopped)
+        { manuallyStopped: false, isRunning: false, filePath: { not: '' }, streamKey: { not: '' } },
       ]
     }
   })
@@ -381,6 +383,32 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
         console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Queued for start (exactTrigger=${exactTrigger}, withinWindow=${withinWindow})`)
       }
     }
+
+    // ── Orphaned / Crashed streams recovery (manual Stop guard) ──
+    if (slot.isRunning === false && slot.manuallyStopped === false && slot.filePath && slot.streamKey) {
+      let shouldRun = false;
+      if (!slot.daily && !slot.weekly && !slot.schedStart) {
+        // It's a completely manual 24/7 stream. If manuallyStopped is false, it MUST run!
+        shouldRun = true;
+      } else if (slot.schedStart) {
+        if (slot.schedStop) {
+          shouldRun = isWithinActiveWindow(slot.schedStart, slot.schedStop);
+        } else {
+          // It has a schedStart but no stop. It runs forever once started.
+          const parsedStart = parseScheduleTime(slot.schedStart);
+          if (parsedStart) {
+            const startDate = normalizeToNow(new Date(now.getFullYear(), parsedStart.month - 1, parsedStart.day, parsedStart.hour, parsedStart.minute, 0), now);
+            if (now >= startDate) shouldRun = true;
+          }
+        }
+      }
+
+      if (shouldRun && !slotsToStart.find(s => s.slotIndex === slot.slotIndex)) {
+        slotsToStart.push(slot);
+        console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Auto-restarting because manuallyStopped=false`)
+        logs.push(`Slot ${slot.slotIndex + 1}: Auto-restarting (manuallyStopped is false)`);
+      }
+    }
   }
 
   // ── Sequential Start: 1s delay between each slot ───────────────────────
@@ -405,12 +433,20 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       }
     }
 
-    // Atomic claim: only proceed if slot is still scheduled and not running
+    // Atomic claim: accept slots that are either scheduled OR should auto-recover (manuallyStopped=false)
     const claimed = await db.streamSlot.updateMany({
-      where: { slotIndex: slot.slotIndex, isRunning: false, isScheduled: true },
+      where: {
+        slotIndex: slot.slotIndex,
+        isRunning: false,
+        OR: [
+          { isScheduled: true },
+          { manuallyStopped: false }
+        ]
+      },
       data: {
         isRunning: true,
         isScheduled: false,
+        manuallyStopped: false,
         status: 'Streaming',
         ...(actualSchedStop !== slot.schedStop ? { schedStop: actualSchedStop } : {})
       }

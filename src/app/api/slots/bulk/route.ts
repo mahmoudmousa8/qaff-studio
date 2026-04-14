@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
             // Set to Starting immediately
             await db.streamSlot.update({
               where: { slotIndex: slot.slotIndex },
-              data: { status: 'Starting', isRunning: false, schedStart: updatedSchedStart, schedStop: updatedSchedStop }
+              data: { status: 'Starting', isRunning: false, manuallyStopped: false, schedStart: updatedSchedStart, schedStop: updatedSchedStop }
             })
 
             const response = await fetch(`${BULK_STREAM_MANAGER}/start`, {
@@ -120,6 +120,7 @@ export async function POST(request: NextRequest) {
           data: {
             isRunning: false,
             isScheduled: false,
+            manuallyStopped: true,
             status: 'Stopped'
           }
         })
@@ -213,6 +214,7 @@ export async function POST(request: NextRequest) {
             weekly: false,
             isScheduled: false,
             isRunning: false,
+            manuallyStopped: true,
             nextRunTime: '',
             status: 'Stopped'
           }

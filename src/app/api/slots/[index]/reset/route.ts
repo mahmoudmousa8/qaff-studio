@@ -37,6 +37,7 @@ export async function POST(
         weekly: false,
         isScheduled: false,
         isRunning: false,
+        manuallyStopped: true,
         nextRunTime: '',
         status: 'Stopped'
       }

@@ -95,6 +95,7 @@ export async function POST(
         status: 'Starting',
         isRunning: false,
         isScheduled: false,
+        manuallyStopped: false,
         schedStart: updatedSchedStart,
         schedStop: updatedSchedStop
       }

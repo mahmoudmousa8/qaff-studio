@@ -100,6 +100,7 @@ export async function POST(
       where: { slotIndex },
       data: {
         isRunning: false,
+        manuallyStopped: true,
         // For recurring streams: keep scheduled so next run happens automatically
         // For one-time streams: cancel scheduling entirely (explicit user choice)
         isScheduled: isRecurring,
