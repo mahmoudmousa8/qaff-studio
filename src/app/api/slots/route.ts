@@ -1,5 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import Database from 'better-sqlite3'
+
+// NOTE: We attempt to patch the DB if manuallyStopped is missing because sometimes docker-entrypoint fails
+try {
+  let dbPath = (process.env.DATABASE_URL || '').replace(/^file:/, '')
+  if (dbPath) {
+    const sdb = new Database(dbPath)
+    try {
+      
+      const tableInfo = sdb.prepare("PRAGMA table_info(StreamSlot)").all() as any[];
+      const hasColumn = tableInfo.some(c => c.name === 'manuallyStopped');
+      if (!hasColumn) {
+        sdb.exec("ALTER TABLE StreamSlot ADD COLUMN manuallyStopped INTEGER NOT NULL DEFAULT 1;")
+        console.log('[Safe-Migrate] Added manuallyStopped column to StreamSlot via Next.js')
+      }
+    } catch(e) { }
+    sdb.close()
+  }
+} catch (e) {
+  console.log('[Safe-Migrate] Skipped:', e)
+}
 
 const DEFAULT_RTMP = "rtmp://a.rtmp.youtube.com/live2"
 // NOTE: Read at request time — not module load time — to pick up runtime env vars
