@@ -30,12 +30,15 @@ node -e "
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
-    -- ADD COLUMN IF NOT EXISTS logic using try-catch approach since pure sqlite ALTER misses IF NOT EXISTS
-    try {
-      db.exec("ALTER TABLE StreamSlot ADD COLUMN manuallyStopped INTEGER NOT NULL DEFAULT 1;");
-    } catch (e) {
-      // Column already exists
-    }
+  `);
+
+  try {
+    db.exec("ALTER TABLE StreamSlot ADD COLUMN manuallyStopped INTEGER NOT NULL DEFAULT 1;");
+  } catch (e) {
+    // Column already exists
+  }
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS SystemLog (
       id TEXT PRIMARY KEY,
       message TEXT NOT NULL,
