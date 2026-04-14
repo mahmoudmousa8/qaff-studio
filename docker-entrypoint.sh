@@ -23,12 +23,19 @@ node -e "
       daily INTEGER NOT NULL DEFAULT 0,
       weekly INTEGER NOT NULL DEFAULT 0,
       isScheduled INTEGER NOT NULL DEFAULT 0,
+      manuallyStopped INTEGER NOT NULL DEFAULT 1,
       nextRunTime TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'Stopped',
       isRunning INTEGER NOT NULL DEFAULT 0,
       createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+    -- ADD COLUMN IF NOT EXISTS logic using try-catch approach since pure sqlite ALTER misses IF NOT EXISTS
+    try {
+      db.exec("ALTER TABLE StreamSlot ADD COLUMN manuallyStopped INTEGER NOT NULL DEFAULT 1;");
+    } catch (e) {
+      // Column already exists
+    }
     CREATE TABLE IF NOT EXISTS SystemLog (
       id TEXT PRIMARY KEY,
       message TEXT NOT NULL,
