@@ -296,12 +296,12 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
 }
 
 // ── Queue a stream for staggered start ───────────────────────
-function queueStream(slotIndex: number, rtmpUrl: string, streamKey: string, filePath: string): Promise<{ success: boolean; message: string }> {
-  return new Promise((resolve) => {
-    staggerQueue.push({ slotIndex, rtmpUrl, streamKey, filePath, resolve })
-    log(`Slot ${slotIndex + 1} queued (queue position: ${staggerQueue.length})`)
-    processStaggerQueue()
-  })
+function startStream(slotIndex: number, rtmpUrl: string, streamKey: string, filePath: string): { success: boolean; message: string } {
+  // Fire and forget — resolve immediately with "queued" to avoid blocking Next.js scheduler
+  staggerQueue.push({ slotIndex, rtmpUrl, streamKey, filePath, resolve: () => {} })
+  log(`Slot ${slotIndex + 1} queued async for start (queue position: ${staggerQueue.length})`)
+  processStaggerQueue()
+  return { success: true, message: `Slot ${slotIndex + 1} queued for start` }
 }
 
 // ── Stop a stream ────────────────────────────────────────────
@@ -427,7 +427,7 @@ const server = createServer(async (req, res) => {
       // Build final RTMP URL from outputType
       const rtmpUrl = buildRtmpUrl(outputType || 'custom', rtmpServer || '', streamKey || '')
 
-      const result = await queueStream(slotIndex, rtmpUrl, streamKey || '', filePath)
+      const result = startStream(slotIndex, rtmpUrl, streamKey || '', filePath)
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(result))
       return

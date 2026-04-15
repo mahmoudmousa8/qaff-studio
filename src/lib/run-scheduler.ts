@@ -191,7 +191,7 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
 
   // Distributed lock: prevent concurrent execution across multiple Next.js workers.
   const LOCK_KEY = '__scheduler_last_run__'
-  const LOCK_INTERVAL_MS = 10_000
+  const LOCK_INTERVAL_MS = 30_000 // 30 seconds
 
   const lastRunLog = await db.systemLog.findFirst({
     where: { message: { startsWith: LOCK_KEY } },
@@ -287,6 +287,8 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
 
         if (!skipRecovery) {
           try {
+            const ctrl = new AbortController()
+            const t = setTimeout(() => ctrl.abort(), 5000)
             const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -296,8 +298,10 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
                 rtmpServer: slot.rtmpServer,
                 streamKey: slot.streamKey,
                 filePath: slot.filePath
-              })
+              }),
+              signal: ctrl.signal
             })
+            clearTimeout(t)
             const data = await res.json()
             if (res.ok && data.success) {
               logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
@@ -457,6 +461,8 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
     }
 
     try {
+      const ctrl = new AbortController()
+      const t = setTimeout(() => ctrl.abort(), 5000)
       await fetch(`${STREAM_MANAGER_URL}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -466,8 +472,10 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
           rtmpServer: slot.rtmpServer,
           streamKey: slot.streamKey,
           filePath: slot.filePath
-        })
+        }),
+        signal: ctrl.signal
       })
+      clearTimeout(t)
       startedCount++
       logs.push(`Slot ${slot.slotIndex + 1}: Auto-started`)
     } catch {

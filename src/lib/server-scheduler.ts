@@ -17,10 +17,7 @@ export function startServerScheduler() {
   g.__schedulerStarted = true
 
   console.log('[ServerScheduler] Started — fires every 15s (direct, no loopback)')
-
-  // Fire immediately on boot, then every 15 seconds to allow fine-grained seconds jitter
   tick()
-  setInterval(tick, 15_000)
 }
 
 async function tick() {
@@ -32,5 +29,8 @@ async function tick() {
     }
   } catch (err: any) {
     console.error(`[ServerScheduler] Tick failed: ${err.message || String(err)}`)
+  } finally {
+    // Wait precisely 15 seconds AFTER the current tick finishes to prevent any overlap
+    setTimeout(tick, 15_000)
   }
 }
