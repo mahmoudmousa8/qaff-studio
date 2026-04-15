@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const page = parseInt(searchParams.get('page') || '1')
   const limit = parseInt(searchParams.get('limit') || '100')
+  const search = searchParams.get('search') || ''
   const skip = (page - 1) * limit
 
   try {
@@ -66,13 +67,20 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    const whereClause: any = search
+      ? { channelName: { contains: search } }
+      : {}
+
     const slots = await db.streamSlot.findMany({
       skip,
       take: limit,
+      where: whereClause,
       orderBy: { slotIndex: 'asc' }
     })
 
-    const total = await db.streamSlot.count()
+    const total = await db.streamSlot.count({
+      where: whereClause
+    })
 
     return NextResponse.json({ slots, total })
   } catch (error) {

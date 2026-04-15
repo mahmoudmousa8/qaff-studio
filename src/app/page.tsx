@@ -206,6 +206,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalSlots, setTotalSlots] = useState(0)
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('')
   const [stats, setStats] = useState({ streaming: 0, scheduled: 0, stopped: 0, configured: 0, dailyCount: 0, weeklyCount: 0, renewalDate: null as string | null })
   const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; action: string; onConfirm: () => void } | null>(null)
   const [videoSelectorSlot, setVideoSelectorSlot] = useState<number | null>(null)
@@ -246,6 +247,15 @@ export default function Home() {
       logViewportRef.current.scrollTop = logViewportRef.current.scrollHeight
     }
   }, [logs])
+
+  // Debounce global search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery)
+      setCurrentPage(1)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
   // Session validation
   useEffect(() => {
@@ -327,14 +337,19 @@ export default function Home() {
 
   const fetchSlots = useCallback(async () => {
     try {
-      const res = await fetch(`/api/slots?page=${currentPage}&limit=${SLOTS_PER_PAGE}`)
+      const qs = new URLSearchParams()
+      qs.set('page', currentPage.toString())
+      qs.set('limit', SLOTS_PER_PAGE.toString())
+      if (debouncedSearchQuery) qs.set('search', debouncedSearchQuery)
+
+      const res = await fetch(`/api/slots?${qs.toString()}`)
       if (res.status === 401) { window.location.href = '/login'; return }
       const data = await res.json()
       setSlots(data.slots || [])
       setTotalSlots(data.total || 0)
     } catch { addLog('Error fetching slots') }
     finally { setLoading(false) }
-  }, [currentPage])
+  }, [currentPage, debouncedSearchQuery])
 
   const fetchLogs = useCallback(async () => {
     try {
@@ -821,11 +836,12 @@ export default function Home() {
                   </tr>
                 </thead>
                 <tbody>
-                  {slots.filter(slot => !searchQuery || (slot.channelName || '').toLowerCase().includes(searchQuery.toLowerCase())).map((slot) => {
+                  {slots.map((slot) => {
                     const outputType = slot.outputType || 'youtube'
                     const isYtFb = outputType === 'youtube' || outputType === 'facebook'
                     const rtmpBase = RTMP_BASES[outputType] || ''
                     const finalRtmpUrl = getFinalRtmpUrl(slot)
+                    const isLocked = slot.isRunning || slot.status !== 'Stopped'
 
                     return (
                       <tr key={slot.id} className="hover:bg-orange-500/15 transition-colors border-b border-border/50">
@@ -851,12 +867,12 @@ export default function Home() {
                             <Input
                               readOnly
                               value={slot.filePath ? slot.filePath.split(/[/\\]/).pop() : ''}
-                              className="h-6 text-[11px] flex-1 font-mono bg-muted/10 hover:bg-muted-foreground/15 hover:text-foreground transition-colors text-muted-foreground cursor-default outline-none"
+                              className={`h-6 text-[11px] flex-1 font-mono bg-muted/10 hover:bg-muted-foreground/15 hover:text-foreground transition-colors text-muted-foreground outline-none ${isLocked ? 'opacity-50 cursor-not-allowed' : 'cursor-default'}`}
                               placeholder={t('phFilePath')}
                               title={slot.filePath}
                               dir="ltr"
                             />
-                            <Button size="sm" variant="outline" className="h-6 w-6 p-0 shrink-0"
+                            <Button size="sm" variant="outline" className="h-6 w-6 p-0 shrink-0" disabled={isLocked}
                               onClick={() => setVideoSelectorSlot(slot.slotIndex)} title={t('select')}>
                               <FolderOpen className="w-3 h-3" />
                             </Button>
@@ -867,6 +883,7 @@ export default function Home() {
                         <td className="px-2 py-1">
                           <DebouncedInput
                             value={slot.streamKey}
+                            disabled={isLocked}
                             onChange={(val) => handleSlotChange(slot.slotIndex, 'streamKey', val)}
                             className="h-6 text-[11px] font-mono w-full"
                             placeholder={t('phStreamKey')}
@@ -886,13 +903,14 @@ export default function Home() {
                               </div>
                               <input
                                 type="text"
+                                disabled={isLocked}
                                 value={slot.schedStart || ''}
                                 placeholder="00-00 00:00"
                                 onChange={(e) => handleSlotChange(slot.slotIndex, 'schedStart', e.target.value)}
-                                className={`w-[85px] bg-transparent border-none text-[10px] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-ring rounded px-1 ${slot.schedStart ? 'text-foreground/80' : 'text-muted-foreground/50'}`}
+                                className={`w-[85px] bg-transparent border-none text-[10px] font-mono tabular-nums focus:outline-none focus:ring-1 focus:ring-ring rounded px-1 ${slot.schedStart ? 'text-foreground/80' : 'text-muted-foreground/50'} ${isLocked ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 dir="ltr"
                               />
-                              <DateTimePicker value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className="h-6 w-6" />
+                              <DateTimePicker disabled={isLocked} value={slot.schedStart || ''} onChange={(v) => handleSlotChange(slot.slotIndex, 'schedStart', v)} className={`h-6 w-6 ${isLocked ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`} />
                             </div>
                           </div>
                         </td>
@@ -913,6 +931,7 @@ export default function Home() {
                                   </div>
 
                                   <select
+                                    disabled={isLocked}
                                     value={hasDur ? String(durH) : ''}
                                     onChange={(e) => {
                                       const val = e.target.value
@@ -921,7 +940,7 @@ export default function Home() {
                                       const m = hasDur ? durM : 0
                                       handleSlotChange(slot.slotIndex, 'schedStop', buildStopByDuration(slot.schedStart, h, m))
                                     }}
-                                    className={`${sc} w-[42px]`} dir="ltr"
+                                    className={`${sc} w-[42px] disabled:opacity-50`} dir="ltr"
                                   >
                                     <option value="">--</option>
                                     {Array.from({length:12},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
@@ -930,6 +949,7 @@ export default function Home() {
                                   <span className="text-muted-foreground font-bold">:</span>
 
                                   <select
+                                    disabled={isLocked}
                                     value={hasDur ? String(durM) : ''}
                                     onChange={(e) => {
                                       const val = e.target.value
@@ -938,7 +958,7 @@ export default function Home() {
                                       const h = hasDur ? durH : 0
                                       handleSlotChange(slot.slotIndex, 'schedStop', buildStopByDuration(slot.schedStart, h, m))
                                     }}
-                                    className={`${sc} w-[42px]`} dir="ltr"
+                                    className={`${sc} w-[42px] disabled:opacity-50`} dir="ltr"
                                   >
                                     <option value="">--</option>
                                     {Array.from({length:60},(_,i)=><option key={i} value={i}>{String(i).padStart(2,'0')}</option>)}
@@ -946,11 +966,12 @@ export default function Home() {
 
                                   {/* Reset Button */}
                                   <button
+                                    disabled={isLocked}
                                     onClick={() => {
                                       handleSlotChange(slot.slotIndex, 'schedStart', '')
                                       handleSlotChange(slot.slotIndex, 'schedStop', '')
                                     }}
-                                    className="h-6 w-6 flex items-center justify-center rounded bg-muted/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground border transition-colors ml-1"
+                                    className="h-6 w-6 flex items-center justify-center rounded bg-muted/50 hover:bg-destructive/10 hover:text-destructive text-muted-foreground border transition-colors ml-1 disabled:opacity-50"
                                     title="إعادة تعيين التواريخ"
                                   >
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
@@ -962,9 +983,9 @@ export default function Home() {
                             })()}
 
                             {/* Daily / Weekly */}
-                            <div className="w-[155px] flex justify-center items-center gap-2 bg-muted/20 px-2 py-0.5 rounded border border-border/50 shrink-0">
+                            <div className={`w-[155px] flex justify-center items-center gap-2 bg-muted/20 px-2 py-0.5 rounded border border-border/50 shrink-0 ${isLocked ? 'opacity-50' : ''}`}>
                               <div className="flex items-center gap-1">
-                                <Checkbox checked={slot.daily} onCheckedChange={(c) => {
+                                <Checkbox disabled={isLocked} checked={slot.daily} onCheckedChange={(c) => {
                                   handleSlotChange(slot.slotIndex, 'daily', !!c)
                                   if (c) handleSlotChange(slot.slotIndex, 'weekly', false)
                                   if (!c) handleSlotChange(slot.slotIndex, 'nextRunTime', '')
@@ -972,7 +993,7 @@ export default function Home() {
                                 <label htmlFor={`daily-${slot.slotIndex}`} className="text-[10px] text-muted-foreground cursor-pointer select-none">{t('lblDaily')}</label>
                               </div>
                               <div className="flex items-center gap-1">
-                                <Checkbox checked={slot.weekly} onCheckedChange={(c) => {
+                                <Checkbox disabled={isLocked} checked={slot.weekly} onCheckedChange={(c) => {
                                   handleSlotChange(slot.slotIndex, 'weekly', !!c)
                                   if (c) handleSlotChange(slot.slotIndex, 'daily', false)
                                   if (!c) handleSlotChange(slot.slotIndex, 'nextRunTime', '')
@@ -982,9 +1003,9 @@ export default function Home() {
                             </div>
 
                             {/* Quick AM/PM Targets */}
-                            <div className="w-[66px] flex bg-muted/50 rounded overflow-hidden border shrink-0 border-primary/20">
-                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 w-[32px] flex items-center justify-center text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title={t('lblNext12')}>{t('btnAM')}</button>
-                              <button onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 w-[32px] flex items-center justify-center text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title={t('lblNext12')}>{t('btnPM')}</button>
+                            <div className={`w-[66px] flex bg-muted/50 rounded overflow-hidden border shrink-0 border-primary/20 ${isLocked ? 'opacity-50 pointer-events-none' : ''}`}>
+                              <button disabled={isLocked} onClick={() => handleQuickSchedule(slot.slotIndex, 'AM')} className="h-6 w-[32px] flex items-center justify-center text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors border-r" title={t('lblNext12')}>{t('btnAM')}</button>
+                              <button disabled={isLocked} onClick={() => handleQuickSchedule(slot.slotIndex, 'PM')} className="h-6 w-[32px] flex items-center justify-center text-[10px] font-semibold text-foreground/80 hover:bg-primary/20 hover:text-primary transition-colors" title={t('lblNext12')}>{t('btnPM')}</button>
                             </div>
                             {slot.nextRunTime && (
                               <div className="text-[10px] text-blue-500 font-mono shrink-0">{slot.nextRunTime}</div>
