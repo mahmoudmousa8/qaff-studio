@@ -44,10 +44,6 @@ export async function POST(
         isScheduled: false,
         status: 'Stopped',
         nextRunTime: '',
-        schedStart: '',
-        schedStop: '',
-        daily: false,
-        weekly: false,
       }
     })
 

@@ -123,10 +123,6 @@ export async function POST(request: NextRequest) {
             manuallyStopped: true,
             status: 'Stopped',
             nextRunTime: '',
-            schedStart: '',
-            schedStop: '',
-            daily: false,
-            weekly: false
           }
         })
 

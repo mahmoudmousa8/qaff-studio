@@ -184,12 +184,14 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
 
   // Navigation
   const navigateToFolder = (folderName: string) => {
+    setSearchQuery('')
     const newPath = currentFolder ? `${currentFolder}/${folderName}` : folderName
     fetchData(newPath)
   }
 
   const navigateUp = () => {
     if (!currentFolder) return
+    setSearchQuery('')
     const parts = currentFolder.split('/')
     parts.pop()
     fetchData(parts.join('/'))
@@ -711,7 +713,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
       <div className="flex items-center gap-2 flex-wrap pb-3 border-b shrink-0">
         {/* Navigation */}
         <div className="flex items-center gap-1">
-          <Button size="sm" variant="ghost" onClick={() => fetchData('')} title={t('root')}>
+          <Button size="sm" variant="ghost" onClick={() => { setSearchQuery(''); fetchData('') }} title={t('root')}>
             <Home className="w-4 h-4" />
           </Button>
           {currentFolder && (
@@ -723,7 +725,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-1 text-sm text-muted-foreground overflow-hidden" dir="auto">
-          <span className="cursor-pointer hover:text-foreground" onClick={() => fetchData('')}>
+          <span className="cursor-pointer hover:text-foreground" onClick={() => { setSearchQuery(''); fetchData('') }}>
             {t('root')}
           </span>
           {breadcrumbParts.map((part, i) => (
@@ -731,7 +733,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
               <ChevronRight className="w-3 h-3 shrink-0" />
               <span
                 className="cursor-pointer hover:text-foreground truncate max-w-[120px]"
-                onClick={() => fetchData(breadcrumbParts.slice(0, i + 1).join('/'))}
+                onClick={() => { setSearchQuery(''); fetchData(breadcrumbParts.slice(0, i + 1).join('/')) }}
                 title={part}
               >
                 {part}
@@ -796,7 +798,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
           className="hidden"
           onChange={handleFileSelect}
         />
-        <Button size="sm" variant="ghost" onClick={() => fetchData(currentFolder)}>
+        <Button size="sm" variant="ghost" onClick={() => { setSearchQuery(''); fetchData(currentFolder) }}>
           <RefreshCw className="w-4 h-4" />
         </Button>
 
