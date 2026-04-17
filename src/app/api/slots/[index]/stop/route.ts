@@ -44,9 +44,10 @@ export async function POST(
         isScheduled: false,
         status: 'Stopped',
         nextRunTime: '',
-        // Keep the UI times (schedStart/schedStop) intact so they don't have to re-type them!
-        schedStart: slot.schedStart,
-        schedStop: slot.schedStop,
+        schedStart: '',
+        schedStop: '',
+        daily: false,
+        weekly: false,
       }
     })
 

@@ -121,7 +121,12 @@ export async function POST(request: NextRequest) {
             isRunning: false,
             isScheduled: false,
             manuallyStopped: true,
-            status: 'Stopped'
+            status: 'Stopped',
+            nextRunTime: '',
+            schedStart: '',
+            schedStop: '',
+            daily: false,
+            weekly: false
           }
         })
 
