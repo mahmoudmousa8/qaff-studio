@@ -1201,6 +1201,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                     <div>Codec: H.264 only</div>
                     <div>FPS: 24 / 25 / 30</div>
                     <div>Frame Type: CFR only (no VFR)</div>
+                    <div>Key Frame Distance: 60</div>
                     <div>Keyframe : 2s (max 4s)</div>
                   </div>
                 </div>
