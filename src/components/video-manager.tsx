@@ -197,6 +197,32 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
     fetchData(parts.join('/'))
   }
 
+  // Backspace navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' || 
+        target.tagName === 'TEXTAREA' || 
+        target.isContentEditable ||
+        e.defaultPrevented
+      ) {
+        return
+      }
+
+      if (e.key === 'Backspace' && currentFolder) {
+        e.preventDefault()
+        setSearchQuery('')
+        const parts = currentFolder.split('/')
+        parts.pop()
+        fetchData(parts.join('/'))
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [currentFolder, fetchData])
+
   // Upload
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
