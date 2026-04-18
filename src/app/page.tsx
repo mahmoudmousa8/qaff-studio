@@ -148,23 +148,29 @@ function buildStopByDuration(schedStart: string, durH: number, durM: number): st
   if (!schedStart) return `DUR ${String(durH).padStart(2, '0')}:${String(durM).padStart(2, '0')}`
 
   let baseDate = new Date()
-  baseDate.setSeconds(0, 0)
   
   const [dPart, tPart] = schedStart.split(' ')
   if (dPart && tPart) {
     const yr = baseDate.getFullYear()
     const [mm, dd] = dPart.split('-').map(Number)
     const [hh, min] = tPart.split(':').map(Number)
-    baseDate = new Date(yr, isNaN(mm)?1:(mm - 1), isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
+    const utcMs = Date.UTC(yr, isNaN(mm)?1:(mm - 1), isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
+    baseDate = new Date(utcMs + (durH * 60 + durM) * 60000)
+    
+    // We must format back from UTC parts because we tricked it into UTC
+    const fMonth = String(baseDate.getUTCMonth() + 1).padStart(2, '0')
+    const fDate = String(baseDate.getUTCDate()).padStart(2, '0')
+    const fH = String(baseDate.getUTCHours()).padStart(2, '0')
+    const fM = String(baseDate.getUTCMinutes()).padStart(2, '0')
+    return `${fMonth}-${fDate} ${fH}:${fM}`
   }
   
+  baseDate.setSeconds(0, 0)
   baseDate.setMinutes(baseDate.getMinutes() + durH * 60 + durM)
-  
   const fMonth = String(baseDate.getMonth() + 1).padStart(2, '0')
   const fDate = String(baseDate.getDate()).padStart(2, '0')
   const fH = String(baseDate.getHours()).padStart(2, '0')
   const fM = String(baseDate.getMinutes()).padStart(2, '0')
-  
   return `${fMonth}-${fDate} ${fH}:${fM}`
 }
 
@@ -177,23 +183,35 @@ function getDuration(schedStart: string, schedStop: string): { h: number; m: num
     return { h: parseInt(hStr || '0'), m: parseInt(mStr || '0') }
   }
 
-  const parseDate = (s: string) => {
+  const parseDateUTC = (s: string) => {
     const d = new Date()
-    d.setSeconds(0, 0)
-    if (!s) return d
+    if (!s) {
+      d.setSeconds(0, 0)
+      return d.getTime()
+    }
     const [dPart, tPart] = s.split(' ')
     if (dPart && tPart) {
       const yr = d.getFullYear()
       const [mm, dd] = dPart.split('-').map(Number)
       const [hh, min] = tPart.split(':').map(Number)
-      return new Date(yr, (isNaN(mm)?1:mm) - 1, isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
+      return Date.UTC(yr, (isNaN(mm)?1:mm) - 1, isNaN(dd)?1:dd, isNaN(hh)?0:hh, isNaN(min)?0:min)
     }
-    return d
+    d.setSeconds(0, 0)
+    return d.getTime()
   }
-  const startD = parseDate(schedStart)
-  const stopD = parseDate(schedStop)
-  let diffMins = Math.round((stopD.getTime() - startD.getTime()) / 60000)
+  
+  const startMs = parseDateUTC(schedStart)
+  const stopMs = parseDateUTC(schedStop)
+  let diffMins = Math.round((stopMs - startMs) / 60000)
+
+  if (diffMins < -100000) {
+    // Handling cross-year difference (like Dec 31 to Jan 1 but parsed under same year)
+    const yr = new Date().getFullYear()
+    const isLeap = ((yr % 4 === 0) && (yr % 100 !== 0)) || (yr % 400 === 0)
+    diffMins += (isLeap ? 366 : 365) * 1440
+  }
   if (diffMins < 0) diffMins += 1440
+  
   return { h: Math.floor(diffMins / 60), m: diffMins % 60 }
 }
 
