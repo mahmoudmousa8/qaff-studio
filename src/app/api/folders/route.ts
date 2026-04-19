@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { readdirSync, statSync, existsSync, mkdirSync, renameSync, rmdirSync, unlinkSync, copyFileSync } from 'fs'
+import { readdirSync, statSync, existsSync, mkdirSync, renameSync, rmdirSync, unlinkSync, copyFileSync, rmSync } from 'fs'
 import path from 'path'
 import { VIDEOS_DIR, STREAM_MANAGER_URL } from '@/lib/paths'
 import { db } from '@/lib/db'
@@ -296,11 +296,7 @@ export async function POST(request: NextRequest) {
 
         const deleteStats = statSync(itemPath)
         if (deleteStats.isDirectory()) {
-          const items = readdirSync(itemPath)
-          if (items.length > 0) {
-            return NextResponse.json({ error: 'Folder is not empty. Delete contents first.' }, { status: 400 })
-          }
-          rmdirSync(itemPath)
+          rmSync(itemPath, { recursive: true, force: true })
         } else {
           unlinkSync(itemPath)
 
