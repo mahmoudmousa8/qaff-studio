@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     switch (action) {
       case 'startAll': {
-        // Start all configured slots with STAGGERED START
+        // Start all configured slots IN PARALLEL — all fire at the same instant
         const slots = await db.streamSlot.findMany({
           where: {
             streamKey: { not: '' },
@@ -20,79 +20,81 @@ export async function POST(request: NextRequest) {
           }
         })
 
-        let count = 0
-        let errors: string[] = []
+        // Phase 1: Mark all as "Starting" in DB simultaneously
+        await Promise.all(slots.map(async (slot) => {
+          let updatedSchedStart = slot.schedStart;
+          if (!updatedSchedStart) {
+            const now = new Date();
+            const sMonth = String(now.getMonth() + 1).padStart(2, '0');
+            const sDate = String(now.getDate()).padStart(2, '0');
+            const sH = String(now.getHours()).padStart(2, '0');
+            const sM = String(now.getMinutes()).padStart(2, '0');
+            updatedSchedStart = `${sMonth}-${sDate} ${sH}:${sM}`;
+          }
 
-        // Use staggered start - call stream-manager for each slot
-        for (const slot of slots) {
-          try {
-            let updatedSchedStart = slot.schedStart;
-            if (!updatedSchedStart) {
-              const now = new Date();
-              const sMonth = String(now.getMonth() + 1).padStart(2, '0');
-              const sDate = String(now.getDate()).padStart(2, '0');
-              const sH = String(now.getHours()).padStart(2, '0');
-              const sM = String(now.getMinutes()).padStart(2, '0');
-              updatedSchedStart = `${sMonth}-${sDate} ${sH}:${sM}`;
+          let updatedSchedStop = slot.schedStop;
+          if (updatedSchedStop && updatedSchedStop.startsWith('DUR ')) {
+            const [hStr, mStr] = updatedSchedStop.replace('DUR ', '').split(':');
+            const dursMins = parseInt(hStr || '0') * 60 + parseInt(mStr || '0');
+            if (dursMins > 0) {
+              const targetDate = new Date();
+              targetDate.setMinutes(targetDate.getMinutes() + dursMins);
+              const fMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
+              const fDate = String(targetDate.getDate()).padStart(2, '0');
+              const fH = String(targetDate.getHours()).padStart(2, '0');
+              const fM = String(targetDate.getMinutes()).padStart(2, '0');
+              updatedSchedStop = `${fMonth}-${fDate} ${fH}:${fM}`;
             }
+          }
 
-            let updatedSchedStop = slot.schedStop;
-            if (updatedSchedStop && updatedSchedStop.startsWith('DUR ')) {
-              const [hStr, mStr] = updatedSchedStop.replace('DUR ', '').split(':');
-              const dursMins = parseInt(hStr || '0') * 60 + parseInt(mStr || '0');
-              if (dursMins > 0) {
-                const targetDate = new Date();
-                targetDate.setMinutes(targetDate.getMinutes() + dursMins);
-                const fMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
-                const fDate = String(targetDate.getDate()).padStart(2, '0');
-                const fH = String(targetDate.getHours()).padStart(2, '0');
-                const fM = String(targetDate.getMinutes()).padStart(2, '0');
-                updatedSchedStop = `${fMonth}-${fDate} ${fH}:${fM}`;
-              }
-            }
+          await db.streamSlot.update({
+            where: { slotIndex: slot.slotIndex },
+            data: { status: 'Starting', isRunning: false, manuallyStopped: false, schedStart: updatedSchedStart, schedStop: updatedSchedStop }
+          })
 
-            // Set to Starting immediately
+          // Attach resolved times to slot for phase 2
+          ;(slot as any)._resolvedStart = updatedSchedStart
+          ;(slot as any)._resolvedStop = updatedSchedStop
+        }))
+
+        // Phase 2: Fire ALL stream-manager start requests simultaneously
+        const results = await Promise.allSettled(slots.map(async (slot) => {
+          const response = await fetch(`${BULK_STREAM_MANAGER}/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              slotIndex: slot.slotIndex,
+              rtmpServer: slot.rtmpServer,
+              streamKey: slot.streamKey,
+              filePath: slot.filePath
+            })
+          })
+          const result = await response.json()
+
+          if (result.success) {
             await db.streamSlot.update({
               where: { slotIndex: slot.slotIndex },
-              data: { status: 'Starting', isRunning: false, manuallyStopped: false, schedStart: updatedSchedStart, schedStop: updatedSchedStop }
+              data: { isRunning: true, isScheduled: false, status: 'Streaming' }
             })
-
-            const response = await fetch(`${BULK_STREAM_MANAGER}/start`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                slotIndex: slot.slotIndex,
-                rtmpServer: slot.rtmpServer,
-                streamKey: slot.streamKey,
-                filePath: slot.filePath
-              })
-            })
-
-            const result = await response.json()
-
-            if (result.success) {
-              await db.streamSlot.update({
-                where: { slotIndex: slot.slotIndex },
-                data: {
-                  isRunning: true,
-                  isScheduled: false,
-                  status: 'Streaming'
-                }
-              })
-              count++
-            } else {
-              await db.streamSlot.update({
-                where: { slotIndex: slot.slotIndex },
-                data: { status: 'Failed', isRunning: false }
-              })
-              errors.push(`Slot ${slot.slotIndex + 1}: ${result.message}`)
-            }
-          } catch {
+            return { success: true, slotIndex: slot.slotIndex }
+          } else {
             await db.streamSlot.update({
               where: { slotIndex: slot.slotIndex },
               data: { status: 'Failed', isRunning: false }
             })
-            errors.push(`Slot ${slot.slotIndex + 1}: Stream manager error`)
+            return { success: false, slotIndex: slot.slotIndex, message: result.message }
+          }
+        }))
+
+        let count = 0
+        const errors: string[] = []
+        for (const r of results) {
+          if (r.status === 'fulfilled' && r.value.success) {
+            count++
+          } else if (r.status === 'fulfilled' && !r.value.success) {
+            errors.push(`Slot ${r.value.slotIndex + 1}: ${r.value.message}`)
+          } else if (r.status === 'rejected') {
+            errors.push(`Slot: Stream manager error`)
           }
         }
 
@@ -100,9 +102,10 @@ export async function POST(request: NextRequest) {
           success: true,
           count,
           errors: errors.length > 0 ? errors : undefined,
-          message: `Started ${count} slots with staggered start`
+          message: `Started ${count} slots in parallel`
         })
       }
+
 
       case 'stopAll': {
         // Stop all via stream manager first
