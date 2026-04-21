@@ -174,29 +174,18 @@ async function processStaggerQueue() {
   if (isProcessingQueue) return
   isProcessingQueue = true
 
-  while (staggerQueue.length > 0) {
-    const item = staggerQueue.shift()!
+  // Safely take all current queue items immediately
+  const batch = [...staggerQueue]
+  staggerQueue = []
 
-    let waited = 0
-    while (activeStreams.size >= MAX_CONCURRENT) {
-      log(`Concurrency limit (${MAX_CONCURRENT}) reached. Waiting...`)
-      await new Promise(r => setTimeout(r, STAGGER_DELAY_MS))
-      waited += STAGGER_DELAY_MS
-      if (waited > 60 * 60 * 1000) {
-        item.resolve({ success: false, message: `Concurrency limit reached after waiting 1 hour` })
-        break
-      }
+  // Fire them all in a single tick synchronously without any setTimeout
+  for (const item of batch) {
+    if (activeStreams.size >= MAX_CONCURRENT) {
+      item.resolve({ success: false, message: `Concurrency limit (${MAX_CONCURRENT}) reached` })
+      continue
     }
-
-    if (activeStreams.size >= MAX_CONCURRENT) continue
-
     const result = startStreamImmediate(item.slotIndex, item.rtmpUrl, item.streamKey, item.filePath)
     item.resolve(result)
-
-    if (staggerQueue.length > 0) {
-      log(`Stagger: waiting ${STAGGER_DELAY_MS}ms before next stream...`)
-      await new Promise(r => setTimeout(r, STAGGER_DELAY_MS))
-    }
   }
 
   isProcessingQueue = false
