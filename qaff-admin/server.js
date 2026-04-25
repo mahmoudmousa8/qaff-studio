@@ -44,6 +44,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toIS
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')))
 app.get('/login', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')))
 app.get('/clients', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'clients.html')))
+app.get('/storage', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'storage.html')))
 
 // ── Auth API ──────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
@@ -269,7 +270,7 @@ app.get('/api/clients', auth.requireAuth, async (req, res) => {
 
 // ── Clients: create ───────────────────────────────────────
 app.post('/api/clients', auth.requireAuth, async (req, res) => {
-    const { name, slots, storage_gb, bandwidth_limit } = req.body
+    const { name, slots, storage_gb, bandwidth_limit, storage_path } = req.body
 
     if (!name || !slots || !storage_gb) {
         return res.status(400).json({ error: 'name, slots, storage_gb are required' })
@@ -285,6 +286,19 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     const existing = db.getAllClients.all().find(c => c.name === name)
     if (existing) return res.status(409).json({ error: 'Client name already exists' })
 
+    // Check disk space
+    try {
+        const diskusage = require('diskusage');
+        const checkPath = (!storage_path || storage_path === 'local') ? '/' : storage_path;
+        const info = diskusage.checkSync(checkPath);
+        const usagePercent = ((info.total - info.free) / info.total) * 100;
+        if (usagePercent >= 90) {
+            return res.status(507).json({ error: 'Storage Pool is over 90% full. Cannot create new clients here.'});
+        }
+    } catch (err) {
+        console.error('Disk check error:', err);
+    }
+
     // Check Docker image
     if (!(await docker.imageExists())) {
         return res.status(500).json({ error: 'qaff-studio:latest Docker image not found. Run: docker build -t qaff-studio:latest /path/to/project' })
@@ -298,6 +312,8 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     // Hash client password
     const passwordHash = await auth.hashPassword(password)
 
+    const resolvedStoragePath = storage_path || 'local';
+
     const info = db.createClient.run({
         name,
         container_id: null,
@@ -309,7 +325,8 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
         whatsapp: req.body.whatsapp || null,
         renewal_date: req.body.renewalDate || null,
         password: password,
-        reset_answer: reset_answer
+        reset_answer: reset_answer,
+        storage_path: resolvedStoragePath
     })
     const clientId = info.lastInsertRowid
 
@@ -317,7 +334,7 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     try { db.updateClientBandwidth.run(parseInt(bandwidth_limit || 0), clientId) } catch (e) { }
 
     try {
-        const { containerId, containerName, volumeName } = await docker.createClientContainer({
+        const { containerId, containerName, volumeName, storagePath } = await docker.createClientContainer({
             clientId,
             name,
             port,
@@ -325,22 +342,23 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
             storageGb: parseInt(storage_gb),
             bandwidthLimit: parseInt(bandwidth_limit || 0),
             passwordHash,
-            renewalDate: req.body.renewalDate || ''
+            renewalDate: req.body.renewalDate || '',
+            storagePath: resolvedStoragePath
         })
 
         db.updateClientContainer.run(containerId, clientId)
         db.updateClientStatus.run('running', clientId)
         // Also save volume/container name
         const stmt = require('better-sqlite3')(require('path').join(__dirname, 'data', 'admin.db'))
-        stmt.prepare(`UPDATE clients SET container_name=?, volume_name=? WHERE id=?`).run(containerName, volumeName, clientId)
+        stmt.prepare(`UPDATE clients SET container_name=?, volume_name=?, storage_path=? WHERE id=?`).run(containerName, volumeName, storagePath, clientId)
         stmt.close()
 
-        db.addLog('client_created', clientId, `Port: ${port}, Slots: ${slots}, Storage: ${storage_gb}GB`)
+        db.addLog('client_created', clientId, `Port: ${port}, Slots: ${slots}, Storage: ${storage_gb}GB, Path: ${storagePath}`)
 
         const serverIp = getServerIp()
         res.json({
             success: true,
-            client: { id: clientId, name, port, slots, storage_gb, status: 'running', whatsapp: req.body.whatsapp || null, renewal_date: req.body.renewalDate || null },
+            client: { id: clientId, name, port, slots, storage_gb, status: 'running', whatsapp: req.body.whatsapp || null, renewal_date: req.body.renewalDate || null, storage_path: storagePath },
             url: `http://${serverIp}:${port}`,
         })
     } catch (err) {
@@ -887,6 +905,224 @@ app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
     }
 });
 
+// ── Storage Pools ──────────────────────────────────────────
+
+function getPoolInfo(name, pathStr, isPrimary) {
+    try {
+        const diskusage = require('diskusage');
+        const info = diskusage.checkSync(pathStr);
+        return {
+            name,
+            path: pathStr,
+            isPrimary,
+            total: info.total,
+            free: info.free,
+            available: info.available,
+            used: info.total - info.free,
+            usagePercent: Math.round(((info.total - info.free) / info.total) * 100)
+        }
+    } catch (e) { return null }
+}
+
+app.get('/api/system/storage-pools', auth.requireAuth, (req, res) => {
+    const pools = [];
+    const p1 = getPoolInfo('Primary Disk', '/', true);
+    if (p1) pools.push(p1);
+
+    if (require('fs').existsSync('/mnt/storage/qaff-data')) {
+        const p2 = getPoolInfo('Secondary Disk', '/mnt/storage/qaff-data', false);
+        if (p2) pools.push(p2);
+    }
+
+    const clients = db.getAllClients.all();
+    for (const p of pools) {
+        if (p.isPrimary) {
+            p.clientCount = clients.filter(c => !c.storage_path || c.storage_path === 'local').length;
+        } else {
+            p.clientCount = clients.filter(c => c.storage_path && c.storage_path.startsWith(p.path)).length;
+        }
+    }
+    res.json({ pools });
+})
+
+app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
+    const { targetPool } = req.body;
+    const client = db.getClientById.get(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+
+    const currentPath = client.storage_path || 'local';
+    if (currentPath === targetPool || (currentPath !== 'local' && currentPath.startsWith(targetPool))) {
+        return res.status(400).json({ error: 'Client is already on the target storage pool' });
+    }
+
+    try {
+        const diskusage = require('diskusage');
+        const checkPath = targetPool === 'local' ? '/' : targetPool;
+        const info = diskusage.checkSync(checkPath);
+        const usagePercent = ((info.total - info.free) / info.total) * 100;
+        if (usagePercent >= 90) {
+            return res.status(507).json({ error: 'Target Storage Pool is over 90% full. Cannot migrate here.'});
+        }
+    } catch (err) {
+        console.error('Disk check error:', err);
+    }
+
+    try {
+        await docker.stopContainer(client.container_id).catch(() => { });
+
+        const infoDocker = await docker.getDocker().info();
+        const dockerRoot = infoDocker.DockerRootDir;
+
+        const srcDir = currentPath === 'local'
+            ? `${dockerRoot}/volumes/qaff_vol_${client.id}/_data/`
+            : `${currentPath}/`;
+
+        let targetPathStr = '';
+        let destDir = '';
+        if (targetPool === 'local') {
+            await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
+            targetPathStr = 'local';
+            destDir = `${dockerRoot}/volumes/qaff_vol_${client.id}/_data/`;
+        } else {
+            targetPathStr = `${targetPool}/client_${client.id}`;
+            require('fs').mkdirSync(targetPathStr, { recursive: true });
+            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
+            destDir = `${targetPathStr}/`;
+        }
+
+        db.addLog('migration_started', client.id, `From ${currentPath} to ${targetPathStr}`);
+
+        // Safe trailing slashes for rsync
+        require('child_process').execSync(`rsync -acv "${srcDir}" "${destDir}"`);
+
+        // Backup old dir
+        const srcNoSlash = srcDir.replace(/\/$/, '');
+        const backupPath = srcNoSlash + '.backup_' + Date.now();
+        require('child_process').execSync(`mv "${srcNoSlash}" "${backupPath}"`);
+
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
+        await docker.deleteClientContainer(client.container_id, null);
+
+        const { containerId, containerName, volumeName, storagePath } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
+            passwordHash: passwordHash || '',
+            renewalDate: client.renewal_date || '',
+            isSuspended: client.status === 'suspended',
+            storagePath: targetPathStr
+        });
+
+        // Health Check & Auto-Rollback
+        const checkContainer = await docker.getDocker().getContainer(containerId).inspect().catch(() => null);
+        if (!checkContainer || !checkContainer.State || !checkContainer.State.Running) {
+            db.addLog('migration_failed', client.id, `Container failed to start on new pool. Initiating auto-rollback...`);
+            await docker.deleteClientContainer(containerId, null).catch(() => {});
+            
+            if (currentPath === 'local') {
+                 await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
+            } else {
+                 require('fs').mkdirSync(currentPath, { recursive: true });
+                 require('child_process').execSync(`chown -R 1000:1000 "${currentPath}"`);
+            }
+            
+            require('child_process').execSync(`rsync -acv "${backupPath}/" "${srcDir}"`);
+            
+            const orig = await docker.createClientContainer({
+                clientId: client.id, name: client.name, port: client.port, slots: client.slots,
+                storageGb: client.storage_gb, bandwidthLimit: client.bandwidth_limit || 0,
+                passwordHash: passwordHash || '', renewalDate: client.renewal_date || '',
+                isSuspended: client.status === 'suspended', storagePath: currentPath === 'local' ? 'local' : `${currentPath}/`
+            });
+            
+            db.updateClientContainer.run(orig.containerId, client.id);
+            db.addLog('client_rolled_back', client.id, `Auto-rollback completed successfully after migration failure.`);
+            return res.status(500).json({ error: 'Migration failed. Container did not start correctly on the new storage. System auto-rolled back safely.'});
+        }
+
+        db.updateClientContainer.run(containerId, client.id);
+        db.updateClientStoragePath.run(storagePath, volumeName, backupPath, client.id);
+        db.addLog('client_migrated', client.id, `Success. Old data backed up at ${backupPath}`);
+
+        res.json({ success: true, storagePath, backupPath });
+    } catch (err) {
+        db.addLog('migration_failed', client.id, err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
+    const client = db.getClientById.get(req.params.id);
+    if (!client) return res.status(404).json({ error: 'Client not found' });
+    if (!client.backup_path) return res.status(400).json({ error: 'No backup path available' });
+
+    try {
+        await docker.stopContainer(client.container_id).catch(() => { });
+
+        const infoDocker = await docker.getDocker().info();
+        const dockerRoot = infoDocker.DockerRootDir;
+
+        // Original path depends on where the backup is located
+        const backupIsLocal = client.backup_path.includes('/volumes/qaff_vol_');
+        const targetPathStr = backupIsLocal ? 'local' : client.backup_path.replace(/\.backup_.+$/, '');
+        
+        let destDir = backupIsLocal ? `${dockerRoot}/volumes/qaff_vol_${client.id}/_data/` : `${targetPathStr}/`;
+
+        if (backupIsLocal) {
+            await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
+        } else {
+            require('fs').mkdirSync(targetPathStr, { recursive: true });
+            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
+        }
+
+        db.addLog('rollback_started', client.id, `Restoring from ${client.backup_path}`);
+        require('child_process').execSync(`rsync -acv "${client.backup_path}/" "${destDir}"`);
+
+        const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
+        await docker.deleteClientContainer(client.container_id, null);
+
+        const { containerId, containerName, volumeName, storagePath } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
+            passwordHash: passwordHash || '',
+            renewalDate: client.renewal_date || '',
+            isSuspended: client.status === 'suspended',
+            storagePath: targetPathStr
+        });
+
+        db.updateClientContainer.run(containerId, client.id);
+        db.updateClientStoragePath.run(storagePath, volumeName, null, client.id); // clear backup
+        db.addLog('client_rolled_back', client.id, `Success. Target path ${storagePath}`);
+
+        res.json({ success: true, storagePath });
+    } catch (err) {
+        db.addLog('rollback_failed', client.id, err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/clients/:id/backup', auth.requireAuth, (req, res) => {
+    const client = db.getClientById.get(req.params.id);
+    if (!client || !client.backup_path) return res.status(404).json({ error: 'No backup found' });
+
+    try {
+        if (!client.backup_path.includes('.backup_')) throw new Error('Safety guard: invalid backup path format');
+        require('child_process').execSync(`rm -rf "${client.backup_path}"`);
+        db.updateClientBackupPath.run(null, client.id);
+        db.addLog('backup_deleted', client.id, `Permanently deleted ${client.backup_path}`);
+        res.json({ success: true });
+    } catch (err) {
+        db.addLog('backup_delete_failed', client.id, err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
 
 // ── System: Pull + Rebuild Docker Image + Update All Clients ──
 app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
@@ -924,7 +1160,8 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
                         bandwidthLimit: client.bandwidth_limit || 0,
                         passwordHash,
                         renewalDate: client.renewal_date || '',
-                        isSuspended: client.status === 'suspended'
+                        isSuspended: client.status === 'suspended',
+                        storagePath: client.storage_path || 'local'
                     })
                     db.updateClientContainer.run(containerId, client.id)
                     upgraded++

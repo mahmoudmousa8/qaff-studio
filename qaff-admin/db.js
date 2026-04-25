@@ -56,6 +56,8 @@ try { db.exec("ALTER TABLE clients ADD COLUMN reset_answer TEXT;") } catch (e) {
 try { db.exec("ALTER TABLE clients ADD COLUMN reset_failures INTEGER DEFAULT 0;") } catch (e) { }
 try { db.exec("ALTER TABLE clients ADD COLUMN reset_lockout_until TEXT;") } catch (e) { }
 try { db.exec("ALTER TABLE clients ADD COLUMN bandwidth_limit INTEGER DEFAULT 0;") } catch (e) { }
+try { db.exec("ALTER TABLE clients ADD COLUMN storage_path TEXT DEFAULT 'local';") } catch (e) { }
+try { db.exec("ALTER TABLE clients ADD COLUMN backup_path TEXT DEFAULT NULL;") } catch (e) { }
 
 // ── Admin ─────────────────────────────────────────────────
 const getAdmin = db.prepare('SELECT * FROM admin WHERE id = 1')
@@ -71,8 +73,8 @@ const getClientById = db.prepare('SELECT * FROM clients WHERE id = ?')
 const getClientByPort = db.prepare('SELECT * FROM clients WHERE port = ?')
 
 const createClient = db.prepare(`
-  INSERT INTO clients (name, container_id, container_name, port, slots, storage_gb, volume_name, status, whatsapp, renewal_date, password, reset_answer)
-  VALUES (@name, @container_id, @container_name, @port, @slots, @storage_gb, @volume_name, 'running', @whatsapp, @renewal_date, @password, @reset_answer)
+  INSERT INTO clients (name, container_id, container_name, port, slots, storage_gb, volume_name, status, whatsapp, renewal_date, password, reset_answer, storage_path)
+  VALUES (@name, @container_id, @container_name, @port, @slots, @storage_gb, @volume_name, 'running', @whatsapp, @renewal_date, @password, @reset_answer, @storage_path)
 `)
 
 const updateClientStatus = db.prepare(`
@@ -109,6 +111,14 @@ const updateClientBandwidth = db.prepare('UPDATE clients SET bandwidth_limit = ?
 
 const updateClientLockout = db.prepare(`
   UPDATE clients SET reset_failures = ?, reset_lockout_until = ?, updated_at = datetime('now') WHERE id = ?
+`)
+
+const updateClientStoragePath = db.prepare(`
+  UPDATE clients SET storage_path = ?, volume_name = ?, backup_path = ?, updated_at = datetime('now') WHERE id = ?
+`)
+
+const updateClientBackupPath = db.prepare(`
+  UPDATE clients SET backup_path = ?, updated_at = datetime('now') WHERE id = ?
 `)
 
 const deleteClient = db.prepare('DELETE FROM clients WHERE id = ?')

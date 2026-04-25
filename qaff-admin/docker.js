@@ -32,17 +32,38 @@ async function imageExists() {
  * @param {string} opts.passwordHash  — bcrypt hash
  * @param {boolean} opts.isSuspended
  * @param {string} opts.renewalDate
- * @returns {{ containerId, containerName, volumeName }}
+ * @param {string} opts.storagePath - optional, 'local' or an absolute path on host
+ * @returns {{ containerId, containerName, volumeName, storagePath }}
  */
-async function createClientContainer({ clientId, name, port, slots, storageGb, bandwidthLimit = 0, passwordHash, isSuspended = false, renewalDate = '' }) {
+async function createClientContainer({ clientId, name, port, slots, storageGb, bandwidthLimit = 0, passwordHash, isSuspended = false, renewalDate = '', storagePath = 'local' }) {
     const containerName = `${CONTAINER_PREFIX}${clientId}`
-    const volumeName = `${VOLUME_PREFIX}${clientId}`
+    
+    let volumeName = null;
+    let bindString = '';
 
-    // Create volume for client data
-    await docker.createVolume({
-        Name: volumeName,
-        Labels: { 'qaff.client_id': String(clientId), 'qaff.client_name': name },
-    })
+    if (!storagePath || storagePath === 'local') {
+        // Legacy/Local Named Volume Mode
+        volumeName = `${VOLUME_PREFIX}${clientId}`
+        await docker.createVolume({
+            Name: volumeName,
+            Labels: { 'qaff.client_id': String(clientId), 'qaff.client_name': name },
+        })
+        bindString = `${volumeName}:/app/data`
+        storagePath = 'local'
+    } else {
+        // Direct Host Path Bind Mode (e.g. /mnt/storage/qaff-data/client_X)
+        const fs = require('fs')
+        if (!fs.existsSync(storagePath)) {
+            fs.mkdirSync(storagePath, { recursive: true })
+            const { execSync } = require('child_process');
+            try {
+                // Ensure correct ownership for Docker daemon user mapping (usually 1000:1000)
+                // Inside container NEXT runs as root or nextjs, but typical is 1000
+                execSync(`chown -R 1000:1000 "${storagePath}"`);
+            } catch(e) {}
+        }
+        bindString = `${storagePath}:/app/data`
+    }
 
     // Create the container
     const container = await docker.createContainer({
@@ -74,7 +95,7 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, b
             PortBindings: {
                 '3000/tcp': [{ HostPort: String(port) }],
             },
-            Binds: [`${volumeName}:/app/data`],
+            Binds: [bindString],
             // Needed to execute 'tc' Linux traffic control
             CapAdd: ['NET_ADMIN'],
             // Enhance the kernel TCP stream sockets for huge concurrency loads inside the container isolated namespace
@@ -90,7 +111,7 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, b
     })
 
     await container.start()
-    return { containerId: container.id, containerName, volumeName }
+    return { containerId: container.id, containerName, volumeName, storagePath }
 }
 
 /**

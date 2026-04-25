@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qaff Admin — مساحات التخزين</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap');
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #090a0f 0%, #16192b 100%);
+            background-attachment: fixed;
+            font-family: 'Cairo', system-ui, sans-serif;
+            color: #e2e8f0;
+        }
+
+        nav {
+            background: rgba(26, 29, 39, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0 24px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        nav h1 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #7c3aed;
+        }
+
+        nav .links a {
+            color: #94a3b8;
+            text-decoration: none;
+            margin-right: 20px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        nav .links a:hover,
+        nav .links a.active {
+            color: #e2e8f0;
+        }
+
+        nav .logout {
+            background: none;
+            border: 1px solid #3d4263;
+            color: #94a3b8;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        nav .logout:hover {
+            color: #f87171;
+            border-color: #f87171;
+        }
+
+        main {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 32px 24px;
+        }
+
+        h2 {
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 32px;
+            color: #f1f5f9;
+        }
+
+        .cards {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .pool-card {
+            background: rgba(30, 33, 48, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .pool-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.6);
+            border-color: rgba(255, 255, 255, 0.1);
+        }
+        
+        .pool-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .pool-icon {
+            font-size: 40px;
+            background: rgba(124, 58, 237, 0.1);
+            color: #a855f7;
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid rgba(124, 58, 237, 0.2);
+        }
+
+        .pool-title {
+            font-size: 22px;
+            font-weight: 800;
+            color: #f8fafc;
+            margin-bottom: 4px;
+        }
+
+        .pool-path {
+            font-size: 14px;
+            color: #94a3b8;
+            font-family: monospace;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+        
+        .pool-stats {
+            display: flex;
+            gap: 40px;
+        }
+        
+        .stat-box {
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 13px;
+            color: #94a3b8;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .stat-val {
+            font-size: 28px;
+            font-weight: 800;
+            color: #e2e8f0;
+        }
+        
+        .stat-val.primary { color: #38bdf8; }
+        .stat-val.success { color: #4ade80; }
+        .stat-val.warning { color: #fbbf24; }
+        .stat-val.danger { color: #f87171; }
+
+        .progress-bar-container {
+            width: 100%;
+            height: 12px;
+            background: #1e2235;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-top: 24px;
+            position: relative;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+
+        .empty-state {
+            text-align: center;
+            font-size: 16px;
+            color: #94a3b8;
+            margin-top: 40px;
+        }
+
+        .clients-count {
+            background: rgba(56, 189, 248, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+            padding: 6px 14px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+    </style>
+</head>
+
+<body>
+    <nav>
+        <h1>🎛️ Qaff Admin</h1>
+        <div class="links">
+            <a href="/">اللوحة الرئيسية</a>
+            <a href="/clients">العملاء</a>
+            <a href="/storage" class="active">مساحات التخزين</a>
+        </div>
+        <button class="logout" onclick="logout()">تسجيل الخروج</button>
+    </nav>
+    <main>
+        <h2>💾 مساحات التخزين (Storage Pools)</h2>
+        <div class="cards" id="pools-container">
+            <div class="empty-state">جاري التحميل...</div>
+        </div>
+    </main>
+
+    <script>
+        const T = () => localStorage.getItem('qaff_admin_token');
+        const H = () => ({ 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + T() });
+
+        if (!T()) location.href = '/login';
+
+        const formatGB = (bytes) => (bytes / 1024 / 1024 / 1024).toFixed(1);
+
+        async function loadPools() {
+            try {
+                const res = await fetch('/api/system/storage-pools', { headers: H() });
+                if (res.status === 401) { location.href = '/login'; return; }
+                const data = await res.json();
+                
+                const container = document.getElementById('pools-container');
+                if (!data.pools || data.pools.length === 0) {
+                    container.innerHTML = '<div class="empty-state">لا يوجد مساحات تخزين متاحة.</div>';
+                    return;
+                }
+
+                container.innerHTML = data.pools.map((p, idx) => {
+                    const totalGB = formatGB(p.total);
+                    const usedGB = formatGB(p.used);
+                    const freeGB = formatGB(p.free);
+                    const percent = p.usagePercent;
+                    
+                    let colorClass = 'success';
+                    let barColor = '#4ade80';
+                    if (percent > 70) { colorClass = 'warning'; barColor = '#fbbf24'; }
+                    if (percent > 90) { colorClass = 'danger'; barColor = '#f87171'; }
+
+                    return `
+                        <div class="pool-card">
+                            <div style="flex: 1;">
+                                <div class="pool-header">
+                                    <div class="pool-icon">${p.isPrimary ? '🖥️' : '💽'}</div>
+                                    <div>
+                                        <div class="pool-title">${p.name}</div>
+                                        <div class="pool-path">${p.path}</div>
+                                    </div>
+                                    <div style="margin-right:auto" class="clients-count">👥 عدد العملاء: ${p.clientCount}</div>
+                                </div>
+                                <div class="progress-bar-container">
+                                    <div class="progress-bar" style="width: ${percent}%; background: ${barColor}"></div>
+                                </div>
+                            </div>
+                            <div class="pool-stats" style="margin-right: 60px;">
+                                <div class="stat-box">
+                                    <div class="stat-label">المستخدم</div>
+                                    <div class="stat-val ${colorClass}">${usedGB} <span style="font-size:14px;color:#64748b">GB</span></div>
+                                </div>
+                                <div class="stat-box">
+                                    <div class="stat-label">المتاح</div>
+                                    <div class="stat-val primary">${freeGB} <span style="font-size:14px;color:#64748b">GB</span></div>
+                                </div>
+                                <div class="stat-box">
+                                    <div class="stat-label">الإجمالي</div>
+                                    <div class="stat-val">${totalGB} <span style="font-size:14px;color:#64748b">GB</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                console.error('Error loading pools:', e);
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('qaff_admin_token');
+            location.href = '/login';
+        }
+
+        loadPools();
+        setInterval(loadPools, 10000);
+    </script>
+</body>
+
+</html>

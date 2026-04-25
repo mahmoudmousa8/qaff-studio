@@ -49,6 +49,18 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(403).json({ error: `Storage limit exceeded (${maxGB}GB). Please delete old videos.` })
     }
 
+    try {
+        const { statfsSync } = require('fs');
+        const stat = statfsSync(VIDEOS_DIR);
+        // stat.bavail = free blocks for unprivileged user, stat.blocks = total blocks
+        const usagePercent = ((Number(stat.blocks) - Number(stat.bavail)) / Number(stat.blocks)) * 100;
+        if (usagePercent >= 90) {
+            return res.status(507).json({ error: 'Server physical storage is over 90% full. Uploads are temporarily paused.' });
+        }
+    } catch (err) {
+        console.error('[upload] Disk usage check failed:', err);
+    }
+
     const contentType = req.headers['content-type'] || ''
     if (!contentType.includes('multipart/form-data')) {
         return res.status(400).json({ error: 'Expected multipart/form-data' })
