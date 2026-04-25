@@ -268,7 +268,10 @@ async function getContainerNetTx(containerId) {
     }
 }
 
+function getDocker() { return docker; }
+
 module.exports = {
+    getDocker,
     imageExists,
     createClientContainer,
     startContainer,

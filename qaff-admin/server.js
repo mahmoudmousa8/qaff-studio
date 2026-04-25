@@ -981,10 +981,12 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
     }
 
     try {
-        const diskusage = require('diskusage');
+        const fs = require('fs');
         const checkPath = targetPool === 'local' ? '/' : targetPool;
-        const info = diskusage.checkSync(checkPath);
-        const usagePercent = ((info.total - info.free) / info.total) * 100;
+        const stat = fs.statfsSync(checkPath);
+        const used = (Number(stat.blocks) - Number(stat.bfree)) * Number(stat.bsize);
+        const total = Number(stat.blocks) * Number(stat.bsize);
+        const usagePercent = (used / total) * 100;
         if (usagePercent >= 90) {
             return res.status(507).json({ error: 'Target Storage Pool is over 90% full. Cannot migrate here.'});
         }
