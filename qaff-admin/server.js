@@ -1098,6 +1098,14 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
         const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
         const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/var/lib/docker/volumes/qaff_vol_${client.id}/_data`;
 
+        let actualBackupPath = client.backup_path;
+        if (actualBackupPath.startsWith('/var/lib/docker/')) {
+            const backupSuffixMatch = actualBackupPath.match(/\.backup_\d+/);
+            if (backupSuffixMatch) {
+                actualBackupPath = localVolumeMountpoint.replace(/\/$/, '') + backupSuffixMatch[0];
+            }
+        }
+
         let destDir = backupIsLocal ? `${localVolumeMountpoint}/` : `${targetPathStr}/`;
 
         if (!backupIsLocal) {
@@ -1105,8 +1113,8 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
             require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
         }
 
-        db.addLog('rollback_started', client.id, `Restoring from ${client.backup_path}`);
-        require('child_process').execSync(`rsync -acv "${client.backup_path}/" "${destDir}"`);
+        db.addLog('rollback_started', client.id, `Restoring from ${actualBackupPath}`);
+        require('child_process').execSync(`rsync -acv "${actualBackupPath}/" "${destDir}"`);
 
         const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
         await docker.deleteClientContainer(client.container_id, null);
@@ -1135,15 +1143,27 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
     }
 });
 
-app.delete('/api/clients/:id/backup', auth.requireAuth, (req, res) => {
+app.delete('/api/clients/:id/backup', auth.requireAuth, async (req, res) => {
     const client = db.getClientById.get(req.params.id);
     if (!client || !client.backup_path) return res.status(404).json({ error: 'No backup found' });
 
     try {
         if (!client.backup_path.includes('.backup_')) throw new Error('Safety guard: invalid backup path format');
-        require('child_process').execSync(`rm -rf "${client.backup_path}"`);
+        
+        let actualBackupPath = client.backup_path;
+        if (actualBackupPath.startsWith('/var/lib/docker/')) {
+            await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
+            const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
+            const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/var/lib/docker/volumes/qaff_vol_${client.id}/_data`;
+            const backupSuffixMatch = actualBackupPath.match(/\.backup_\d+/);
+            if (backupSuffixMatch) {
+                actualBackupPath = localVolumeMountpoint.replace(/\/$/, '') + backupSuffixMatch[0];
+            }
+        }
+
+        require('child_process').execSync(`rm -rf "${actualBackupPath}"`);
         db.updateClientBackupPath.run(null, client.id);
-        db.addLog('backup_deleted', client.id, `Permanently deleted ${client.backup_path}`);
+        db.addLog('backup_deleted', client.id, `Permanently deleted ${actualBackupPath}`);
         res.json({ success: true });
     } catch (err) {
         db.addLog('backup_delete_failed', client.id, err.message);
