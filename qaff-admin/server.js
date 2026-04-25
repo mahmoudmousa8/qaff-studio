@@ -1000,7 +1000,7 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
         // Ensure volume exists to read its TRUE mountpoint
         await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
         const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
-        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/var/lib/docker/volumes/qaff_vol_${client.id}/_data`;
+        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/qaff_vol_${client.id}/_data`;
 
         const srcDir = currentPath === 'local'
             ? `${localVolumeMountpoint}/`
@@ -1096,7 +1096,7 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
         
         await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
         const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
-        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/var/lib/docker/volumes/qaff_vol_${client.id}/_data`;
+        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/qaff_vol_${client.id}/_data`;
 
         let actualBackupPath = client.backup_path;
         if (actualBackupPath.startsWith('/var/lib/docker/')) {
@@ -1154,7 +1154,11 @@ app.delete('/api/clients/:id/backup', auth.requireAuth, async (req, res) => {
         if (actualBackupPath.startsWith('/var/lib/docker/')) {
             await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
             const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
-            const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/var/lib/docker/volumes/qaff_vol_${client.id}/_data`;
+            let localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/qaff_vol_${client.id}/_data`;
+            // If the native Docker API still returns /var/lib/docker but the user moved the physical data root, rewrite the Mountpoint aggressively
+            if (localVolumeMountpoint.startsWith('/var/lib/docker/')) {
+                localVolumeMountpoint = localVolumeMountpoint.replace('/var/lib/docker/', '/mnt/storage/docker/');
+            }
             const backupSuffixMatch = actualBackupPath.match(/\.backup_\d+/);
             if (backupSuffixMatch) {
                 actualBackupPath = localVolumeMountpoint.replace(/\/$/, '') + backupSuffixMatch[0];
