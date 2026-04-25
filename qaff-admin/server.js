@@ -997,19 +997,20 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
     try {
         await docker.stopContainer(client.container_id).catch(() => { });
 
-        const infoDocker = await docker.getDocker().info();
-        const dockerRoot = infoDocker.DockerRootDir;
+        // Ensure volume exists to read its TRUE mountpoint
+        await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
+        const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
+        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/var/lib/docker/volumes/qaff_vol_${client.id}/_data`;
 
         const srcDir = currentPath === 'local'
-            ? `${dockerRoot}/volumes/qaff_vol_${client.id}/_data/`
+            ? `${localVolumeMountpoint}/`
             : `${currentPath}/`;
 
         let targetPathStr = '';
         let destDir = '';
         if (targetPool === 'local') {
-            await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
             targetPathStr = 'local';
-            destDir = `${dockerRoot}/volumes/qaff_vol_${client.id}/_data/`;
+            destDir = `${localVolumeMountpoint}/`;
         } else {
             targetPathStr = `${targetPool}/client_${client.id}`;
             require('fs').mkdirSync(targetPathStr, { recursive: true });
@@ -1089,18 +1090,17 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
     try {
         await docker.stopContainer(client.container_id).catch(() => { });
 
-        const infoDocker = await docker.getDocker().info();
-        const dockerRoot = infoDocker.DockerRootDir;
-
         // Original path depends on where the backup is located
         const backupIsLocal = client.backup_path.includes('/volumes/qaff_vol_');
         const targetPathStr = backupIsLocal ? 'local' : client.backup_path.replace(/\.backup_.+$/, '');
         
-        let destDir = backupIsLocal ? `${dockerRoot}/volumes/qaff_vol_${client.id}/_data/` : `${targetPathStr}/`;
+        await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
+        const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
+        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/var/lib/docker/volumes/qaff_vol_${client.id}/_data`;
 
-        if (backupIsLocal) {
-            await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
-        } else {
+        let destDir = backupIsLocal ? `${localVolumeMountpoint}/` : `${targetPathStr}/`;
+
+        if (!backupIsLocal) {
             require('fs').mkdirSync(targetPathStr, { recursive: true });
             require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
         }
