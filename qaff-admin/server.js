@@ -909,29 +909,54 @@ app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
 
 function getPoolInfo(name, pathStr, isPrimary) {
     try {
-        const diskusage = require('diskusage');
-        const info = diskusage.checkSync(pathStr);
+        const fs = require('fs');
+        // Use native statfsSync (Node 18+) — no external package required
+        const stat = fs.statfsSync(pathStr);
+        const blockSize = Number(stat.bsize);
+        const total = Number(stat.blocks) * blockSize;
+        const free  = Number(stat.bfree)  * blockSize;
+        const available = Number(stat.bavail) * blockSize;
+        const used  = total - free;
         return {
             name,
             path: pathStr,
             isPrimary,
-            total: info.total,
-            free: info.free,
-            available: info.available,
-            used: info.total - info.free,
-            usagePercent: Math.round(((info.total - info.free) / info.total) * 100)
+            total,
+            free,
+            available,
+            used,
+            usagePercent: Math.round((used / total) * 100)
         }
-    } catch (e) { return null }
+    } catch (e) {
+        console.error('[getPoolInfo] error for path', pathStr, e.message);
+        return null;
+    }
 }
 
 app.get('/api/system/storage-pools', auth.requireAuth, (req, res) => {
+    const fs = require('fs');
     const pools = [];
+
+    // Primary pool — always present
     const p1 = getPoolInfo('Primary Disk', '/', true);
     if (p1) pools.push(p1);
 
-    if (require('fs').existsSync('/mnt/storage/qaff-data')) {
-        const p2 = getPoolInfo('Secondary Disk', '/mnt/storage/qaff-data', false);
-        if (p2) pools.push(p2);
+    // Secondary pool — detect /mnt/storage (mounted extra disk)
+    const secondaryRoot = '/mnt/storage';
+    const secondaryData = `${secondaryRoot}/qaff-data`;
+    if (fs.existsSync(secondaryRoot)) {
+        // Auto-create qaff-data dir if missing
+        if (!fs.existsSync(secondaryData)) {
+            try { fs.mkdirSync(secondaryData, { recursive: true }); } catch (_) {}
+        }
+        // Only add if it's a real separate filesystem (different device from /)
+        const rootStat  = fs.statfsSync('/');
+        const mntStat   = fs.statfsSync(secondaryRoot);
+        // If blocks or fsid differ, it's a separate mount
+        if (Number(mntStat.blocks) !== Number(rootStat.blocks)) {
+            const p2 = getPoolInfo('Secondary Disk (/mnt/storage)', secondaryData, false);
+            if (p2) pools.push(p2);
+        }
     }
 
     const clients = db.getAllClients.all();
