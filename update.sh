@@ -153,7 +153,41 @@ else
     echo -e "  ${YELLOW}deploy.sh not found. Could not automatically restart main app.${NC}"
 fi
 
-# Reload admin panel safely
+
+# ── Auto-mount additional disk if present and not yet mounted ──
+EXTRA_DISK=""
+for DEV in /dev/sdb /dev/sdc /dev/vdb /dev/vdc; do
+  if [ -b "$DEV" ] && ! lsblk -no MOUNTPOINT "$DEV" | grep -q '/'; then
+    EXTRA_DISK="$DEV"
+    break
+  fi
+done
+if [ -n "$EXTRA_DISK" ]; then
+  MOUNT_POINT="/mnt/storage"
+  FSTYPE=$(blkid -o value -s TYPE "$EXTRA_DISK" 2>/dev/null || echo "")
+  [ -z "$FSTYPE" ] && sudo mkfs.ext4 -F "$EXTRA_DISK"
+  sudo mkdir -p "$MOUNT_POINT"
+  sudo mount "$EXTRA_DISK" "$MOUNT_POINT" 2>/dev/null || true
+  DISK_UUID=$(blkid -s UUID -o value "$EXTRA_DISK")
+  if [ -n "$DISK_UUID" ] && ! grep -q "$DISK_UUID" /etc/fstab; then
+    echo "UUID=${DISK_UUID}  ${MOUNT_POINT}  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab > /dev/null
+  fi
+  sudo mkdir -p "${MOUNT_POINT}/qaff-data"
+  sudo chown -R "$(whoami):$(whoami)" "${MOUNT_POINT}/qaff-data"
+  echo -e "  ✅ Extra disk mounted at ${MOUNT_POINT}"
+fi
+
+# ── Admin Panel: strictly on port 4000 via PM2 ──────────────────
+echo -e "  Restarting Admin Panel on port 4000..."
+
+# Kill ANYTHING on port 4000 first (safety guard — no other process allowed there)
+PORT4000_PID=$(lsof -ti:4000 2>/dev/null || true)
+if [ -n "$PORT4000_PID" ]; then
+    echo "  Killing stale process(es) on port 4000: $PORT4000_PID"
+    kill -9 $PORT4000_PID 2>/dev/null || true
+    sleep 1
+fi
+
 if sudo pm2 show qaff-admin &>/dev/null; then
     sudo pm2 reload qaff-admin --update-env 2>/dev/null || sudo pm2 restart qaff-admin 2>/dev/null || true
 else
@@ -161,6 +195,11 @@ else
     sudo pm2 start server.js --name "qaff-admin" 2>/dev/null || true
     cd "$PROJECT_DIR"
 fi
+
+# Ensure PM2 survives reboots
+PM2_STARTUP_CMD=$(sudo pm2 startup systemd -u root --hp /root 2>/dev/null | grep "sudo env" | grep -v "^\[" || true)
+if [ -n "$PM2_STARTUP_CMD" ]; then eval "$PM2_STARTUP_CMD" 2>/dev/null || true; fi
+
 
 sudo pm2 save 2>/dev/null || true
 

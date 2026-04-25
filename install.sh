@@ -321,15 +321,79 @@ sudo npm install --production 2>&1 | tail -3
 echo -e "  ✅ Admin panel dependencies installed"
 echo -e "  ✅ Admin panel ready at /opt/qaff-admin"
 
+
 # ════════════════════════════════════════════
-# Start Admin Panel via PM2
+# Auto-mount additional disk (e.g. /dev/sdb) if present and not yet mounted
+# ════════════════════════════════════════════
+echo -e "\n${CYAN}[DISK] Checking for additional disks to auto-mount...${NC}"
+EXTRA_DISK=""
+for DEV in /dev/sdb /dev/sdc /dev/vdb /dev/vdc; do
+  if [ -b "$DEV" ] && ! lsblk -no MOUNTPOINT "$DEV" | grep -q '/'; then
+    EXTRA_DISK="$DEV"
+    break
+  fi
+done
+
+if [ -n "$EXTRA_DISK" ]; then
+  MOUNT_POINT="/mnt/storage"
+  echo -e "  Found extra disk: ${EXTRA_DISK}. Mounting at ${MOUNT_POINT}..."
+
+  # Format only if no filesystem found
+  FSTYPE=$(blkid -o value -s TYPE "$EXTRA_DISK" 2>/dev/null || echo "")
+  if [ -z "$FSTYPE" ]; then
+    echo "  No filesystem found — formatting as ext4..."
+    sudo mkfs.ext4 -F "$EXTRA_DISK"
+  else
+    echo "  Existing filesystem: ${FSTYPE} — skipping format."
+  fi
+
+  sudo mkdir -p "$MOUNT_POINT"
+  sudo mount "$EXTRA_DISK" "$MOUNT_POINT" 2>/dev/null || true
+
+  # Add to /etc/fstab for permanent mount on every reboot (if not already there)
+  DISK_UUID=$(blkid -s UUID -o value "$EXTRA_DISK")
+  if [ -n "$DISK_UUID" ] && ! grep -q "$DISK_UUID" /etc/fstab; then
+    echo "UUID=${DISK_UUID}  ${MOUNT_POINT}  ext4  defaults,nofail  0  2" | sudo tee -a /etc/fstab > /dev/null
+    echo "  ✅ Added disk UUID=${DISK_UUID} to /etc/fstab (permanent mount)."
+  fi
+
+  # Symlink docker volumes and videos storage to the extra disk
+  sudo mkdir -p "${MOUNT_POINT}/qaff-data"
+  sudo chown -R "$(whoami):$(whoami)" "${MOUNT_POINT}/qaff-data"
+  echo "  ✅ Extra disk ready at ${MOUNT_POINT}. Use ${MOUNT_POINT}/qaff-data for client volumes."
+else
+  echo "  No unmounted extra disk found — using primary disk."
+fi
+
+# ════════════════════════════════════════════
+# Start Admin Panel via PM2 (Port 4000 — strictly enforced)
 # ════════════════════════════════════════════
 cd "$ADMIN_DIR"
-echo -e "\n${GREEN}Starting Admin Panel via PM2...${NC}"
+echo -e "\n${GREEN}Starting Admin Panel via PM2 on port 4000...${NC}"
+
+# Kill ANYTHING currently using port 4000 (safety guard)
+echo "  Clearing port 4000 if occupied..."
+PORT4000_PID=$(lsof -ti:4000 2>/dev/null || true)
+if [ -n "$PORT4000_PID" ]; then
+  echo "  Killing process(es) on port 4000: $PORT4000_PID"
+  kill -9 $PORT4000_PID 2>/dev/null || true
+  sleep 1
+fi
+
+# Remove any stale PM2 entry and start fresh
 sudo pm2 delete qaff-admin 2>/dev/null || true
-sudo pm2 start server.js --name "qaff-admin" 2>/dev/null || true
+sudo pm2 start server.js --name "qaff-admin" 2>/dev/null
 sudo pm2 save 2>/dev/null || true
-echo -e "  ✅ Admin panel started on port 4000"
+
+# Ensure PM2 auto-starts on every server reboot
+echo "  Configuring PM2 auto-start on boot..."
+PM2_STARTUP_CMD=$(sudo pm2 startup systemd -u root --hp /root 2>/dev/null | grep "sudo env" | grep -v "^\[" || true)
+if [ -n "$PM2_STARTUP_CMD" ]; then
+  eval "$PM2_STARTUP_CMD" 2>/dev/null || true
+fi
+sudo pm2 save --force 2>/dev/null || true
+echo -e "  ✅ Admin panel started on port 4000 (auto-restarts on reboot)"
+
 # ════════════════════════════════════════════
 # 10. Disable Auto-Updates & Reboots
 # ════════════════════════════════════════════
