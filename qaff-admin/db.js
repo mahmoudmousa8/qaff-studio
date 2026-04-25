@@ -163,7 +163,7 @@ module.exports = {
   getAllClients, getClientById, getClientByPort,
   createClient, updateClientStatus, updateClientContainer,
   updateClientSlots, updateClientInfo, updateClientSecurity, updateClientPassword,
-  updateClientResetAnswer, updateClientStorage, updateClientBandwidth, updateClientLockout, deleteClient,
+  updateClientResetAnswer, updateClientStorage, updateClientStoragePath, updateClientBandwidth, updateClientLockout, deleteClient,
   getNextAvailablePort,
   addLog, getLogs,
   getSettingValue, upsertSetting,
