@@ -33,8 +33,14 @@ export const config = {
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
     // Disable socket timeout — large uploads can take many minutes
     if (req.socket) {
-        req.socket.setTimeout(0)
-        req.socket.setKeepAlive(true, 5000)
+        req.socket.setTimeout(0);
+        req.socket.setKeepAlive(true, 5000);
+        if ((req.socket as any).server) {
+            (req.socket as any).server.requestTimeout = 0;
+            (req.socket as any).server.headersTimeout = 0;
+            (req.socket as any).server.timeout = 0;
+            (req.socket as any).server.keepAliveTimeout = 0;
+        }
     }
 
     if (req.method !== 'POST') {
