@@ -1014,7 +1014,6 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
         } else {
             targetPathStr = `${targetPool}/client_${client.id}`;
             require('fs').mkdirSync(targetPathStr, { recursive: true });
-            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
             destDir = `${targetPathStr}/`;
         }
 
@@ -1022,6 +1021,11 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
 
         // Safe trailing slashes for rsync
         require('child_process').execSync(`rsync -acv "${srcDir}" "${destDir}"`);
+
+        // Post-rsync hard permissions to prevent EACCES in custom bind mounts
+        if (targetPool !== 'local') {
+            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
+        }
 
         // Backup old dir
         const srcNoSlash = srcDir.replace(/\/$/, '');
@@ -1110,11 +1114,14 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
 
         if (!backupIsLocal) {
             require('fs').mkdirSync(targetPathStr, { recursive: true });
-            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
         }
 
         db.addLog('rollback_started', client.id, `Restoring from ${actualBackupPath}`);
         require('child_process').execSync(`rsync -acv "${actualBackupPath}/" "${destDir}"`);
+
+        if (!backupIsLocal) {
+            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
+        }
 
         const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
         await docker.deleteClientContainer(client.container_id, null);
@@ -1229,6 +1236,49 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
         }
     }, 100)
 })
+
+// ── Automated Backup Cleanup Daemon ─────────────────────────
+// Runs every 10 minutes to clean up backups strictly older than 30 minutes
+setInterval(async () => {
+    try {
+        const clients = db.getAllClients.all();
+        const now = Date.now();
+        const MAX_AGE_MS = 30 * 60 * 1000; // 30 mins
+
+        for (const client of clients) {
+            if (!client.backup_path) continue;
+
+            const backupSuffixMatch = client.backup_path.match(/\.backup_(\d+)/);
+            if (!backupSuffixMatch) continue;
+
+            const backupTimestamp = parseInt(backupSuffixMatch[1], 10);
+            if (isNaN(backupTimestamp)) continue;
+
+            if (now - backupTimestamp > MAX_AGE_MS) {
+                try {
+                    let actualBackupPath = client.backup_path;
+                    if (actualBackupPath.startsWith('/var/lib/docker/')) {
+                        await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
+                        const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
+                        let localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/qaff_vol_${client.id}/_data`;
+                        if (localVolumeMountpoint.startsWith('/var/lib/docker/')) {
+                            localVolumeMountpoint = localVolumeMountpoint.replace('/var/lib/docker/', '/mnt/storage/docker/');
+                        }
+                        actualBackupPath = localVolumeMountpoint.replace(/\/$/, '') + backupSuffixMatch[0];
+                    }
+
+                    require('child_process').execSync(`rm -rf "${actualBackupPath}"`);
+                    db.updateClientBackupPath.run(null, client.id);
+                    db.addLog('backup_deleted_auto', client.id, `Auto-cleaned expired backup after 30 mins: ${actualBackupPath}`);
+                } catch (err) {
+                    console.error(`[cleanup] Failed to auto-delete backup for client ${client.id}:`, err.message);
+                }
+            }
+        }
+    } catch (err) {
+        console.error('[cleanup] Daemon failure:', err);
+    }
+}, 10 * 60 * 1000); // Check every 10 mins
 
 // ── Start ──────────────────────────────────────────────────
 async function start() {
