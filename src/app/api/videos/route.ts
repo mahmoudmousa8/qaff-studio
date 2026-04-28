@@ -14,7 +14,7 @@ export async function GET() {
     const allowedExtensions = ['.mp4']
 
     const videos = files
-      .filter(f => allowedExtensions.includes(path.extname(f).toLowerCase()))
+      .filter(f => !f.startsWith('.') && allowedExtensions.includes(path.extname(f).toLowerCase()))
       .map(f => {
         const filePath = path.join(VIDEOS_DIR, f)
         const stats = statSync(filePath)

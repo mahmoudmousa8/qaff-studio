@@ -225,6 +225,10 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
     // -g 60 -keyint_min 60 -sc_threshold 0
     // -c:a aac -b:a 128k -ar 44100 -ac 2
     
+    // Output to a temporary file inside the same directory as input
+    const processingOutputDir = path.dirname(inputPath)
+    const tempOutputPath = path.join(processingOutputDir, `transcoded_${path.basename(outputPath)}`)
+
     const ffmpegArgs = [
         '-y',
         '-i', inputPath,
@@ -242,7 +246,7 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         '-b:a', '128k',
         '-ar', '44100',
         '-ac', '2',
-        outputPath
+        tempOutputPath
     ]
 
     const ffmpegProc = spawn('nice', ['-n', '10', FFMPEG_PATH, ...ffmpegArgs])
@@ -276,6 +280,10 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
             job.state = 'done'
             job.progress = 100
             console.log(`[transcode] Job ${jobId} finished successfully`)
+            // Move temp output to final output path
+            try { if (existsSync(tempOutputPath)) renameSync(tempOutputPath, outputPath) } catch (e) {
+                console.error(`[transcode] Failed to move transcoded file for job ${jobId}:`, e)
+            }
             // Cleanup input file
             try { if (existsSync(inputPath)) unlinkSync(inputPath) } catch {}
         } else {
@@ -283,7 +291,7 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
             job.error = `FFmpeg exited with code ${code}`
             console.error(`[transcode] Job ${jobId} failed`)
             // Cleanup output file on failure
-            try { if (existsSync(outputPath)) unlinkSync(outputPath) } catch {}
+            try { if (existsSync(tempOutputPath)) unlinkSync(tempOutputPath) } catch {}
         }
         jobStore.set(jobId, job)
         

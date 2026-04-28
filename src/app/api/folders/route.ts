@@ -32,6 +32,8 @@ function getAllFoldersRecursive(dir: string, basePath: string = ''): { path: str
   const items = readdirSync(dir)
 
   for (const item of items) {
+    if (item.startsWith('.')) continue;
+
     const itemPath = path.join(dir, item)
     const stats = statSync(itemPath)
 
@@ -108,6 +110,8 @@ export async function GET(request: NextRequest) {
     const allowedExtensions = ['.mp4']
 
     for (const item of items) {
+      if (item.startsWith('.')) continue;
+
       const itemPath = path.join(resolvedPath, item)
       const stats = statSync(itemPath)
 
