@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { createWriteStream, existsSync, unlinkSync, mkdirSync, statSync, readdirSync } from 'fs'
+import { createWriteStream, existsSync, unlinkSync, mkdirSync, statSync, readdirSync, renameSync } from 'fs'
 import path from 'path'
 import Busboy from 'busboy'
 import { VIDEOS_DIR } from '@/lib/paths'

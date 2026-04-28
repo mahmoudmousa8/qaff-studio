@@ -146,6 +146,17 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
         return { allowed: false, reason: `مرفوض: الفيديو بنظام الإطارات المتغيرة (VFR) يجب أن يكون (CFR) | Rejected: Variable Frame Rate (VFR) detected, must be CFR` }
     }
 
+    // Resolution check (max 1080p)
+    if (probe.width > 1920 || probe.height > 1080) {
+        return { allowed: false, reason: `مرفوض: الدقة أعلى من 1080p (${probe.width}x${probe.height}) | Rejected: Resolution exceeds 1080p (${probe.width}x${probe.height})` }
+    }
+
+    // Bitrate range check (approx 2000k ± 500k)
+    const bitrateK = probe.bitrate / 1000
+    if (bitrateK < 1500 || bitrateK > 2500) {
+        return { allowed: false, reason: `مرفوض: معدل البت (${Math.round(bitrateK)}k) خارج النطاق 1500-2500k | Rejected: Bitrate (${Math.round(bitrateK)}k) out of allowed 1500-2500k` }
+    }
+
     // GOP Check
     if (probe.maxGopSeconds > 4.5) { // 4.5 gives minor leniency for encoder variations
         return { allowed: false, reason: `مرفوض: المسافة بين الإطارات المفتاحية (GOP) أكبر من 4 ثوانٍ | Rejected: Keyframe interval (GOP) exceeds 4 seconds` }
@@ -249,7 +260,7 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         tempOutputPath
     ]
 
-    const ffmpegProc = spawn('nice', ['-n', '10', FFMPEG_PATH, ...ffmpegArgs])
+    const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', '2', ...ffmpegArgs])
 
     ffmpegProc.stderr.on('data', (data) => {
         const out = data.toString()
