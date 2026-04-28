@@ -1,6 +1,7 @@
 import { spawn, execSync } from 'child_process'
 import { renameSync, unlinkSync, existsSync } from 'fs'
 import path from 'path'
+import { randomUUID } from 'crypto'
 
 // Helper to find tool paths
 function findTool(name: string): string {
@@ -173,4 +174,124 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
     // However, since it's hard to explicitly verify strict CBR via ffprobe without parsing all packets, we assume it's CBR if the user provided specific settings.
     
     return { allowed: true }
+}
+
+export type JobState = 'processing' | 'done' | 'error'
+
+export interface JobStatus {
+    id: string
+    state: JobState
+    progress: number
+    error?: string
+    outputPath?: string
+    originalFilename?: string
+}
+
+// In-memory store for active transcoding jobs
+export const jobStore = new Map<string, JobStatus>()
+
+export function getJobStatus(jobId: string): JobStatus | undefined {
+    return jobStore.get(jobId)
+}
+
+export function transcodeVideo(inputPath: string, outputPath: string, originalFilename: string): string {
+    const jobId = randomUUID()
+    
+    jobStore.set(jobId, {
+        id: jobId,
+        state: 'processing',
+        progress: 0,
+        originalFilename,
+        outputPath
+    })
+
+    // Determine duration to calculate progress
+    let durationSec = 0
+    try {
+        const durationStr = execSync(`"${FFPROBE_PATH}" -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf-8' })
+        durationSec = parseFloat(durationStr.trim())
+    } catch (e) {
+        console.warn(`[transcode] Could not determine duration for ${inputPath}`)
+    }
+
+    // Run nice -n 10 ffmpeg ...
+    // -y: overwrite
+    // -i: input
+    // -vf scale: max 1080p, preserve aspect ratio
+    // -c:v libx264
+    // -preset faster
+    // -r 30 -vsync cfr (or -fps_mode cfr in newer ffmpeg)
+    // -b:v 2000k -maxrate 2500k -bufsize 5000k
+    // -g 60 -keyint_min 60 -sc_threshold 0
+    // -c:a aac -b:a 128k -ar 44100 -ac 2
+    
+    const ffmpegArgs = [
+        '-y',
+        '-i', inputPath,
+        '-vf', 'scale=min(1920,iw):-2',
+        '-c:v', 'libx264',
+        '-preset', 'faster',
+        '-r', '30',
+        '-b:v', '2000k',
+        '-maxrate', '2500k',
+        '-bufsize', '5000k',
+        '-g', '60',
+        '-keyint_min', '60',
+        '-sc_threshold', '0',
+        '-c:a', 'aac',
+        '-b:a', '128k',
+        '-ar', '44100',
+        '-ac', '2',
+        outputPath
+    ]
+
+    const ffmpegProc = spawn('nice', ['-n', '10', FFMPEG_PATH, ...ffmpegArgs])
+
+    ffmpegProc.stderr.on('data', (data) => {
+        const out = data.toString()
+        // Extract time=hh:mm:ss.ms
+        const timeMatch = out.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d{2})/)
+        if (timeMatch && durationSec > 0) {
+            const h = parseInt(timeMatch[1], 10)
+            const m = parseInt(timeMatch[2], 10)
+            const s = parseFloat(timeMatch[3])
+            const currentSec = (h * 3600) + (m * 60) + s
+            
+            let progress = Math.round((currentSec / durationSec) * 100)
+            if (progress > 99) progress = 99
+            
+            const job = jobStore.get(jobId)
+            if (job) {
+                job.progress = progress
+                jobStore.set(jobId, job)
+            }
+        }
+    })
+
+    ffmpegProc.on('close', (code) => {
+        const job = jobStore.get(jobId)
+        if (!job) return
+
+        if (code === 0) {
+            job.state = 'done'
+            job.progress = 100
+            console.log(`[transcode] Job ${jobId} finished successfully`)
+            // Cleanup input file
+            try { if (existsSync(inputPath)) unlinkSync(inputPath) } catch {}
+        } else {
+            job.state = 'error'
+            job.error = `FFmpeg exited with code ${code}`
+            console.error(`[transcode] Job ${jobId} failed`)
+            // Cleanup output file on failure
+            try { if (existsSync(outputPath)) unlinkSync(outputPath) } catch {}
+        }
+        jobStore.set(jobId, job)
+        
+        // Remove job from store after 5 minutes
+        setTimeout(() => {
+            jobStore.delete(jobId)
+        }, 5 * 60 * 1000)
+    })
+
+    return jobId
 }

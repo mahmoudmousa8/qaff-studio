@@ -58,8 +58,9 @@ interface Transfer {
   progress: number // 0-100
   speedFormatted: string
   etaSec: number | null
-  status: 'active' | 'complete' | 'error' | 'cancelled'
+  status: 'active' | 'processing' | 'complete' | 'error' | 'cancelled'
   error?: string
+  jobId?: string // for processing state
   xhr?: XMLHttpRequest // upload only
   downloadId?: string // download only
 }
@@ -100,6 +101,35 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
   const removeTransfer = useCallback((id: string) => {
     setTransfers(prev => prev.filter(t => t.id !== id))
   }, [])
+
+  // Poll for processing status
+  useEffect(() => {
+    const processingTransfers = transfers.filter(t => t.status === 'processing' && t.jobId)
+    if (processingTransfers.length === 0) return
+
+    const interval = setInterval(() => {
+      processingTransfers.forEach(async (tr) => {
+        try {
+          const res = await fetch(`/api/transcode/status?jobId=${tr.jobId}`)
+          if (!res.ok) return
+          const data = await res.json()
+          if (data.state === 'done') {
+            upsertTransfer(tr.id, { status: 'complete', progress: 100 })
+            setTimeout(() => removeTransfer(tr.id), 8000)
+            loadVideos(currentFolder)
+          } else if (data.state === 'error') {
+            upsertTransfer(tr.id, { status: 'error', error: data.error || 'Transcode failed' })
+          } else if (data.state === 'processing') {
+            upsertTransfer(tr.id, { progress: data.progress })
+          }
+        } catch (e) {
+          // ignore network errors during poll
+        }
+      })
+    }, 2000)
+
+    return () => clearInterval(interval)
+  }, [transfers, upsertTransfer, removeTransfer, currentFolder])
 
   // Dialog states
   const [renameDialog, setRenameDialog] = useState<{ item: VideoFile | FolderItem; isFolder: boolean } | null>(null)
@@ -302,7 +332,9 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
         if (xhr.status === 200) {
           try {
             const data = JSON.parse(xhr.responseText)
-            if (data.success) {
+            if (data.processing) {
+              upsertTransfer(id, { status: 'processing', progress: 0, jobId: data.jobId })
+            } else if (data.success) {
               upsertTransfer(id, { status: 'complete', progress: 100 })
               setTimeout(() => removeTransfer(id), 8000)
             } else {
@@ -676,7 +708,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
               <div key={tr.id} className="px-3 py-2">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-lg shrink-0">
-                    {tr.type === 'upload' ? '📤' : '⬇️'}
+                    {tr.status === 'processing' ? '⚙️' : tr.type === 'upload' ? '📤' : '⬇️'}
                   </span>
                   <span className="text-xs font-medium truncate flex-1" dir="auto" title={tr.name}>
                     {tr.name}
@@ -689,6 +721,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                     </span>
                   )}
                   {/* Status badge */}
+                  {tr.status === 'processing' && <span className="text-xs text-orange-500 font-medium shrink-0 animate-pulse">جاري التحويل... {tr.progress}%</span>}
                   {tr.status === 'complete' && <span className="text-xs text-green-500 font-medium shrink-0">✓ Done</span>}
                   {tr.status === 'error' && <span className="text-xs text-red-500 font-medium shrink-0 truncate max-w-[300px]" title={tr.error}>✗ {tr.error}</span>}
                   {/* Cancel / Dismiss */}

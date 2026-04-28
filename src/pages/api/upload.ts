@@ -221,9 +221,27 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
                     const processor = await import('@/lib/video-processor')
                     const check = await processor.validateVideoFile(filepath)
                     if (!check.allowed) {
-                        try { unlinkSync(filepath) } catch { }
-                        sendError(400, check.reason || 'Invalid video file format or bitrate')
-                        return
+                        // Instead of failing, trigger transcode!
+                        console.log(`[upload] File ${originalName} rejected by validation, triggering auto-transcode...`)
+                        const processingDir = path.join(VIDEOS_DIR, '.processing')
+                        if (!existsSync(processingDir)) {
+                            mkdirSync(processingDir, { recursive: true })
+                        }
+                        
+                        // Move to processing dir to hide from main video list
+                        const tempPath = path.join(processingDir, finalFilename)
+                        renameSync(filepath, tempPath)
+                        
+                        const jobId = processor.transcodeVideo(tempPath, filepath, originalName)
+                        
+                        if (responded) return
+                        responded = true
+                        return res.status(200).json({
+                            success: true,
+                            processing: true,
+                            jobId,
+                            message: 'Video is being transcoded to match streaming requirements'
+                        })
                     }
                     sendSuccess()
                 } catch (e) {
