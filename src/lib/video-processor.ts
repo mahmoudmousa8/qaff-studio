@@ -208,6 +208,7 @@ export function getJobStatus(jobId: string): JobStatus | undefined {
 export function transcodeVideo(inputPath: string, outputPath: string, originalFilename: string): string {
     const jobId = randomUUID()
     
+    console.log(`[transcode] Starting job ${jobId} – input: ${inputPath}, output: ${outputPath}`)
     jobStore.set(jobId, {
         id: jobId,
         state: 'processing',
@@ -235,7 +236,6 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
     // -b:v 2000k -maxrate 2500k -bufsize 5000k
     // -g 60 -keyint_min 60 -sc_threshold 0
     // -c:a aac -b:a 128k -ar 44100 -ac 2
-    
     // Output to a temporary file inside the same directory as input
     const processingOutputDir = path.dirname(inputPath)
     const tempOutputPath = path.join(processingOutputDir, `transcoded_${path.basename(outputPath)}`)
@@ -243,7 +243,7 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
     const ffmpegArgs = [
         '-y',
         '-i', inputPath,
-        '-vf', 'scale=min(1920,iw):-2',
+        '-vf', 'scale=min(1920\\,iw):-2',
         '-c:v', 'libx264',
         '-preset', 'faster',
         '-r', '30',
@@ -261,6 +261,35 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
     ]
 
     const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', '2', ...ffmpegArgs])
+
+    ffmpegProc.on('error', (err) => {
+        console.error(`[transcode] Spawn error for job ${jobId}:`, err)
+        errorLog += `\nSpawn error: ${err.message}`
+    })
+
+    ffmpegProc.stdout.on('data', (data) => {
+        console.log(`[transcode][${jobId}] stdout: ${data.toString().trim()}`)
+    })
+    ffmpegProc.stderr.on('data', (data) => {
+        const out = data.toString()
+        // Extract time=hh:mm:ss.ms
+        const timeMatch = out.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d{2})/)
+        if (timeMatch && durationSec > 0) {
+            const h = parseInt(timeMatch[1], 10)
+            const m = parseInt(timeMatch[2], 10)
+            const s = parseFloat(timeMatch[3])
+            const currentSec = (h * 3600) + (m * 60) + s
+            
+            let progress = Math.round((currentSec / durationSec) * 100)
+            if (progress > 99) progress = 99
+            
+            const job = jobStore.get(jobId)
+            if (job) {
+                job.progress = progress
+                jobStore.set(jobId, job)
+            }
+        }
+    })
 
     ffmpegProc.stderr.on('data', (data) => {
         const out = data.toString()
@@ -288,19 +317,23 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         if (!job) return
 
         if (code === 0) {
-            job.state = 'done'
-            job.progress = 100
-            console.log(`[transcode] Job ${jobId} finished successfully`)
+            job.state = 'done';
+            job.progress = 100;
+            console.log(`[transcode] Job ${jobId} finished successfully`);
+            // Ensure target directory exists
+            try { mkdirSync(path.dirname(outputPath), { recursive: true }); } catch {}
             // Move temp output to final output path
-            try { if (existsSync(tempOutputPath)) renameSync(tempOutputPath, outputPath) } catch (e) {
-                console.error(`[transcode] Failed to move transcoded file for job ${jobId}:`, e)
+            try { if (existsSync(tempOutputPath)) renameSync(tempOutputPath, outputPath); } catch (e) {
+                console.error(`[transcode] Failed to move transcoded file for job ${jobId}:`, e);
+                job.error = e.message;
+                job.state = 'error';
             }
             // Cleanup input file
-            try { if (existsSync(inputPath)) unlinkSync(inputPath) } catch {}
+            try { if (existsSync(inputPath)) unlinkSync(inputPath); } catch {}
         } else {
-            job.state = 'error'
-            job.error = `FFmpeg exited with code ${code}`
-            console.error(`[transcode] Job ${jobId} failed`)
+            job.state = 'error';
+            job.error = errorLog || `FFmpeg exited with code ${code}`;
+            console.error(`[transcode] Job ${jobId} failed`);
             // Cleanup output file on failure
             try { if (existsSync(tempOutputPath)) unlinkSync(tempOutputPath) } catch {}
         }
