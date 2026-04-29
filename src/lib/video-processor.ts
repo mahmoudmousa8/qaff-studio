@@ -497,3 +497,14 @@ if (typeof window === 'undefined') {
         }
     }, 60 * 60 * 1000) // Every 1 hour
 }
+
+export function getJobsByFolder(folder: string = ''): JobStatus[] {
+    const jobs: JobStatus[] = []
+    for (const job of jobStore.values()) {
+        const jobFolder = job.folder || ''
+        if (jobFolder === folder) {
+            jobs.push(job)
+        }
+    }
+    return jobs
+}
