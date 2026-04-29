@@ -101,7 +101,7 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, b
             PortBindings: {
                 '3000/tcp': [{ HostPort: String(port) }],
             },
-            Binds: [bindString],
+            Binds: binds,
             // Needed to execute 'tc' Linux traffic control
             CapAdd: ['NET_ADMIN'],
             // Enhance the kernel TCP stream sockets for huge concurrency loads inside the container isolated namespace
