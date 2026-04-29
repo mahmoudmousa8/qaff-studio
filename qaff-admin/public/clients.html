@@ -7,7 +7,7 @@
     <title>Qaff Admin — إدارة العملاء</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" type="text/css" href="https://npmcdn.com/flatpickr/dist/themes/dark.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
     <style>
         :root {
             --bg-dark: #09090b;
@@ -373,6 +373,34 @@
             background: transparent;
             color: #ef4444;
             border: 1px dashed rgba(239, 68, 68, 0.4);
+        }
+
+        /* Dropdown Styles */
+        .actions-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .actions-dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #1e293b;
+            min-width: 150px;
+            box-shadow: 0px 10px 20px rgba(0,0,0,0.5);
+            z-index: 100;
+            border-radius: 8px;
+            right: 0;
+            top: 100%;
+            padding: 8px;
+            border: 1px solid #334155;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .actions-dropdown:hover .actions-dropdown-content {
+            display: flex;
+        }
+        .actions-dropdown-content button {
+            width: 100%;
+            text-align: right;
         }
 
         .btn-delete:hover {
@@ -986,40 +1014,52 @@
                     }
                 }
 
-                const btns = []
-                if (c.status === 'stopped') btns.push(`<button class="btn-sm btn-start" onclick="action(${c.id},'start')">▶ تشغيل</button>`)
-                if (c.status === 'running') btns.push(`<button class="btn-sm btn-stop" onclick="action(${c.id},'stop')">⏸ إيقاف</button>`)
-                if (c.status === 'running') btns.push(`<button class="btn-sm btn-suspend" onclick="action(${c.id},'suspend')">🚫 تعليق</button>`)
-                if (c.status === 'suspended') btns.push(`<button class="btn-sm btn-resume" onclick="action(${c.id},'resume')">▶ استئناف</button>`)
-                btns.push(`<button class="btn-sm btn-pass" onclick="openPassModal(${c.id},'${c.password || ''}')">🔑 كلمة السر</button>`)
-                btns.push(`<button class="btn-sm btn-code" onclick="openCodeModal(${c.id},'${c.reset_answer || ''}')">🛡️ رمز الأمان</button>`)
-                btns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ عدد البثوث</button>`)
-                btns.push(`<button class="btn-sm btn-slots" onclick="openStorageModal(${c.id},${c.storage_gb})">✏️ المساحة</button>`)
-                btns.push(`<button class="btn-sm btn-slots" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})">✏️ السرعة</button>`)
-
-                if (c.storage_offline || (c.storage_path && c.storage_path !== 'local')) {
-                    btns.push(`<button class="btn-sm" style="background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.2);" onclick="migratePrimary(${c.id}, '${c.name}')">💾 نقل للأساسي</button>`)
-                }
-                // Escape simple quotes for name when passing to openInfoModal
-                const safeNameForInfo = (c.name || '').replace(/'/g, "\\'")
-                btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${safeNameForInfo}','${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
-
-                btns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${c.name}')">🗑 حذف</button>`)
-
                 const currentPathForMigrate = ((!c.storage_path || c.storage_path === 'local') && c.volume_name) ? '/mnt/storage/qaff-data' : (c.storage_path || 'local');
-                btns.push(`<button class="btn-sm" style="background:#0ea5e9;color:#fff;" onclick="openMigrateModal(${c.id},'${currentPathForMigrate}')">🚚 مساحة التخزين</button>`)
-                
-                if (c.backup_path) {
-                    btns.push(`<button class="btn-sm" style="background:#f59e0b;color:#fff;" onclick="action(${c.id},'rollback')">🔄 استرجاع Backup</button>`);
-                    btns.push(`<button class="btn-sm" style="background:#dc2626;color:#fff;" onclick="action(${c.id},'backup')">🗑 حذف الـ Backup نهائياً</button>`);
-                }
 
-                // Escape simple quotes for the copy info
+                const primaryBtns = []
+                const menuBtns = []
+
+                if (c.status === 'stopped') primaryBtns.push(`<button class="btn-sm btn-start" onclick="action(${c.id},'start')">▶ تشغيل</button>`)
+                if (c.status === 'running') primaryBtns.push(`<button class="btn-sm btn-stop" onclick="action(${c.id},'stop')">⏸ إيقاف</button>`)
+                
+                // Copy Data always accessible
                 const safeName = (c.name || '').replace(/'/g, "\\'")
                 const safePass = (c.password || '').replace(/'/g, "\\'")
                 const safeWa = (c.whatsapp || '').replace(/'/g, "\\'")
                 const safeRen = (c.renewal_date || '').replace(/'/g, "\\'")
-                btns.push(`<button class="btn-sm btn-slots" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;" onclick="copyClientInfo('${url}','${safePass}','${c.reset_answer || ''}','${c.slots}','${c.storage_gb}','${safeRen}','${c.bandwidth_limit || 0}')">📋 نسخ البيانات</button>`)
+                primaryBtns.push(`<button class="btn-sm btn-slots" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;" onclick="copyClientInfo('${url}','${safePass}','${c.reset_answer || ''}','${c.slots}','${c.storage_gb}','${safeRen}','${c.bandwidth_limit || 0}')">📋 نسخ البيانات</button>`)
+
+                // Dropdown Menu Actions
+                if (c.status === 'running') menuBtns.push(`<button class="btn-sm btn-suspend" onclick="action(${c.id},'suspend')">🚫 تعليق</button>`)
+                if (c.status === 'suspended') menuBtns.push(`<button class="btn-sm btn-resume" onclick="action(${c.id},'resume')">▶ استئناف</button>`)
+                menuBtns.push(`<button class="btn-sm btn-pass" onclick="openPassModal(${c.id},'${safePass}')">🔑 كلمة السر</button>`)
+                menuBtns.push(`<button class="btn-sm btn-code" onclick="openCodeModal(${c.id},'${c.reset_answer || ''}')">🛡️ رمز الأمان</button>`)
+                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ عدد البثوث</button>`)
+                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openStorageModal(${c.id},${c.storage_gb})">✏️ المساحة</button>`)
+                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})">✏️ السرعة</button>`)
+                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${safeName}','${safeWa}','${safeRen}')">✏️ بيانات</button>`)
+                menuBtns.push(`<button class="btn-sm" style="background:#0ea5e9;color:#fff;border-color:transparent;" onclick="openMigrateModal(${c.id},'${currentPathForMigrate}')">🚚 نقل الهارد</button>`)
+
+                // Rescue feature
+                if (c.storage_offline || currentPathForMigrate !== 'local') {
+                    menuBtns.push(`<button class="btn-sm" style="background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.2);" onclick="migratePrimary(${c.id}, '${safeName}')">💾 استعادة للأساسي</button>`)
+                }
+
+                if (c.backup_path) {
+                    menuBtns.push(`<button class="btn-sm" style="background:#f59e0b;color:#fff;" onclick="action(${c.id},'rollback')">🔄 استرجاع Backup</button>`);
+                    menuBtns.push(`<button class="btn-sm" style="background:#dc2626;color:#fff;" onclick="action(${c.id},'backup')">🗑 حذف Backup</button>`);
+                }
+                
+                menuBtns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${safeName}')">🗑 حذف نهائي</button>`)
+
+                const dropdownHtml = `
+                    <div class="actions-dropdown">
+                        <button class="btn-sm btn-slots">⚙️ خيارات ▼</button>
+                        <div class="actions-dropdown-content">
+                            ${menuBtns.join('')}
+                        </div>
+                    </div>
+                `;
 
                 return `<tr>
         <td>
@@ -1060,8 +1100,12 @@
             </div>
         </td>
         <td>${renHtml}</td>
-        <td><div class="actions" style="flex-wrap:wrap; justify-content:center;">${btns.join('')}</div></td>
-      </tr>`
+        <td style="min-width:300px; max-width:400px; text-align:right;">
+            <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-end;">
+                ${dropdownHtml}
+                ${primaryBtns.join('')}
+            </div>
+        </td>`
             }).join('')
 
             // Async load real disk usage per client from actual bind mount paths
@@ -1583,7 +1627,7 @@
         });
     </script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://npmcdn.com/flatpickr/dist/l10n/ar.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
 </body>
 
 </html>
