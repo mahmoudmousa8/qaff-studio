@@ -590,6 +590,20 @@ app.delete('/api/clients/:id', auth.requireAuth, async (req, res) => {
 
     try {
         await docker.deleteClientContainer(client.container_id, client.volume_name)
+        
+        // Physically delete client folders to prevent storage leaks and orphaned files
+        const { execSync } = require('child_process');
+        
+        // 1. Remove Primary Base (config, db, logs)
+        const primaryBase = `/opt/qaff-data/client_${client.id}`;
+        try { execSync(`rm -rf "${primaryBase}"`); } catch(err) { console.error('Failed to remove primary dir:', err.message); }
+
+        // 2. Remove Secondary Base if applicable
+        if (client.storage_path && client.storage_path !== 'local') {
+            const secondaryPath = require('path').join(client.storage_path, `client_${client.id}`);
+            try { execSync(`rm -rf "${secondaryPath}"`); } catch(err) { console.error('Failed to remove secondary dir:', err.message); }
+        }
+
         db.deleteClient.run(client.id)
         db.addLog('client_deleted', null, `Deleted: ${client.name} (Port: ${client.port})`)
         res.json({ success: true })
