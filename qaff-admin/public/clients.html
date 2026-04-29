@@ -1253,23 +1253,29 @@
         }
 
         async function updateAllPanels() {
-            if (!confirm('هل أنت متأكد من تحديث كافة اللوحات للنسخة الأحدث؟\n\nتنبيه: هذا سيمر على جميع العملاء وسيقوم تفريغ وبناء الحاويات من جديد. البثوث النشطة حالياً ستتوقف وتحتاج لضغط زر التشغيل من العميل.')) return;
+            if (!confirm('هل أنت متأكد من تحديث كافة اللوحات للنسخة الأحدث؟\n\nتنبيه: التحديث سيعمل في الخلفية. يمكنك متابعة العمل بشكل طبيعي.')) return;
             const btn = document.getElementById('updateAllBtn')
             const originalHtml = btn.innerHTML
-            btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span> جاري التحديث الشامل...'
+            btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span> جاري الإرسال...'
             btn.disabled = true
 
             try {
-                const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H() })
+                const controller = new AbortController()
+                const timeoutId = setTimeout(() => controller.abort(), 15000)
+                const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H(), signal: controller.signal })
+                clearTimeout(timeoutId)
                 const d = await res.json()
                 if (d.success) {
-                    showToast(`✅ اكتمل! تم تحديث ${d.upgraded} لوحة بنجاح. فشل: ${d.failed}`)
-                    loadClients()
+                    showToast('✅ ' + (d.message || 'بدأ التحديث في الخلفية بنجاح'))
                 } else {
                     showToast(d.error || 'خطأ غير معروف', true)
                 }
             } catch (e) {
-                showToast('حدث خطأ بالاتصال', true)
+                if (e.name === 'AbortError') {
+                    showToast('⏱ انتهت مهلة الانتظار، لكن التحديث قد يكون بدأ في الخلفية', false)
+                } else {
+                    showToast('حدث خطأ بالاتصال: ' + e.message, true)
+                }
             } finally {
                 btn.innerHTML = originalHtml
                 btn.disabled = false

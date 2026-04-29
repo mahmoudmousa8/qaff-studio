@@ -228,11 +228,16 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
 const clientNetCache = new Map()
 const clientStatsCache = new Map()
 
+// Flag: when true, background loop pauses to avoid saturating Docker socket during bulk ops
+let dockerBusy = false
+
 // Background loop to poll docker stats ONE BY ONE to prevent overloading the socket
 setInterval(async () => {
+    if (dockerBusy) return  // Pause during bulk update/rebuild
     try {
         const clients = db.getAllClients.all()
         for (const c of clients) {
+            if (dockerBusy) break  // Stop mid-loop if bulk op just started
             if (!c.container_id) {
                 clientStatsCache.set(c.id, { docker: { status: 'no_container', running: false }, active_streams: 0, live_mbps_out: '0.00' })
                 continue
@@ -653,51 +658,51 @@ app.put('/api/clients/:id/bandwidth', auth.requireAuth, async (req, res) => {
 
 // ── Clients: update all containers ──────────────────────────
 app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
-    try {
-        const clients = db.getAllClients.all()
-        let upgraded = 0
-        let failed = 0
+    res.json({ success: true, message: 'بدأ تحديث جميع اللوحات في الخلفية. ستستغرق العملية بضع دقائق.' })
+    
+    setTimeout(async () => {
+        dockerBusy = true  // Pause background stats loop
+        try {
+            const clients = db.getAllClients.all()
+            let upgraded = 0
+            let failed = 0
 
-        for (const client of clients) {
-            if (!client.container_id) continue;
+            for (const client of clients) {
+                if (!client.container_id) continue;
 
-            try {
-                // Read original hash or generate from db if container is missing
-                const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
-
-                // Stop & Remove matching exact existing schema logic
-                await docker.stopContainer(client.container_id).catch(() => { })
-                await docker.deleteClientContainer(client.container_id, null) // keep volume
-
-                // Recreate with qaff-studio:latest
-                const { containerId } = await docker.createClientContainer({
-                    clientId: client.id,
-                    name: client.name,
-                    port: client.port,
-                    slots: client.slots,
-                    storageGb: client.storage_gb,
-                    bandwidthLimit: client.bandwidth_limit || 0,
-                    passwordHash,
-                    renewalDate: client.renewal_date || '',
-                    isSuspended: client.status === 'suspended',
-                    storagePath: client.storage_path,
-                    volumeName: client.volume_name
-                })
-
-                db.updateClientContainer.run(containerId, client.id)
-                upgraded++;
-            } catch (err) {
-                console.error(`[bulk update] failed to upgrade client ${client.id}:`, err)
-                failed++;
+                try {
+                    const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
+                    await docker.stopContainer(client.container_id).catch(() => { })
+                    await docker.deleteClientContainer(client.container_id, null)
+                    const { containerId } = await docker.createClientContainer({
+                        clientId: client.id,
+                        name: client.name,
+                        port: client.port,
+                        slots: client.slots,
+                        storageGb: client.storage_gb,
+                        bandwidthLimit: client.bandwidth_limit || 0,
+                        passwordHash,
+                        renewalDate: client.renewal_date || '',
+                        isSuspended: client.status === 'suspended',
+                        storagePath: client.storage_path,
+                        volumeName: client.volume_name
+                    })
+                    db.updateClientContainer.run(containerId, client.id)
+                    upgraded++;
+                } catch (err) {
+                    console.error(`[bulk update] failed to upgrade client ${client.id}:`, err)
+                    failed++;
+                }
             }
-        }
 
-        db.addLog('bulk_update', null, `Bulk updated ${upgraded} client containers. Failed: ${failed}`)
-        res.json({ success: true, upgraded, failed })
-    } catch (e) {
-        console.error('[bulk update] fatal error:', e)
-        res.status(500).json({ error: e.message })
-    }
+            db.addLog('bulk_update', null, `Bulk updated ${upgraded} client containers. Failed: ${failed}`)
+            console.log(`[bulk update] Done. Upgraded: ${upgraded}, Failed: ${failed}`)
+        } catch (e) {
+            console.error('[bulk update] fatal error:', e)
+        } finally {
+            dockerBusy = false  // Resume background stats loop
+        }
+    }, 100)
 })
 
 // ── Server: System Stats (Admin Only) ─────────────────────
@@ -1289,6 +1294,7 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
     res.json({ success: true, message: 'Rebuild started. Check server logs for progress.' })
 
     setTimeout(async () => {
+        dockerBusy = true  // Pause background stats loop
         try {
             const { exec } = require('child_process')
             const { promisify } = require('util')
@@ -1300,7 +1306,6 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
             await execAsync(`git -C "${projectDir}" reset --hard origin/main`)
 
             console.log('[rebuild] Rebuilding Docker image qaff-studio:latest...')
-            // Use docker build asynchronously to not freeze Node.js
             await execAsync(`docker build -t qaff-studio:latest "${projectDir}"`)
             console.log('[rebuild] Docker image rebuilt.')
 
@@ -1338,6 +1343,8 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
         } catch (err) {
             console.error('[rebuild] Fatal error:', err)
             db.addLog('system_rebuild_failed', null, err.message)
+        } finally {
+            dockerBusy = false  // Resume background stats loop
         }
     }, 100)
 })
