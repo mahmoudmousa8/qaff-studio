@@ -1039,14 +1039,18 @@ app.get('/api/system/storage-pools', auth.requireAuth, (req, res) => {
     for (const p of pools) {
         if (p.isPrimary) {
             // Clients on primary disk are those with no path, 'local', or path starts with /opt/qaff-data
-            p.clientCount = clients.filter(c =>
-                !c.storage_path || c.storage_path === 'local' || c.storage_path.startsWith(PRIMARY_PATH)
-            ).length;
+            // BUT EXCLUDE those with a legacy volume_name, because their data physically lives in Docker Root (Secondary Disk)
+            p.clientCount = clients.filter(c => {
+                const isLocal = !c.storage_path || c.storage_path === 'local' || c.storage_path.startsWith(PRIMARY_PATH);
+                return isLocal && !c.volume_name;
+            }).length;
         } else {
-            p.clientCount = clients.filter(c =>
-                c.storage_path && c.storage_path.startsWith(p.path.replace('/qaff-data', ''))
-                && !c.storage_path.startsWith(PRIMARY_PATH)
-            ).length;
+            // Clients on secondary disk are those explicitly bound there, OR those on legacy volumes
+            p.clientCount = clients.filter(c => {
+                const isExplicitSecondary = c.storage_path && c.storage_path.startsWith(p.path.replace('/qaff-data', '')) && !c.storage_path.startsWith(PRIMARY_PATH);
+                const isImplicitSecondary = (!c.storage_path || c.storage_path === 'local') && c.volume_name;
+                return isExplicitSecondary || isImplicitSecondary;
+            }).length;
         }
     }
     res.json({ pools });
