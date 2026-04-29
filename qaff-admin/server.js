@@ -1131,55 +1131,58 @@ app.get('/api/clients/:id/disk-usage', auth.requireAuth, async (req, res) => {
 
     const fs = require('fs')
     const path = require('path')
+    const util = require('util')
+    const execAsync = util.promisify(require('child_process').exec)
 
     let totalBytes = 0
     let checkPath = ''
 
-    function getDirSize(dir) {
-        let total = 0
+    async function getDirSize(dir) {
         try {
-            if (!fs.existsSync(dir)) return 0
-            for (const file of fs.readdirSync(dir)) {
-                const full = path.join(dir, file)
-                try {
-                    const stat = fs.statSync(full)
-                    if (stat.isDirectory()) total += getDirSize(full)
-                    else total += stat.size
-                } catch {}
+            if (!fs.existsSync(dir)) return 0;
+            // Use native OS 'du' which is asynchronous and much faster than JS recursive stat
+            const { stdout } = await execAsync(`du -sb "${dir}"`);
+            const match = stdout.trim().split(/\s+/);
+            return parseInt(match[0]) || 0;
+        } catch (e) {
+            return 0;
+        }
+    }
+
+    try {
+        // Check if client is still on legacy volume
+        if (client.volume_name && (!client.storage_path || client.storage_path === 'local')) {
+            const volInspect = await docker.getDocker().getVolume(client.volume_name).inspect().catch(() => null);
+            checkPath = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/${client.volume_name}/_data`;
+            
+            // Sum up heavy dirs inside volume
+            for (const sub of ['videos', 'upload', 'download']) {
+                totalBytes += await getDirSize(path.join(checkPath, sub));
             }
-        } catch {}
-        return total
+        } else {
+            // In Hybrid Storage, heavy data is either on SSD or a custom path
+            const primaryBase = `/opt/qaff-data/client_${client.id}`
+            checkPath = (!client.storage_path || client.storage_path === 'local')
+                ? primaryBase
+                : require('path').join(client.storage_path, `client_${client.id}`)
+
+            for (const sub of ['videos', 'upload', 'download']) {
+                totalBytes += await getDirSize(path.join(checkPath, sub));
+            }
+        }
+
+        function fmt(bytes) {
+            if (bytes === 0) return '0 B'
+            const units = ['B','KB','MB','GB','TB']
+            const i = Math.floor(Math.log(bytes) / Math.log(1024))
+            return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i]
+        }
+
+        res.json({ usedBytes: totalBytes, usedFormatted: fmt(totalBytes), bindPath: checkPath })
+    } catch (e) {
+        console.error('[disk-usage] error:', e)
+        res.status(500).json({ error: e.message })
     }
-
-    // Check if client is still on legacy volume
-    if (client.volume_name && (!client.storage_path || client.storage_path === 'local')) {
-        const volInspect = await docker.getDocker().getVolume(client.volume_name).inspect().catch(() => null);
-        checkPath = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/${client.volume_name}/_data`;
-        
-        // Sum up heavy dirs inside volume
-        ['videos', 'upload', 'download'].forEach(sub => {
-            totalBytes += getDirSize(path.join(checkPath, sub))
-        })
-    } else {
-        // In Hybrid Storage, heavy data is either on SSD or a custom path
-        const primaryBase = `/opt/qaff-data/client_${client.id}`
-        checkPath = (!client.storage_path || client.storage_path === 'local')
-            ? primaryBase
-            : client.storage_path
-
-        ['videos', 'upload', 'download'].forEach(sub => {
-            totalBytes += getDirSize(path.join(checkPath, sub))
-        })
-    }
-
-    function fmt(bytes) {
-        if (bytes === 0) return '0 B'
-        const units = ['B','KB','MB','GB','TB']
-        const i = Math.floor(Math.log(bytes) / Math.log(1024))
-        return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i]
-    }
-
-    res.json({ usedBytes: totalBytes, usedFormatted: fmt(totalBytes), bindPath: heavyPath })
 })
 
 // ── Storage Pools ──────────────────────────────────────────
