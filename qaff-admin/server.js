@@ -380,10 +380,21 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     const existing = db.getAllClients.all().find(c => c.name === name)
     if (existing) return res.status(409).json({ error: 'Client name already exists' })
 
-    // Check disk space using native df command (no external packages needed)
+    // Check disk space and mount point using native commands
     try {
         const checkPath = (!storage_path || storage_path === 'local') ? '/' : storage_path;
         const { execSync } = require('child_process');
+
+        // ── SAFETY CHECK: Verify secondary disk is genuinely mounted ──────────────
+        if (checkPath !== '/') {
+             const mountBase = checkPath.split('/').slice(0, 3).join('/') // e.g. /mnt/storage
+             try {
+                 execSync(`mountpoint -q "${mountBase}"`)
+             } catch {
+                 return res.status(500).json({ error: `⛔ القرص الثانوي (${mountBase}) غير مُركَّب حالياً. يُرجى التحقق من تركيب القرص قبل إنشاء عملاء عليه.` })
+             }
+        }
+
         const out = execSync(`df -B1 "${checkPath}" | tail -1`).toString().trim().split(/\s+/);
         const total = parseInt(out[1], 10);
         const used = parseInt(out[2], 10);
