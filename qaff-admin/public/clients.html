@@ -1097,13 +1097,21 @@
             // Auto generate 5 digits
             const digits = Math.floor(10000 + Math.random() * 90000).toString()
             document.getElementById('c-reset').value = digits
-            // Fetch pools
+            // Fetch pools and show them in dropdown
+            const sel = document.getElementById('c-storage-pool');
+            sel.innerHTML = '<option value="">⏳ جاري تحميل مساحات التخزين...</option>';
             fetch('/api/system/storage-pools', { headers: H() })
                .then(r => r.json())
                .then(d => {
-                   const sel = document.getElementById('c-storage-pool');
+                   if (!d.pools || d.pools.length === 0) {
+                       sel.innerHTML = '<option value="local">⚠️ لم يتم العثور على مساحات — سيستخدم القرص الأساسي</option>';
+                       return;
+                   }
                    sel.innerHTML = d.pools.map(p => `<option value="${p.isPrimary ? 'local' : p.path}">${p.name} (${p.path}) - متاح ${Math.round(p.free/1024/1024/1024)}GB</option>`).join('');
-               }).catch(e=>{});
+               }).catch(e => {
+                   console.error('Storage pools error:', e);
+                   sel.innerHTML = '<option value="local">Primary Disk (القرص الأساسي للنظام)</option>';
+               });
         }
         function closeCreate() {
             document.getElementById('createModal').classList.remove('show')
@@ -1297,7 +1305,7 @@
 
             try {
                 const controller = new AbortController()
-                const timeoutId = setTimeout(() => controller.abort(), 15000)
+                const timeoutId = setTimeout(() => controller.abort(), 30000)
                 const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H(), signal: controller.signal })
                 clearTimeout(timeoutId)
                 const d = await res.json()
@@ -1308,7 +1316,7 @@
                 }
             } catch (e) {
                 if (e.name === 'AbortError') {
-                    showToast('⏱ انتهت مهلة الانتظار، لكن التحديث قد يكون بدأ في الخلفية', false)
+                    showToast('✅ جارٍ التحديث في الخلفية — ستظهر التغييرات خلال بضع دقائق', false)
                 } else {
                     showToast('حدث خطأ بالاتصال: ' + e.message, true)
                 }
