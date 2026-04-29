@@ -283,15 +283,28 @@ setInterval(async () => {
                     const txBytes = await docker.getContainerNetTx(c.container_id)
                     const now = Date.now()
                     const last = clientNetCache.get(c.container_id)
-                    if (last && now > last.time) {
+
+                    if (last) {
                         const diffBytes = txBytes - last.tx
-                        const diffSecs = (now - last.time) / 1000
-                        if (diffBytes > 0 && diffSecs > 0) {
-                            mbpsOut = ((diffBytes * 8) / (1024 * 1024) / diffSecs).toFixed(2)
+                        const diffSecs  = (now - last.time) / 1000
+
+                        if (diffSecs >= 2 && diffBytes >= 0) {
+                            // Enough time has passed — compute fresh speed
+                            if (diffBytes > 0) {
+                                mbpsOut = ((diffBytes * 8) / (1024 * 1024) / diffSecs).toFixed(2)
+                            } else {
+                                // No new bytes — keep last known speed for 1 more cycle before zeroing
+                                mbpsOut = last.stale ? '0.00' : (last.mbps || '0.00')
+                            }
+                            clientNetCache.set(c.container_id, { tx: txBytes, time: now, mbps: mbpsOut, stale: diffBytes === 0 })
+                        } else {
+                            // Too soon — keep last speed
+                            mbpsOut = last.mbps || '0.00'
                         }
+                    } else {
+                        // First reading — just store baseline, show 0
+                        clientNetCache.set(c.container_id, { tx: txBytes, time: now, mbps: '0.00', stale: false })
                     }
-                    clientNetCache.set(c.container_id, { tx: txBytes, time: now, mbps: mbpsOut })
-                    if (last && (now - last.time) < 2000) mbpsOut = last.mbps
                 } else {
                     clientNetCache.delete(c.container_id)
                 }
