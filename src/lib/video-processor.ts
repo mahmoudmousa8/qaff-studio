@@ -240,6 +240,26 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
     const processingOutputDir = path.dirname(inputPath)
     const tempOutputPath = path.join(processingOutputDir, `transcoded_${path.basename(outputPath)}`)
 
+    // Determine target bitrate (preserve original if < 2000k)
+    let targetBitrateK = 2000
+    let targetMaxrateK = 2500
+    let targetBufsizeK = 5000
+    try {
+        // We can use the existing probeFile function
+        // Need to require or call it directly since it's in the same file
+        const probeStr = execSync(`"${FFPROBE_PATH}" -v error -show_entries format=bit_rate -of default=noprint_wrappers=1:nokey=1 "${inputPath}"`, { encoding: 'utf-8' })
+        const originalBitrateK = Math.round(parseInt(probeStr.trim(), 10) / 1000)
+        
+        if (originalBitrateK > 100 && originalBitrateK < 2000) {
+            targetBitrateK = originalBitrateK
+            targetMaxrateK = Math.round(originalBitrateK * 1.25)
+            targetBufsizeK = originalBitrateK * 2
+            console.log(`[transcode] Original bitrate ${originalBitrateK}k is < 2000k. Preserving original bitrate.`)
+        }
+    } catch (e) {
+        console.warn(`[transcode] Failed to probe input for bitrate. Defaulting to 2000k.`)
+    }
+
     const ffmpegArgs = [
         '-y',
         '-i', inputPath,
@@ -247,9 +267,9 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         '-c:v', 'libx264',
         '-preset', 'faster',
         '-r', '30',
-        '-b:v', '2000k',
-        '-maxrate', '2500k',
-        '-bufsize', '5000k',
+        '-b:v', `${targetBitrateK}k`,
+        '-maxrate', `${targetMaxrateK}k`,
+        '-bufsize', `${targetBufsizeK}k`,
         '-g', '60',
         '-keyint_min', '60',
         '-sc_threshold', '0',
