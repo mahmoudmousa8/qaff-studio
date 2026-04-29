@@ -44,7 +44,7 @@ function formatBytes(bytes: number): string {
 // GET - Get storage usage
 export async function GET() {
     try {
-        const disk = getDiskUsage(VIDEOS_DIR)
+        const disk = getDiskUsage(APP_DATA_DIR)
         // Only warn if they have used over 90% of their allocated storage
         const WARNING_THRESHOLD_PERCENT = 90
         const warning = disk.usedPercent >= WARNING_THRESHOLD_PERCENT

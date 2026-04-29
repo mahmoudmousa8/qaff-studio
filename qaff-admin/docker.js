@@ -35,34 +35,40 @@ async function imageExists() {
  * @param {string} opts.storagePath - optional, 'local' or an absolute path on host
  * @returns {{ containerId, containerName, volumeName, storagePath }}
  */
-async function createClientContainer({ clientId, name, port, slots, storageGb, bandwidthLimit = 0, passwordHash, isSuspended = false, renewalDate = '', storagePath = 'local' }) {
+async function createClientContainer({ clientId, name, port, slots, storageGb, bandwidthLimit = 0, passwordHash, isSuspended = false, renewalDate = '', storagePath = 'local', volumeName }) {
     const containerName = `${CONTAINER_PREFIX}${clientId}`
     
-    let volumeName = null;
-    let bindString = '';
+    // Core directory on Primary SSD (Always)
+    const primaryBase = `/opt/qaff-data/client_${clientId}`
+    const fs = require('fs')
+    if (!fs.existsSync(primaryBase)) {
+        fs.mkdirSync(primaryBase, { recursive: true })
+        try { require('child_process').execSync(`chown -R 1000:1000 "${primaryBase}"`); } catch(e) {}
+    }
 
-    if (!storagePath || storagePath === 'local') {
-        // Legacy/Local Named Volume Mode
-        volumeName = `${VOLUME_PREFIX}${clientId}`
-        await docker.createVolume({
-            Name: volumeName,
-            Labels: { 'qaff.client_id': String(clientId), 'qaff.client_name': name },
-        })
-        bindString = `${volumeName}:/app/data`
-        storagePath = 'local'
+    let binds = []
+
+    // If the client already has a volumeName and is on 'local', maintain legacy volume support
+    if (volumeName && (!storagePath || storagePath === 'local')) {
+        binds.push(`${volumeName}:/app/data`)
     } else {
-        // Direct Host Path Bind Mode (e.g. /mnt/storage/qaff-data/client_X)
-        const fs = require('fs')
-        if (!fs.existsSync(storagePath)) {
-            fs.mkdirSync(storagePath, { recursive: true })
-            const { execSync } = require('child_process');
-            try {
-                // Ensure correct ownership for Docker daemon user mapping (usually 1000:1000)
-                // Inside container NEXT runs as root or nextjs, but typical is 1000
-                execSync(`chown -R 1000:1000 "${storagePath}"`);
-            } catch(e) {}
-        }
-        bindString = `${storagePath}:/app/data`
+        // Base mount for config, db, logs on SSD
+        binds.push(`${primaryBase}:/app/data`)
+
+        // Heavy data mounts (videos, upload, download)
+        // If storagePath is not 'local', these points are redirected to the secondary drive
+        const dataRoot = (!storagePath || storagePath === 'local') ? primaryBase : storagePath;
+        
+        // Ensure data directories exist on target drive
+        ['videos', 'upload', 'download'].forEach(sub => {
+            const fullPath = require('path').join(dataRoot, sub)
+            if (!fs.existsSync(fullPath)) {
+                fs.mkdirSync(fullPath, { recursive: true })
+                try { require('child_process').execSync(`chown -R 1000:1000 "${fullPath}"`); } catch(e) {}
+            }
+            // Nested bind: /app/data/sub maps to the selected drive
+            binds.push(`${fullPath}:/app/data/${sub}`)
+        })
     }
 
     // Create the container

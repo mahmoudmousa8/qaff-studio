@@ -253,6 +253,12 @@ done
 sudo mkdir -p /var/log/qaff
 sudo chown -R "$(whoami):$(whoami)" /var/log/qaff 2>/dev/null || true
 chmod -R 755 "$PROJECT_DIR/data"
+
+# Primary bind-mount root for all local client data
+sudo mkdir -p /opt/qaff-data
+sudo chown -R 1000:1000 /opt/qaff-data
+sudo chmod 755 /opt/qaff-data
+echo -e "  ✅ Primary bind-mount root created at /opt/qaff-data"
 echo -e "  ✅ Directories created"
 
 if command -v ufw &>/dev/null; then

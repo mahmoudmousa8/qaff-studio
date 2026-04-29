@@ -419,7 +419,9 @@ app.post('/api/clients/:id/suspend', auth.requireAuth, async (req, res) => {
             bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             isSuspended: true,
-            renewalDate: client.renewal_date || ''
+            renewalDate: client.renewal_date || '',
+            storagePath: client.storage_path,
+            volumeName: client.volume_name
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('suspended', client.id)
@@ -501,11 +503,13 @@ app.put('/api/clients/:id/password', auth.requireAuth, async (req, res) => {
             bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             renewalDate: client.renewal_date || '',
-            isSuspended: client.status === 'suspended'
+            isSuspended: client.status === 'suspended',
+            storagePath: client.storage_path,
+            volumeName: client.volume_name
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('running', client.id)
-        db.addLog('client_password_changed', client.id, null)
+        db.addLog('client_password_changed', client.id, 'Client successfully changed their own password')
         res.json({ success: true })
     } catch (e) {
         res.status(500).json({ error: e.message })
@@ -538,7 +542,9 @@ app.put('/api/clients/:id/slots', auth.requireAuth, async (req, res) => {
             bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             renewalDate: client.renewal_date || '',
-            isSuspended: client.status === 'suspended'
+            isSuspended: client.status === 'suspended',
+            storagePath: client.storage_path,
+            volumeName: client.volume_name
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run('running', client.id)
@@ -575,7 +581,9 @@ app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
             bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             renewalDate: renewalDate || '',
-            isSuspended: client.status === 'suspended'
+            isSuspended: client.status === 'suspended',
+            storagePath: client.storage_path,
+            volumeName: client.volume_name
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run(client.status, client.id)
@@ -612,7 +620,9 @@ app.put('/api/clients/:id/bandwidth', auth.requireAuth, async (req, res) => {
             bandwidthLimit: strictLimit,
             passwordHash,
             renewalDate: client.renewal_date || '',
-            isSuspended: client.status === 'suspended'
+            isSuspended: client.status === 'suspended',
+            storagePath: client.storage_path,
+            volumeName: client.volume_name
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run(client.status, client.id)
@@ -653,7 +663,9 @@ app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
                     bandwidthLimit: client.bandwidth_limit || 0,
                     passwordHash,
                     renewalDate: client.renewal_date || '',
-                    isSuspended: client.status === 'suspended'
+                    isSuspended: client.status === 'suspended',
+                    storagePath: client.storage_path,
+                    volumeName: client.volume_name
                 })
 
                 db.updateClientContainer.run(containerId, client.id)
@@ -848,9 +860,12 @@ app.post('/api/internal/change-password', async (req, res) => {
                         port: client.port,
                         slots: client.slots,
                         storageGb: client.storage_gb,
+                        bandwidthLimit: client.bandwidth_limit || 0,
                         passwordHash: newPasswordHash,
                         isSuspended: client.status === 'suspended',
-                        renewalDate: client.renewal_date || ''
+                        renewalDate: client.renewal_date || '',
+                        storagePath: client.storage_path,
+                        volumeName: client.volume_name
                     })
                     db.updateClientContainer.run(containerId, client.id)
                 } catch (err) {
@@ -891,9 +906,12 @@ app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
             port: client.port,
             slots: client.slots,
             storageGb: parseInt(storage_gb),
+            bandwidthLimit: client.bandwidth_limit || 0,
             passwordHash,
             renewalDate: client.renewal_date || '',
-            isSuspended: client.status === 'suspended'
+            isSuspended: client.status === 'suspended',
+            storagePath: client.storage_path,
+            volumeName: client.volume_name
         })
         db.updateClientContainer.run(containerId, client.id)
         db.updateClientStatus.run(client.status, client.id)
@@ -904,6 +922,54 @@ app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
         res.status(500).json({ error: e.message })
     }
 });
+
+// ── Per-Client: real disk usage from hybrid storage ───────
+app.get('/api/clients/:id/disk-usage', auth.requireAuth, (req, res) => {
+    const client = db.getClientById.get(req.params.id)
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+
+    // In Hybrid Storage, heavy data is either on SSD or a custom path
+    const primaryBase = `/opt/qaff-data/client_${client.id}`
+    const heavyPath = (!client.storage_path || client.storage_path === 'local')
+        ? primaryBase
+        : client.storage_path
+
+    const fs = require('fs')
+    const path = require('path')
+
+    // Sum up the sizes of the 3 heavy directories
+    const subDirs = ['videos', 'upload', 'download']
+    let totalBytes = 0
+
+    function getDirSize(dir) {
+        let total = 0
+        try {
+            if (!fs.existsSync(dir)) return 0
+            for (const file of fs.readdirSync(dir)) {
+                const full = path.join(dir, file)
+                try {
+                    const stat = fs.statSync(full)
+                    if (stat.isDirectory()) total += getDirSize(full)
+                    else total += stat.size
+                } catch {}
+            }
+        } catch {}
+        return total
+    }
+
+    subDirs.forEach(sub => {
+        totalBytes += getDirSize(path.join(heavyPath, sub))
+    })
+
+    function fmt(bytes) {
+        if (bytes === 0) return '0 B'
+        const units = ['B','KB','MB','GB','TB']
+        const i = Math.floor(Math.log(bytes) / Math.log(1024))
+        return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + units[i]
+    }
+
+    res.json({ usedBytes: totalBytes, usedFormatted: fmt(totalBytes), bindPath: heavyPath })
+})
 
 // ── Storage Pools ──────────────────────────────────────────
 
@@ -960,11 +1026,18 @@ app.get('/api/system/storage-pools', auth.requireAuth, (req, res) => {
     }
 
     const clients = db.getAllClients.all();
+    const PRIMARY_PATH = '/opt/qaff-data';
     for (const p of pools) {
         if (p.isPrimary) {
-            p.clientCount = clients.filter(c => !c.storage_path || c.storage_path === 'local').length;
+            // Clients on primary disk are those with no path, 'local', or path starts with /opt/qaff-data
+            p.clientCount = clients.filter(c =>
+                !c.storage_path || c.storage_path === 'local' || c.storage_path.startsWith(PRIMARY_PATH)
+            ).length;
         } else {
-            p.clientCount = clients.filter(c => c.storage_path && c.storage_path.startsWith(p.path)).length;
+            p.clientCount = clients.filter(c =>
+                c.storage_path && c.storage_path.startsWith(p.path.replace('/qaff-data', ''))
+                && !c.storage_path.startsWith(PRIMARY_PATH)
+            ).length;
         }
     }
     res.json({ pools });
@@ -975,8 +1048,12 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
     const client = db.getClientById.get(req.params.id);
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
-    const currentPath = client.storage_path || 'local';
-    if (currentPath === targetPool || (currentPath !== 'local' && currentPath.startsWith(targetPool))) {
+    // Resolve 'local' to actual bind mount path
+    const currentPath = (!client.storage_path || client.storage_path === 'local')
+        ? `/opt/qaff-data/client_${client.id}`
+        : client.storage_path;
+
+    if (currentPath === targetPool || currentPath.startsWith(targetPool)) {
         return res.status(400).json({ error: 'Client is already on the target storage pool' });
     }
 
@@ -997,40 +1074,54 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
     try {
         await docker.stopContainer(client.container_id).catch(() => { });
 
-        // Ensure volume exists to read its TRUE mountpoint
-        await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
-        const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
-        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/qaff_vol_${client.id}/_data`;
+        const fs = require('fs');
+        const path = require('path');
+        const primaryBase = `/opt/qaff-data/client_${client.id}`;
+        fs.mkdirSync(primaryBase, { recursive: true });
 
-        const srcDir = currentPath === 'local'
-            ? `${localVolumeMountpoint}/`
-            : `${currentPath}/`;
+        // Source resolution
+        let srcDataRoot = currentPath;
+        let fromVolume = false;
 
-        let targetPathStr = '';
-        let destDir = '';
-        if (targetPool === 'local') {
-            targetPathStr = 'local';
-            destDir = `${localVolumeMountpoint}/`;
-        } else {
-            targetPathStr = `${targetPool}/client_${client.id}`;
-            require('fs').mkdirSync(targetPathStr, { recursive: true });
-            destDir = `${targetPathStr}/`;
+        if (client.volume_name) {
+            fromVolume = true;
+            const volInspect = await docker.getDocker().getVolume(client.volume_name).inspect().catch(() => null);
+            srcDataRoot = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/${client.volume_name}/_data`;
         }
 
-        db.addLog('migration_started', client.id, `From ${currentPath} to ${targetPathStr}`);
-
-        // Safe trailing slashes for rsync
-        require('child_process').execSync(`rsync -acv "${srcDir}" "${destDir}"`);
-
-        // Post-rsync hard permissions to prevent EACCES in custom bind mounts
+        const targetDataRoot = `${targetPool}/client_${client.id}`;
         if (targetPool !== 'local') {
-            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
+            fs.mkdirSync(targetDataRoot, { recursive: true });
         }
 
-        // Backup old dir
-        const srcNoSlash = srcDir.replace(/\/$/, '');
-        const backupPath = srcNoSlash + '.backup_' + Date.now();
-        require('child_process').execSync(`mv "${srcNoSlash}" "${backupPath}"`);
+        db.addLog('migration_started', client.id, `From ${currentPath} to ${targetPool}`);
+
+        if (fromVolume) {
+            // Step 1: Move EVERYTHING from Volume to Primary SSD
+            require('child_process').execSync(`rsync -acv "${srcDataRoot}/" "${primaryBase}/"`);
+        }
+
+        // Step 2: Handle heavy folders (videos, upload, download)
+        const heavyDirs = ['videos', 'upload', 'download'];
+        heavyDirs.forEach(dir => {
+            const srcDir = path.join(fromVolume ? primaryBase : currentPath, dir);
+            const destDir = path.join(targetPool === 'local' ? primaryBase : targetDataRoot, dir);
+
+            if (srcDir !== destDir && fs.existsSync(srcDir)) {
+                fs.mkdirSync(path.dirname(destDir), { recursive: true });
+                require('child_process').execSync(`rsync -acv "${srcDir}/" "${destDir}/"`);
+                
+                // If moving SSD -> HDD or HDD -> HDD, we should move the original to a backup
+                const backupPath = srcDir + '.backup_' + Date.now();
+                require('child_process').execSync(`mv "${srcDir}" "${backupPath}"`);
+            }
+        });
+
+        // Ensure correct ownership for target directories
+        if (targetPool !== 'local') {
+            require('child_process').execSync(`chown -R 1000:1000 "${targetDataRoot}"`);
+        }
+        require('child_process').execSync(`chown -R 1000:1000 "${primaryBase}"`);
 
         const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
         await docker.deleteClientContainer(client.container_id, null);
@@ -1045,7 +1136,8 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
             passwordHash: passwordHash || '',
             renewalDate: client.renewal_date || '',
             isSuspended: client.status === 'suspended',
-            storagePath: targetPathStr
+            storagePath: targetPool === 'local' ? 'local' : targetDataRoot,
+            volumeName: null // Successfully migrated to Hybrid system
         });
 
         // Health Check & Auto-Rollback
@@ -1053,23 +1145,19 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
         if (!checkContainer || !checkContainer.State || !checkContainer.State.Running) {
             db.addLog('migration_failed', client.id, `Container failed to start on new pool. Initiating auto-rollback...`);
             await docker.deleteClientContainer(containerId, null).catch(() => {});
-            
-            if (currentPath === 'local') {
-                 await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
-            } else {
-                 require('fs').mkdirSync(currentPath, { recursive: true });
-                 require('child_process').execSync(`chown -R 1000:1000 "${currentPath}"`);
-            }
-            
+
+            // Recreate original dir and restore from backup
+            require('fs').mkdirSync(currentPath, { recursive: true });
+            require('child_process').execSync(`chown -R 1000:1000 "${currentPath}"`);
             require('child_process').execSync(`rsync -acv "${backupPath}/" "${srcDir}"`);
-            
+
             const orig = await docker.createClientContainer({
                 clientId: client.id, name: client.name, port: client.port, slots: client.slots,
                 storageGb: client.storage_gb, bandwidthLimit: client.bandwidth_limit || 0,
                 passwordHash: passwordHash || '', renewalDate: client.renewal_date || '',
-                isSuspended: client.status === 'suspended', storagePath: currentPath === 'local' ? 'local' : `${currentPath}/`
+                isSuspended: client.status === 'suspended', storagePath: currentPath, volumeName: null
             });
-            
+
             db.updateClientContainer.run(orig.containerId, client.id);
             db.addLog('client_rolled_back', client.id, `Auto-rollback completed successfully after migration failure.`);
             return res.status(500).json({ error: 'Migration failed. Container did not start correctly on the new storage. System auto-rolled back safely.'});
@@ -1094,34 +1182,16 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
     try {
         await docker.stopContainer(client.container_id).catch(() => { });
 
-        // Original path depends on where the backup is located
-        const backupIsLocal = client.backup_path.includes('/volumes/qaff_vol_');
-        const targetPathStr = backupIsLocal ? 'local' : client.backup_path.replace(/\.backup_.+$/, '');
-        
-        await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
-        const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
-        const localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/qaff_vol_${client.id}/_data`;
+        // All clients now use bind mounts — backup path is always a real host path
+        // Strip .backup_TIMESTAMP to get the original target path
+        const targetPathStr = client.backup_path.replace(/\.backup_\d+$/, '');
+        const destDir = `${targetPathStr}/`;
 
-        let actualBackupPath = client.backup_path;
-        if (actualBackupPath.startsWith('/var/lib/docker/')) {
-            const backupSuffixMatch = actualBackupPath.match(/\.backup_\d+/);
-            if (backupSuffixMatch) {
-                actualBackupPath = localVolumeMountpoint.replace(/\/$/, '') + backupSuffixMatch[0];
-            }
-        }
+        require('fs').mkdirSync(targetPathStr, { recursive: true });
+        require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
 
-        let destDir = backupIsLocal ? `${localVolumeMountpoint}/` : `${targetPathStr}/`;
-
-        if (!backupIsLocal) {
-            require('fs').mkdirSync(targetPathStr, { recursive: true });
-        }
-
-        db.addLog('rollback_started', client.id, `Restoring from ${actualBackupPath}`);
-        require('child_process').execSync(`rsync -acv "${actualBackupPath}/" "${destDir}"`);
-
-        if (!backupIsLocal) {
-            require('child_process').execSync(`chown -R 1000:1000 "${targetPathStr}"`);
-        }
+        db.addLog('rollback_started', client.id, `Restoring from ${client.backup_path}`);
+        require('child_process').execSync(`rsync -acv "${client.backup_path}/" "${destDir}"`);
 
         const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
         await docker.deleteClientContainer(client.container_id, null);
@@ -1136,7 +1206,8 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
             passwordHash: passwordHash || '',
             renewalDate: client.renewal_date || '',
             isSuspended: client.status === 'suspended',
-            storagePath: targetPathStr
+            storagePath: targetPathStr,
+            volumeName: null
         });
 
         db.updateClientContainer.run(containerId, client.id);

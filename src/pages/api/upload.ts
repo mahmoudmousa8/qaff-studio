@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from 'next'
 import { createWriteStream, existsSync, unlinkSync, mkdirSync, statSync, readdirSync, renameSync } from 'fs'
 import path from 'path'
 import Busboy from 'busboy'
-import { VIDEOS_DIR } from '@/lib/paths'
+import { VIDEOS_DIR, APP_DATA_DIR } from '@/lib/paths'
 
 function getDirectorySize(dirPath: string): number {
     let size = 0
@@ -47,7 +47,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(405).json({ error: 'Method Not Allowed' })
     }
 
-    const currentStorageUsed = getDirectorySize(VIDEOS_DIR)
+    const currentStorageUsed = getDirectorySize(APP_DATA_DIR)
     const maxGB = parseInt(process.env.MAX_STORAGE_GB || '10', 10)
     const maxStorageBytes = maxGB * 1024 * 1024 * 1024
 
@@ -57,7 +57,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
 
     try {
         const { statfsSync } = require('fs');
-        const stat = statfsSync(VIDEOS_DIR);
+        const stat = statfsSync(APP_DATA_DIR);
         // stat.bavail = free blocks for unprivileged user, stat.blocks = total blocks
         const usagePercent = ((Number(stat.blocks) - Number(stat.bavail)) / Number(stat.blocks)) * 100;
         if (usagePercent >= 90) {

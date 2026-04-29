@@ -151,10 +151,10 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
         return { allowed: false, reason: `مرفوض: الدقة أعلى من 1080p (${probe.width}x${probe.height}) | Rejected: Resolution exceeds 1080p (${probe.width}x${probe.height})` }
     }
 
-    // Bitrate range check (approx 2000k ± 500k)
+    // Bitrate range check (approx 2000k, allow up to 3000k)
     const bitrateK = probe.bitrate / 1000
-    if (bitrateK < 1500 || bitrateK > 2500) {
-        return { allowed: false, reason: `مرفوض: معدل البت (${Math.round(bitrateK)}k) خارج النطاق 1500-2500k | Rejected: Bitrate (${Math.round(bitrateK)}k) out of allowed 1500-2500k` }
+    if (bitrateK < 1500 || bitrateK > 3000) {
+        return { allowed: false, reason: `مرفوض: معدل البت (${Math.round(bitrateK)}k) خارج النطاق 1500-3000k | Rejected: Bitrate (${Math.round(bitrateK)}k) out of allowed 1500-3000k` }
     }
 
     // GOP Check
@@ -187,7 +187,7 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
     return { allowed: true }
 }
 
-export type JobState = 'processing' | 'done' | 'error'
+export type JobState = 'queued' | 'processing' | 'done' | 'error' | 'cancelled'
 
 export interface JobStatus {
     id: string
@@ -207,18 +207,51 @@ export function getJobStatus(jobId: string): JobStatus | undefined {
     return jobStore.get(jobId)
 }
 
+// Queue for sequential processing
+const jobQueue: string[] = []
+let isProcessing = false
+
 export function transcodeVideo(inputPath: string, outputPath: string, originalFilename: string): string {
     const jobId = randomUUID()
     
-    console.log(`[transcode] Starting job ${jobId} – input: ${inputPath}, output: ${outputPath}`)
+    console.log(`[transcode] Queueing job ${jobId} – input: ${inputPath}, output: ${outputPath}`)
     jobStore.set(jobId, {
         id: jobId,
-        state: 'processing',
+        state: 'queued',
         progress: 0,
         originalFilename,
         outputPath,
         inputPath
     })
+
+    jobQueue.push(jobId)
+    processNextJob()
+
+    return jobId
+}
+
+function processNextJob() {
+    if (isProcessing || jobQueue.length === 0) return
+
+    const jobId = jobQueue.shift()
+    if (!jobId) return
+
+    const job = jobStore.get(jobId)
+    if (!job || job.state === 'cancelled') {
+        processNextJob()
+        return
+    }
+
+    isProcessing = true
+    job.state = 'processing'
+    jobStore.set(jobId, job)
+
+    const { inputPath, outputPath } = job
+    if (!inputPath || !outputPath) {
+        isProcessing = false
+        processNextJob()
+        return
+    }
 
     // Determine duration to calculate progress
     let durationSec = 0
@@ -356,24 +389,31 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         setTimeout(() => {
             jobStore.delete(jobId)
         }, 5 * 60 * 1000)
-    })
 
-    return jobId
+        isProcessing = false
+        processNextJob()
+    })
 }
 
 export function cancelTranscode(jobId: string): boolean {
     const job = jobStore.get(jobId)
     if (!job) return false
 
-    if (job.state === 'processing') {
+    if (job.state === 'queued') {
+        job.state = 'cancelled'
+        console.log(`[transcode] Job ${jobId} was cancelled from queue.`)
+        // The file will be cleaned up by the timeout block below
+    } else if (job.state === 'processing') {
         job.state = 'cancelled'
         if (job.killFn) {
             job.killFn()
         }
         console.log(`[transcode] Job ${jobId} was cancelled by user. Cleaning up...`)
-        // The 'close' event handler will also fire when killed, but we handle the cleanup here immediately
-        // Wait a slight moment for process to release file handles
-        setTimeout(() => {
+    } else {
+        return false
+    }
+
+    setTimeout(() => {
             // Attempt to clean up temp output path
             if (job.outputPath) {
                 const tempOutputPath = path.join(path.dirname(job.outputPath), `transcoded_${path.basename(job.outputPath)}`)
@@ -386,8 +426,6 @@ export function cancelTranscode(jobId: string): boolean {
         
         jobStore.set(jobId, job)
         return true
-    }
-    return false
 }
 
 // -----------------------------------------------------------------------------
@@ -417,4 +455,43 @@ if (typeof window === 'undefined') {
     } catch (e) {
         console.warn(`[transcode] Failed to run startup cleanup:`, e)
     }
+
+    // -----------------------------------------------------------------------------
+    // 12-Hour Retention Policy (Cron)
+    // -----------------------------------------------------------------------------
+    // IMPORTANT: VIDEOS_DIR is NEVER touched — it contains the client's library.
+    // Only transient/temporary directories are cleaned:
+    //   - UPLOAD_DIR: incomplete or stale upload chunks
+    //   - DOWNLOAD_DIR: failed or abandoned downloads
+    // Runs every 1 hour.
+    setInterval(() => {
+        try {
+            const { UPLOAD_DIR, DOWNLOAD_DIR } = require('./paths')
+            const dirsToClean = [UPLOAD_DIR, DOWNLOAD_DIR]
+            const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000
+            const now = Date.now()
+
+            for (const dir of dirsToClean) {
+                if (!require('fs').existsSync(dir)) continue
+                
+                const files = require('fs').readdirSync(dir)
+                for (const file of files) {
+                    if (file.startsWith('.')) continue // Skip hidden dirs like .processing
+
+                    const filePath = require('path').join(dir, file)
+                    try {
+                        const stats = require('fs').statSync(filePath)
+                        if (stats.isFile() && (now - stats.mtimeMs > TWELVE_HOURS_MS)) {
+                            require('fs').unlinkSync(filePath)
+                            console.log(`[retention] Auto-deleted stale temp file: ${filePath}`)
+                        }
+                    } catch (e) {
+                        // ignore individual file errors
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn(`[retention] Failed to run auto-cleanup cron:`, e)
+        }
+    }, 60 * 60 * 1000) // Every 1 hour
 }

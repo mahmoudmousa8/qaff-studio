@@ -115,6 +115,11 @@ echo -e "\n${CYAN}[3/6] Installing new dependencies...${NC}"
 sudo npm install --production=false 2>&1 | tail -3
 echo -e "  ✅ Dependencies installed."
 
+# Ensure primary bind-mount root exists
+sudo mkdir -p /opt/qaff-data
+sudo chown -R 1000:1000 /opt/qaff-data
+sudo chmod 755 /opt/qaff-data
+
 echo -e "\n${CYAN}[4/6] Building the Next.js application...${NC}"
 # Kill any stuck next build process
 pkill -f "next build" 2>/dev/null || true
