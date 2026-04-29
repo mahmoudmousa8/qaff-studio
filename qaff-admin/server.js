@@ -177,13 +177,25 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
     const totalSlots = clients.reduce((s, c) => s + c.slots, 0)
     const totalStorage = clients.reduce((s, c) => s + c.storage_gb, 0)
 
-    // Disk info from OS
+    // Disk info from OS (Summing up both primary and secondary storage if exists)
     let diskTotal = 0, diskUsed = 0, diskFree = 0
     try {
-        const out = execSync("df -BG / | tail -1").toString().trim().split(/\s+/)
-        diskTotal = parseInt(out[1])
-        diskUsed = parseInt(out[2])
-        diskFree = parseInt(out[3])
+        const fs = require('fs')
+        // Primary disk
+        const out1 = execSync("df -BG / | tail -1").toString().trim().split(/\s+/)
+        diskTotal += parseInt(out1[1])
+        diskUsed += parseInt(out1[2])
+        diskFree += parseInt(out1[3])
+
+        // Secondary disk if it exists and is a separate mount
+        if (fs.existsSync('/mnt/storage')) {
+            const out2 = execSync("df -BG /mnt/storage | tail -1").toString().trim().split(/\s+/)
+            if (out1[0] !== out2[0]) { // Different filesystem/device
+                diskTotal += parseInt(out2[1])
+                diskUsed += parseInt(out2[2])
+                diskFree += parseInt(out2[3])
+            }
+        }
     } catch { }
 
     // RAM Info
@@ -241,8 +253,10 @@ let globalTask = {
 }
 
 // Background loop to poll docker stats ONE BY ONE to prevent overloading the socket
+let isPolling = false
 setInterval(async () => {
-    if (dockerBusy) return  // Pause during bulk update/rebuild
+    if (dockerBusy || isPolling) return  // Pause during bulk update/rebuild or if previous loop is still running
+    isPolling = true
     try {
         const clients = db.getAllClients.all()
         for (const c of clients) {
@@ -283,6 +297,8 @@ setInterval(async () => {
         }
     } catch (e) {
         console.error('Background stats loop error:', e)
+    } finally {
+        isPolling = false
     }
 }, 5000)
 
@@ -379,10 +395,8 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
 
         db.updateClientContainer.run(containerId, clientId)
         db.updateClientStatus.run('running', clientId)
-        // Also save volume/container name
-        const stmt = require('better-sqlite3')(require('path').join(__dirname, 'data', 'admin.db'))
-        stmt.prepare(`UPDATE clients SET container_name=?, volume_name=?, storage_path=? WHERE id=?`).run(containerName, volumeName, storagePath, clientId)
-        stmt.close()
+        // Save volume/container name safely without locking DB
+        db.updateClientFullPaths.run(containerName, volumeName, storagePath, clientId)
 
         db.addLog('client_created', clientId, `Port: ${port}, Slots: ${slots}, Storage: ${storage_gb}GB, Path: ${storagePath}`)
 
@@ -717,6 +731,8 @@ app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
                     failed++;
                 }
                 globalTask.progress++;
+                // Add a 2-second delay between containers to prevent CPU spike and Event Loop starvation
+                await new Promise(r => setTimeout(r, 2000))
             }
 
             db.addLog('bulk_update', null, `Bulk updated ${upgraded} client containers. Failed: ${failed}`)

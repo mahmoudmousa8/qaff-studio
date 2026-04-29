@@ -117,6 +117,10 @@ const updateClientStoragePath = db.prepare(`
   UPDATE clients SET storage_path = ?, volume_name = ?, backup_path = ?, updated_at = datetime('now') WHERE id = ?
 `)
 
+const updateClientFullPaths = db.prepare(`
+  UPDATE clients SET container_name = ?, volume_name = ?, storage_path = ?, updated_at = datetime('now') WHERE id = ?
+`)
+
 const updateClientBackupPath = db.prepare(`
   UPDATE clients SET backup_path = ?, updated_at = datetime('now') WHERE id = ?
 `)
@@ -163,7 +167,7 @@ module.exports = {
   getAllClients, getClientById, getClientByPort,
   createClient, updateClientStatus, updateClientContainer,
   updateClientSlots, updateClientInfo, updateClientSecurity, updateClientPassword,
-  updateClientResetAnswer, updateClientStorage, updateClientStoragePath, updateClientBackupPath, updateClientBandwidth, updateClientLockout, deleteClient,
+  updateClientResetAnswer, updateClientStorage, updateClientStoragePath, updateClientFullPaths, updateClientBackupPath, updateClientBandwidth, updateClientLockout, deleteClient,
   getNextAvailablePort,
   addLog, getLogs,
   getSettingValue, upsertSetting,
