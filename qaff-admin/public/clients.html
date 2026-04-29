@@ -375,41 +375,7 @@
             border: 1px dashed rgba(239, 68, 68, 0.4);
         }
 
-        /* Dropdown Styles */
-        .actions-dropdown {
-            position: relative;
-            display: inline-block;
-        }
-        .actions-dropdown-content {
-            display: none;
-            position: absolute;
-            background-color: #1e293b;
-            min-width: 150px;
-            box-shadow: 0px 10px 20px rgba(0,0,0,0.5);
-            z-index: 100;
-            border-radius: 8px;
-            right: 0;
-            top: 100%;
-            padding: 8px;
-            border: 1px solid #334155;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .actions-dropdown-content.drop-up {
-            top: auto;
-            bottom: 100%;
-            margin-bottom: 4px;
-        }
-        .actions-dropdown-content:not(.drop-up) {
-            margin-top: 4px;
-        }
-        .actions-dropdown:hover .actions-dropdown-content {
-            display: flex;
-        }
-        .actions-dropdown-content button {
-            width: 100%;
-            text-align: right;
-        }
+        /* Removed dropdown styles, replaced with Modal */
 
         .btn-delete:hover {
             background: #ef4444;
@@ -997,6 +963,7 @@
                 tbody.innerHTML = '<tr><td colspan="10" class="empty">لا يوجد عملاء بعد. أنشئ أول عميل!</td></tr>'
                 return
             }
+            window.clientOptionsMap = {};
             tbody.innerHTML = data.clients.map((c, index) => {
                 let statusLabel = { running: 'نشط', stopped: 'موقوف', suspended: 'معلق' }[c.status] || c.status
                 let statusClass = { running: 'status-running', stopped: 'status-stopped', suspended: 'status-suspended' }[c.status] || ''
@@ -1060,15 +1027,8 @@
                 
                 menuBtns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${safeName}')">🗑 حذف نهائي</button>`)
 
-                const isLastRows = data.clients.length > 2 && index >= data.clients.length - 2;
-                const dropdownHtml = `
-                    <div class="actions-dropdown">
-                        <button class="btn-sm btn-slots">⚙️ خيارات ▼</button>
-                        <div class="actions-dropdown-content ${isLastRows ? 'drop-up' : ''}">
-                            ${menuBtns.join('')}
-                        </div>
-                    </div>
-                `;
+                window.clientOptionsMap[c.id] = menuBtns.join('');
+                const dropdownHtml = `<button class="btn-sm btn-slots" style="background:#475569;color:#fff;" onclick="openClientOptions(${c.id}, '${safeName}')">⚙️ خيارات</button>`;
 
                 return `<tr>
         <td>
@@ -1635,6 +1595,22 @@
             }
         });
     </script>
+
+    <!-- Options Modal -->
+    <div id="optionsModal" class="modal">
+        <div class="modal-content" style="max-width: 320px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid #334155; padding-bottom:8px;">
+                <h3 id="options-title" style="margin:0; font-size:1.1rem; color:#fff;">خيارات اللوحة</h3>
+                <span class="close-modal" onclick="closeClientOptions()">×</span>
+            </div>
+            <div id="options-container" style="display:flex; flex-direction:column; gap:8px;">
+                <!-- buttons injected here -->
+            </div>
+            <div class="modal-actions" style="margin-top: 1rem;">
+                <button class="btn-secondary" onclick="closeClientOptions()" style="width:100%">إغلاق القائمة</button>
+            </div>
+        </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
 </body>
