@@ -729,6 +729,9 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                     size="icon" variant="ghost" className="h-5 w-5 shrink-0"
                     onClick={() => {
                       if (tr.status === 'active' && tr.xhr) tr.xhr.abort()
+                      if (tr.status === 'processing' && tr.jobId) {
+                        fetch(`/api/transcode/status?jobId=${tr.jobId}`, { method: 'DELETE' }).catch(console.error)
+                      }
                       removeTransfer(tr.id)
                     }}
                   >

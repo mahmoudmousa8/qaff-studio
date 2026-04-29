@@ -195,7 +195,9 @@ export interface JobStatus {
     progress: number
     error?: string
     outputPath?: string
+    inputPath?: string
     originalFilename?: string
+    killFn?: () => void
 }
 
 // In-memory store for active transcoding jobs
@@ -214,7 +216,8 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         state: 'processing',
         progress: 0,
         originalFilename,
-        outputPath
+        outputPath,
+        inputPath
     })
 
     // Determine duration to calculate progress
@@ -282,6 +285,15 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
 
     const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', '2', ...ffmpegArgs])
 
+    const job = jobStore.get(jobId)
+    if (job) {
+        job.killFn = () => {
+            console.log(`[transcode] Killing process for job ${jobId}`)
+            ffmpegProc.kill('SIGKILL')
+        }
+        jobStore.set(jobId, job)
+    }
+
     ffmpegProc.on('error', (err) => {
         console.error(`[transcode] Spawn error for job ${jobId}:`, err)
         errorLog += `\nSpawn error: ${err.message}`
@@ -311,26 +323,7 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         }
     })
 
-    ffmpegProc.stderr.on('data', (data) => {
-        const out = data.toString()
-        // Extract time=hh:mm:ss.ms
-        const timeMatch = out.match(/time=(\d{2}):(\d{2}):(\d{2}\.\d{2})/)
-        if (timeMatch && durationSec > 0) {
-            const h = parseInt(timeMatch[1], 10)
-            const m = parseInt(timeMatch[2], 10)
-            const s = parseFloat(timeMatch[3])
-            const currentSec = (h * 3600) + (m * 60) + s
-            
-            let progress = Math.round((currentSec / durationSec) * 100)
-            if (progress > 99) progress = 99
-            
-            const job = jobStore.get(jobId)
-            if (job) {
-                job.progress = progress
-                jobStore.set(jobId, job)
-            }
-        }
-    })
+
 
     ffmpegProc.on('close', (code) => {
         const job = jobStore.get(jobId)
@@ -366,4 +359,33 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
     })
 
     return jobId
+}
+
+export function cancelTranscode(jobId: string): boolean {
+    const job = jobStore.get(jobId)
+    if (!job) return false
+
+    if (job.state === 'processing') {
+        job.state = 'cancelled'
+        if (job.killFn) {
+            job.killFn()
+        }
+        console.log(`[transcode] Job ${jobId} was cancelled by user. Cleaning up...`)
+        // The 'close' event handler will also fire when killed, but we handle the cleanup here immediately
+        // Wait a slight moment for process to release file handles
+        setTimeout(() => {
+            // Attempt to clean up temp output path
+            if (job.outputPath) {
+                const tempOutputPath = path.join(path.dirname(job.outputPath), `transcoded_${path.basename(job.outputPath)}`)
+                try { if (existsSync(tempOutputPath)) unlinkSync(tempOutputPath) } catch {}
+            }
+            if (job.inputPath) {
+                try { if (existsSync(job.inputPath)) unlinkSync(job.inputPath) } catch {}
+            }
+        }, 500)
+        
+        jobStore.set(jobId, job)
+        return true
+    }
+    return false
 }
