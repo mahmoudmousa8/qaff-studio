@@ -1098,6 +1098,7 @@ app.get('/api/clients/:id/disk-usage', auth.requireAuth, async (req, res) => {
 function getPoolInfo(name, pathStr, isPrimary) {
     try {
         const fs = require('fs');
+        const { execSync } = require('child_process');
         let total, free, available, used;
         if (typeof fs.statfsSync === 'function') {
             const stat = fs.statfsSync(pathStr);
@@ -1107,12 +1108,14 @@ function getPoolInfo(name, pathStr, isPrimary) {
             available = Number(stat.bavail) * blockSize;
             used  = total - free;
         } else {
-            const out = require('child_process').execSync(`df -B1 "${pathStr}" | tail -1`).toString().trim().split(/\s+/);
-            total = parseInt(out[1], 10);
-            used = parseInt(out[2], 10);
-            available = parseInt(out[3], 10);
-            free = available; // Approximation since df doesn't provide bfree
+            // timeout:3000ms so a slow/hung disk never blocks the HTTP response
+            const out = execSync(`df -BG "${pathStr}" | tail -1`, { timeout: 3000 }).toString().trim().split(/\s+/);
+            total     = parseInt(out[1]) * 1024 * 1024 * 1024;
+            used      = parseInt(out[2]) * 1024 * 1024 * 1024;
+            available = parseInt(out[3]) * 1024 * 1024 * 1024;
+            free      = available;
         }
+        if (!total || isNaN(total)) return null;
         return {
             name,
             path: pathStr,
@@ -1122,59 +1125,64 @@ function getPoolInfo(name, pathStr, isPrimary) {
             available,
             used,
             usagePercent: Math.round((used / total) * 100)
-        }
+        };
     } catch (e) {
-        console.error('[getPoolInfo] error for path', pathStr, e.message);
+        console.error('[getPoolInfo] error for path', pathStr, ':', e.message);
         return null;
     }
 }
 
-app.get('/api/system/storage-pools', auth.requireAuth, (req, res) => {
+app.get('/api/system/storage-pools', auth.requireAuth, async (req, res) => {
     const fs = require('fs');
+    const { execSync } = require('child_process');
     const pools = [];
 
-    // Primary pool — always present
-    const p1 = getPoolInfo('Primary Disk', '/', true);
+    // Primary pool — always present, use df with timeout
+    const p1 = getPoolInfo('Primary Disk (القرص الأساسي للنظام)', '/', true);
     if (p1) pools.push(p1);
 
     // Secondary pool — detect /mnt/storage (mounted extra disk)
     const secondaryRoot = '/mnt/storage';
     const secondaryData = `${secondaryRoot}/qaff-data`;
-    if (fs.existsSync(secondaryRoot)) {
-        // Auto-create qaff-data dir if missing
-        if (!fs.existsSync(secondaryData)) {
+    try {
+        if (fs.existsSync(secondaryRoot)) {
+            // Auto-create qaff-data dir if missing
             try { fs.mkdirSync(secondaryData, { recursive: true }); } catch (_) {}
-        }
-        // Only add if it's a real separate filesystem (different device from /)
-        let isSeparate = false;
-        if (typeof fs.statfsSync === 'function') {
-            const rootStat  = fs.statfsSync('/');
-            const mntStat   = fs.statfsSync(secondaryRoot);
-            isSeparate = Number(mntStat.blocks) !== Number(rootStat.blocks);
-        } else {
-            const rootOut = require('child_process').execSync(`df -B1 "/" | tail -1`).toString().trim().split(/\s+/);
-            const mntOut = require('child_process').execSync(`df -B1 "${secondaryRoot}" | tail -1`).toString().trim().split(/\s+/);
-            isSeparate = rootOut[1] !== mntOut[1] || rootOut[0] !== mntOut[0];
-        }
 
-        if (isSeparate) {
-            const p2 = getPoolInfo('Secondary Disk (/mnt/storage)', secondaryData, false);
-            if (p2) pools.push(p2);
+            // Check if it's a separate filesystem from /
+            let isSeparate = false;
+            try {
+                if (typeof fs.statfsSync === 'function') {
+                    const rootStat = fs.statfsSync('/');
+                    const mntStat  = fs.statfsSync(secondaryRoot);
+                    isSeparate = Number(mntStat.blocks) !== Number(rootStat.blocks);
+                } else {
+                    const rootDev = execSync('df -BG "/" | tail -1', { timeout: 3000 }).toString().trim().split(/\s+/)[0];
+                    const mntDev  = execSync(`df -BG "${secondaryRoot}" | tail -1`, { timeout: 3000 }).toString().trim().split(/\s+/)[0];
+                    isSeparate = rootDev !== mntDev;
+                }
+            } catch (e) {
+                console.error('[storage-pools] secondary disk check error:', e.message);
+            }
+
+            if (isSeparate) {
+                const p2 = getPoolInfo('Secondary Disk (/mnt/storage)', secondaryData, false);
+                if (p2) pools.push(p2);
+            }
         }
+    } catch (e) {
+        console.error('[storage-pools] secondary scan error:', e.message);
     }
 
     const clients = db.getAllClients.all();
     const PRIMARY_PATH = '/opt/qaff-data';
     for (const p of pools) {
         if (p.isPrimary) {
-            // Clients on primary disk are those with no path, 'local', or path starts with /opt/qaff-data
-            // BUT EXCLUDE those with a legacy volume_name, because their data physically lives in Docker Root (Secondary Disk)
             p.clientCount = clients.filter(c => {
                 const isLocal = !c.storage_path || c.storage_path === 'local' || c.storage_path.startsWith(PRIMARY_PATH);
                 return isLocal && !c.volume_name;
             }).length;
         } else {
-            // Clients on secondary disk are those explicitly bound there, OR those on legacy volumes
             p.clientCount = clients.filter(c => {
                 const isExplicitSecondary = c.storage_path && c.storage_path.startsWith(p.path.replace('/qaff-data', '')) && !c.storage_path.startsWith(PRIMARY_PATH);
                 const isImplicitSecondary = (!c.storage_path || c.storage_path === 'local') && c.volume_name;
