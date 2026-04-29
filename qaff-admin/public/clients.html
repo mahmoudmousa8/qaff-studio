@@ -936,6 +936,8 @@
 
             <!-- Message -->
             <p id="upd-msg" style="font-size:14px;color:#a1a1aa;min-height:20px;">جاري الإعداد...</p>
+
+            <button class="btn-cancel" id="upd-cancel-btn" style="margin-top:20px; display:none;" onclick="document.getElementById('updateProgressModal').classList.remove('show')">إغلاق النافذة</button>
         </div>
     </div>
 
@@ -1338,10 +1340,15 @@
             document.getElementById('upd-msg').textContent = 'جاري إرسال الطلب...';
             document.getElementById('upd-bar').style.width = '0%';
             document.getElementById('upd-circle').style.strokeDashoffset = '326.7';
+            document.getElementById('upd-circle').style.stroke = '#8b5cf6';
+            document.getElementById('upd-cancel-btn').style.display = 'none';
 
-            // Kick off the update
+            // Kick off the update (20s timeout for the initial request)
             try {
-                const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H() });
+                const ctrl = new AbortController();
+                const tid = setTimeout(() => ctrl.abort(), 20000);
+                const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H(), signal: ctrl.signal });
+                clearTimeout(tid);
                 const d = await res.json();
                 if (!d.success) {
                     document.getElementById('updateProgressModal').classList.remove('show');
@@ -1350,7 +1357,11 @@
                 }
             } catch (e) {
                 document.getElementById('updateProgressModal').classList.remove('show');
-                showToast('خطأ في الاتصال: ' + e.message, true);
+                if (e.name === 'AbortError') {
+                    showToast('⏱ انتهت مهلة الاتصال — تأكد أن السيرفر يعمل بشكل صحيح', true);
+                } else {
+                    showToast('خطأ في الاتصال: ' + e.message, true);
+                }
                 return;
             }
 
