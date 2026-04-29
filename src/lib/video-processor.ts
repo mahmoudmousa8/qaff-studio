@@ -197,6 +197,7 @@ export interface JobStatus {
     outputPath?: string
     inputPath?: string
     originalFilename?: string
+    folder?: string
     killFn?: () => void
 }
 
@@ -211,7 +212,7 @@ export function getJobStatus(jobId: string): JobStatus | undefined {
 const jobQueue: string[] = []
 let isProcessing = false
 
-export function transcodeVideo(inputPath: string, outputPath: string, originalFilename: string): string {
+export function transcodeVideo(inputPath: string, outputPath: string, originalFilename: string, folder?: string): string {
     const jobId = randomUUID()
     
     console.log(`[transcode] Queueing job ${jobId} – input: ${inputPath}, output: ${outputPath}`)
@@ -221,7 +222,8 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
         progress: 0,
         originalFilename,
         outputPath,
-        inputPath
+        inputPath,
+        folder
     })
 
     jobQueue.push(jobId)

@@ -206,17 +206,39 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
     } catch { }
   }, [])
 
+  const fetchActiveJobs = useCallback(async (folder: string) => {
+    try {
+      const res = await fetch(`/api/transcode/list?folder=${encodeURIComponent(folder)}`)
+      if (!res.ok) return
+      const data = await res.json()
+      if (data.success && Array.isArray(data.jobs)) {
+        data.jobs.forEach((job: any) => {
+          upsertTransfer(job.id, {
+            type: 'upload', // we use upload type to show it in the same list
+            name: job.originalFilename || 'معالجة فيديو',
+            status: job.state === 'done' ? 'complete' : (job.state === 'error' ? 'error' : 'processing'),
+            progress: job.progress,
+            jobId: job.id,
+            error: job.error
+          })
+        })
+      }
+    } catch { }
+  }, [upsertTransfer])
+
   useEffect(() => {
     fetchData('')
+    fetchActiveJobs('')
     fetchAllFolders()
     fetchStorage()
-  }, [fetchData, fetchAllFolders, fetchStorage])
+  }, [fetchData, fetchAllFolders, fetchStorage, fetchActiveJobs])
 
   // Navigation
   const navigateToFolder = (folderName: string) => {
     setSearchQuery('')
     const newPath = currentFolder ? `${currentFolder}/${folderName}` : folderName
     fetchData(newPath)
+    fetchActiveJobs(newPath)
   }
 
   const navigateUp = () => {
@@ -224,7 +246,9 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
     setSearchQuery('')
     const parts = currentFolder.split('/')
     parts.pop()
-    fetchData(parts.join('/'))
+    const newPath = parts.join('/')
+    fetchData(newPath)
+    fetchActiveJobs(newPath)
   }
 
   // Backspace navigation
@@ -245,7 +269,9 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
         setSearchQuery('')
         const parts = currentFolder.split('/')
         parts.pop()
-        fetchData(parts.join('/'))
+        const newPath = parts.join('/')
+        fetchData(newPath)
+        fetchActiveJobs(newPath)
       }
     }
     

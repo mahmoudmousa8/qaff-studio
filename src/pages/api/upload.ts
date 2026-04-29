@@ -232,7 +232,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
                         const tempPath = path.join(processingDir, finalFilename)
                         renameSync(filepath, tempPath)
                         
-                        const jobId = processor.transcodeVideo(tempPath, filepath, originalName)
+                        const jobId = processor.transcodeVideo(tempPath, filepath, originalName, folder)
                         
                         if (responded) return
                         responded = true
