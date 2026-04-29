@@ -41,10 +41,12 @@ app.use((req, _res, next) => {
 app.get('/health', (_req, res) => res.json({ status: 'ok', time: new Date().toISOString() }))
 
 // ── Serve HTML pages ──────────────────────────────────────
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')))
+app.get('/', (_req, res) => res.redirect('/clients'))
+app.get('/dashboard', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')))
 app.get('/login', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'login.html')))
 app.get('/clients', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'clients.html')))
 app.get('/storage', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'storage.html')))
+app.get('/stats', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'stats.html')))
 
 // ── Auth API ──────────────────────────────────────────────
 app.post('/api/login', async (req, res) => {
