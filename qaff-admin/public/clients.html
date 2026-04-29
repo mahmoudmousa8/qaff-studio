@@ -907,6 +907,38 @@
         </div>
     </div>
 
+    <!-- ── Update Progress Modal ── -->
+    <div class="modal-bg" id="updateProgressModal">
+        <div class="modal" style="max-width:480px; text-align:center;">
+            <h3 style="margin-bottom:8px;">🔄 جاري تحديث كافة اللوحات</h3>
+            <p style="color:#94a3b8; font-size:13px; margin-bottom:24px;">يرجى الانتظار حتى اكتمال التحديث. لا تغلق هذه النافذة.</p>
+
+            <!-- Circular spinner + count -->
+            <div style="position:relative; width:120px; height:120px; margin:0 auto 20px;">
+                <svg viewBox="0 0 120 120" style="width:120px;height:120px;transform:rotate(-90deg)">
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="#27272a" stroke-width="10"/>
+                    <circle id="upd-circle" cx="60" cy="60" r="52" fill="none" stroke="#8b5cf6" stroke-width="10"
+                        stroke-linecap="round"
+                        stroke-dasharray="326.7"
+                        stroke-dashoffset="326.7"
+                        style="transition: stroke-dashoffset 0.6s ease"/>
+                </svg>
+                <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;">
+                    <div id="upd-count" style="font-size:26px;font-weight:800;color:#f4f4f5;">0</div>
+                    <div id="upd-total-label" style="font-size:11px;color:#94a3b8;">من 0</div>
+                </div>
+            </div>
+
+            <!-- Progress bar -->
+            <div style="background:#27272a;border-radius:8px;height:8px;overflow:hidden;margin-bottom:16px;">
+                <div id="upd-bar" style="height:100%;background:linear-gradient(90deg,#8b5cf6,#3b82f6);border-radius:8px;width:0%;transition:width 0.6s ease;"></div>
+            </div>
+
+            <!-- Message -->
+            <p id="upd-msg" style="font-size:14px;color:#a1a1aa;min-height:20px;">جاري الإعداد...</p>
+        </div>
+    </div>
+
     <script>
         const T = () => localStorage.getItem('qaff_admin_token')
         const H = (body) => {
@@ -1297,33 +1329,67 @@
         }
 
         async function updateAllPanels() {
-            if (!confirm('هل أنت متأكد من تحديث كافة اللوحات للنسخة الأحدث؟\n\nتنبيه: التحديث سيعمل في الخلفية. يمكنك متابعة العمل بشكل طبيعي.')) return;
-            const btn = document.getElementById('updateAllBtn')
-            const originalHtml = btn.innerHTML
-            btn.innerHTML = '<span class="spinner" style="width:16px;height:16px;border-width:2px;"></span> جاري الإرسال...'
-            btn.disabled = true
+            if (!confirm('هل أنت متأكد من تحديث كافة اللوحات للنسخة الأحدث؟')) return;
 
+            // Show progress modal immediately
+            document.getElementById('updateProgressModal').classList.add('show');
+            document.getElementById('upd-count').textContent = '0';
+            document.getElementById('upd-total-label').textContent = 'من ?';
+            document.getElementById('upd-msg').textContent = 'جاري إرسال الطلب...';
+            document.getElementById('upd-bar').style.width = '0%';
+            document.getElementById('upd-circle').style.strokeDashoffset = '326.7';
+
+            // Kick off the update
             try {
-                const controller = new AbortController()
-                const timeoutId = setTimeout(() => controller.abort(), 30000)
-                const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H(), signal: controller.signal })
-                clearTimeout(timeoutId)
-                const d = await res.json()
-                if (d.success) {
-                    showToast('✅ ' + (d.message || 'بدأ التحديث في الخلفية بنجاح'))
-                } else {
-                    showToast(d.error || 'خطأ غير معروف', true)
+                const res = await fetch('/api/clients/update-all', { method: 'POST', headers: H() });
+                const d = await res.json();
+                if (!d.success) {
+                    document.getElementById('updateProgressModal').classList.remove('show');
+                    showToast(d.error || 'فشل بدء التحديث', true);
+                    return;
                 }
             } catch (e) {
-                if (e.name === 'AbortError') {
-                    showToast('✅ جارٍ التحديث في الخلفية — ستظهر التغييرات خلال بضع دقائق', false)
-                } else {
-                    showToast('حدث خطأ بالاتصال: ' + e.message, true)
-                }
-            } finally {
-                btn.innerHTML = originalHtml
-                btn.disabled = false
+                document.getElementById('updateProgressModal').classList.remove('show');
+                showToast('خطأ في الاتصال: ' + e.message, true);
+                return;
             }
+
+            // Poll task-status every 3 seconds until done
+            const pollInterval = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/system/task-status', { headers: H() });
+                    const task = await res.json();
+
+                    const total = task.total || 1;
+                    const progress = task.progress || 0;
+                    const pct = Math.min(Math.round((progress / total) * 100), 100);
+                    const circumference = 326.7;
+                    const offset = circumference - (circumference * pct / 100);
+
+                    document.getElementById('upd-count').textContent = progress;
+                    document.getElementById('upd-total-label').textContent = `من ${total}`;
+                    document.getElementById('upd-bar').style.width = pct + '%';
+                    document.getElementById('upd-circle').style.strokeDashoffset = offset;
+                    document.getElementById('upd-msg').textContent = task.message || 'جاري تحديث اللوحات...';
+
+                    // Check if done
+                    if (!task.active && progress > 0) {
+                        clearInterval(pollInterval);
+                        // Show 100% briefly then close
+                        document.getElementById('upd-bar').style.width = '100%';
+                        document.getElementById('upd-circle').style.strokeDashoffset = '0';
+                        document.getElementById('upd-circle').style.stroke = '#10b981';
+                        document.getElementById('upd-msg').textContent = task.message || '✅ اكتمل التحديث!';
+                        setTimeout(() => {
+                            document.getElementById('updateProgressModal').classList.remove('show');
+                            loadClients();
+                            showToast(task.message || '✅ تم تحديث كافة اللوحات بنجاح');
+                        }, 2500);
+                    }
+                } catch (e) {
+                    // network hiccup — keep trying
+                }
+            }, 3000);
         }
 
         function copyClientInfo(url, pass, reset, slots, storage, ren, bw) {
