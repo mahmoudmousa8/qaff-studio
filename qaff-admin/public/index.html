@@ -70,6 +70,27 @@
             border-color: #f87171;
         }
 
+        .settings {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0 16px;
+            height: 38px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            color: #e2e8f0;
+            transition: all 0.2s;
+            gap: 6px;
+        }
+
+        .settings:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
         main {
             max-width: 1200px;
             margin: 0 auto;
@@ -279,12 +300,11 @@
         <h1>نظام Qaff</h1>
         <div class="links">
             <a href="/clients">العملاء</a>
-            <a href="/dashboard" class="active">إحصائيات المنصة</a>
+            <a href="/dashboard" class="active">الإحصائيات</a>
             <a href="/storage">مساحات التخزين</a>
-            <a href="/stats">إحصائيات السيرفر</a>
         </div>
         <div style="display:flex; gap:12px; align-items:center;">
-            <button onclick="showAdminPassModal()" style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:8px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; transition:all 0.2s;" title="تغيير كلمة المرور" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">⚙️</button>
+            <button class="settings" onclick="showAdminPassModal()" title="تغيير كلمة المرور">⚙️ الإعدادات</button>
             <button class="logout" onclick="logout()">تسجيل الخروج</button>
         </div>
     </nav>
