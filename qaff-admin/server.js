@@ -231,6 +231,15 @@ const clientStatsCache = new Map()
 // Flag: when true, background loop pauses to avoid saturating Docker socket during bulk ops
 let dockerBusy = false
 
+// Global task state for background operations (rebuild, bulk update)
+let globalTask = {
+    active: false,
+    type: '',
+    progress: 0,
+    total: 0,
+    message: ''
+}
+
 // Background loop to poll docker stats ONE BY ONE to prevent overloading the socket
 setInterval(async () => {
     if (dockerBusy) return  // Pause during bulk update/rebuild
@@ -658,12 +667,25 @@ app.put('/api/clients/:id/bandwidth', auth.requireAuth, async (req, res) => {
 
 // ── Clients: update all containers ──────────────────────────
 app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
+    if (globalTask.active) {
+        return res.status(400).json({ error: 'هناك عملية قيد التنفيذ حالياً في الخلفية' })
+    }
+
     res.json({ success: true, message: 'بدأ تحديث جميع اللوحات في الخلفية. ستستغرق العملية بضع دقائق.' })
     
     setTimeout(async () => {
         dockerBusy = true  // Pause background stats loop
         try {
             const clients = db.getAllClients.all()
+            
+            globalTask = {
+                active: true,
+                type: 'bulk_update',
+                progress: 0,
+                total: clients.length,
+                message: 'جاري تحديث لوحات العملاء...'
+            }
+
             let upgraded = 0
             let failed = 0
 
@@ -693,12 +715,18 @@ app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
                     console.error(`[bulk update] failed to upgrade client ${client.id}:`, err)
                     failed++;
                 }
+                globalTask.progress++;
             }
 
             db.addLog('bulk_update', null, `Bulk updated ${upgraded} client containers. Failed: ${failed}`)
             console.log(`[bulk update] Done. Upgraded: ${upgraded}, Failed: ${failed}`)
+            
+            globalTask.message = `✅ اكتمل التحديث! نجاح: ${upgraded} | فشل: ${failed}`
+            setTimeout(() => { globalTask.active = false }, 5000)
         } catch (e) {
             console.error('[bulk update] fatal error:', e)
+            globalTask.message = '❌ حدث خطأ غير متوقع أثناء التحديث'
+            setTimeout(() => { globalTask.active = false }, 5000)
         } finally {
             dockerBusy = false  // Resume background stats loop
         }
@@ -708,8 +736,22 @@ app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
 // ── Server: System Stats (Admin Only) ─────────────────────
 app.get('/api/system-stats', auth.requireAuth, async (req, res) => {
     try {
-        const clients = db.getAllClients.all()
-        let totalAllocatedSlots = 0
+        const stats = await getSystemStats()
+        res.json(stats)
+    } catch (err) {
+        console.error('[system-stats] error:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+// ── Server: Background Task Status ────────────────────────
+app.get('/api/system/task-status', auth.requireAuth, (req, res) => {
+    res.json(globalTask)
+})
+
+async function getSystemStats() {
+    const clients = db.getAllClients.all()
+    let totalAllocatedSlots = 0
         let totalRunningSlots = 0
         let totalClients = clients.length
         let runningClients = 0
@@ -1290,11 +1332,22 @@ app.delete('/api/clients/:id/backup', auth.requireAuth, async (req, res) => {
 
 // ── System: Pull + Rebuild Docker Image + Update All Clients ──
 app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
+    if (globalTask.active) {
+        return res.status(400).json({ error: 'هناك عملية قيد التنفيذ حالياً في الخلفية' })
+    }
+
     const projectDir = '/opt/qaff-studio'
-    res.json({ success: true, message: 'Rebuild started. Check server logs for progress.' })
+    res.json({ success: true, message: 'بدأ التحديث الشامل في الخلفية...' })
 
     setTimeout(async () => {
         dockerBusy = true  // Pause background stats loop
+        globalTask = {
+            active: true,
+            type: 'rebuild',
+            progress: 0,
+            total: 100, // percentage based for the first part
+            message: 'جاري جلب التحديثات من GitHub...'
+        }
         try {
             const { exec } = require('child_process')
             const { promisify } = require('util')
@@ -1305,6 +1358,8 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
             await execAsync(`git -C "${projectDir}" fetch origin main`)
             await execAsync(`git -C "${projectDir}" reset --hard origin/main`)
 
+            globalTask.message = 'جاري بناء صورة السيرفر (Docker Build)...'
+            globalTask.progress = 30
             console.log('[rebuild] Rebuilding Docker image qaff-studio:latest...')
             await execAsync(`docker build -t qaff-studio:latest "${projectDir}"`)
             console.log('[rebuild] Docker image rebuilt.')
@@ -1312,6 +1367,11 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
             // Recreate all running clients from the new image
             const clients = db.getAllClients.all()
             let upgraded = 0, failed = 0
+            
+            globalTask.message = 'جاري إعادة تشغيل لوحات العملاء...'
+            globalTask.progress = 0
+            globalTask.total = clients.length
+
             for (const client of clients) {
                 if (!client.container_id) continue
                 try {
@@ -1337,12 +1397,18 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
                     console.error(`[rebuild] client ${client.id} failed:`, err)
                     failed++
                 }
+                globalTask.progress++
             }
             db.addLog('system_rebuild', null, `Rebuilt image. Upgraded: ${upgraded}, Failed: ${failed}`)
             console.log(`[rebuild] Done. Upgraded: ${upgraded}, Failed: ${failed}`)
+            
+            globalTask.message = `✅ اكتمل التحديث الشامل! نجاح: ${upgraded} | فشل: ${failed}`
+            setTimeout(() => { globalTask.active = false }, 5000)
         } catch (err) {
             console.error('[rebuild] Fatal error:', err)
             db.addLog('system_rebuild_failed', null, err.message)
+            globalTask.message = '❌ حدث خطأ أثناء التحديث الشامل'
+            setTimeout(() => { globalTask.active = false }, 5000)
         } finally {
             dockerBusy = false  // Resume background stats loop
         }

@@ -632,6 +632,22 @@
         </div>
     </nav>
 
+    <!-- Global Background Task Banner -->
+    <div id="globalTaskBanner" style="display:none; background: linear-gradient(90deg, #1e1b4b, #312e81); border-bottom: 1px solid #4f46e5; padding: 12px 24px; color: #e0e7ff;">
+        <div style="max-width: 1400px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span class="spinner" style="width: 20px; height: 20px; border-width: 2px;"></span>
+                <span id="taskMessage" style="font-weight: 600; font-size: 15px;">جاري تحديث اللوحات...</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px; flex: 1; max-width: 400px; justify-content: flex-end;">
+                <div style="font-size: 13px; font-weight: 700; color: #a5b4fc; min-width: 60px;" id="taskProgressText">0 / 0</div>
+                <div style="height: 8px; background: #1e1b4b; border-radius: 4px; overflow: hidden; flex: 1;">
+                    <div id="taskProgressBar" style="height: 100%; width: 0%; background: #4f46e5; transition: width 0.3s ease;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <main>
         <div class="top">
             <h2>إدارة العملاء</h2>
@@ -1396,8 +1412,54 @@
             btn.textContent = 'حفظ التغيير';
         }
 
+        // --- Background Task Polling ---
+        async function pollTaskStatus() {
+            try {
+                const res = await fetch('/api/system/task-status', { headers: H() })
+                if (!res.ok) return
+                const d = await res.json()
+                
+                const banner = document.getElementById('globalTaskBanner')
+                if (d.active || d.message.includes('✅') || d.message.includes('❌')) {
+                    if (d.message && !d.active && banner.style.display === 'none') {
+                        // Just a completed message but banner was closed, ignore or show toast
+                        return;
+                    }
+                    
+                    banner.style.display = 'block'
+                    document.getElementById('taskMessage').textContent = d.message
+                    
+                    if (d.total > 0) {
+                        const pct = Math.round((d.progress / d.total) * 100)
+                        document.getElementById('taskProgressText').textContent = `${d.progress} / ${d.total}`
+                        document.getElementById('taskProgressBar').style.width = pct + '%'
+                        document.getElementById('taskProgressBar').parentElement.style.display = 'block'
+                        document.getElementById('taskProgressText').style.display = 'block'
+                    } else {
+                        document.getElementById('taskProgressBar').parentElement.style.display = 'none'
+                        document.getElementById('taskProgressText').style.display = 'none'
+                    }
+                    
+                    // If finished, hide banner after a few seconds
+                    if (!d.active) {
+                        document.querySelector('#globalTaskBanner .spinner').style.display = 'none';
+                        setTimeout(() => {
+                            banner.style.display = 'none';
+                            document.querySelector('#globalTaskBanner .spinner').style.display = 'block';
+                        }, 5000);
+                    }
+                } else {
+                    banner.style.display = 'none'
+                }
+            } catch (e) {
+                console.error('Task poll error', e)
+            }
+        }
+
         loadClients()
         setInterval(loadClients, 15000)
+        setInterval(pollTaskStatus, 2000)
+        pollTaskStatus()
         // Initialize Flatpickr for date inputs
         document.addEventListener("DOMContentLoaded", () => {
             if (typeof flatpickr !== 'undefined') {
