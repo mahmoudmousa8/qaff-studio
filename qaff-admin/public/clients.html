@@ -946,7 +946,7 @@
         <td>
             <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
                 <span style="font-weight:700">${c.storage_gb} GB</span>
-                ${c.storage_path && c.storage_path !== 'local' && !c.storage_path.startsWith('/opt/qaff-data') ? '<span style="font-size:9px;color:#0ea5e9;background:rgba(14,165,233,0.1);padding:2px 4px;border-radius:4px;">Secondary</span>' : '<span style="font-size:9px;color:#10b981;background:rgba(16,185,129,0.1);padding:2px 4px;border-radius:4px;">Primary</span>'}
+                ${(c.storage_path && c.storage_path !== 'local' && !c.storage_path.startsWith('/opt/qaff-data')) || ((!c.storage_path || c.storage_path === 'local') && c.volume_name) ? '<span style="font-size:9px;color:#0ea5e9;background:rgba(14,165,233,0.1);padding:2px 4px;border-radius:4px;">Secondary</span>' : '<span style="font-size:9px;color:#10b981;background:rgba(16,185,129,0.1);padding:2px 4px;border-radius:4px;">Primary</span>'}
                 <span id="du-${c.id}" style="font-size:9px;color:#94a3b8;">...</span>
             </div>
         </td>
