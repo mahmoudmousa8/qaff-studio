@@ -406,7 +406,7 @@ app.post('/api/clients/:id/suspend', auth.requireAuth, async (req, res) => {
     if (!client) return res.status(404).json({ error: 'Client not found' })
 
     try {
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
         await docker.stopContainer(client.container_id).catch(() => { })
         await docker.deleteClientContainer(client.container_id, null) // keep volume
 
@@ -439,7 +439,7 @@ app.post('/api/clients/:id/resume', auth.requireAuth, async (req, res) => {
     if (!client) return res.status(404).json({ error: 'Client not found' })
 
     try {
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
         await docker.stopContainer(client.container_id).catch(() => { })
         await docker.deleteClientContainer(client.container_id, null) // keep volume
 
@@ -528,7 +528,7 @@ app.put('/api/clients/:id/slots', auth.requireAuth, async (req, res) => {
         db.addLog('client_slots_updated', client.id, `Slots: ${slots}`)
 
         // Extract original password hash to recreate container seamlessly
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
 
         await docker.stopContainer(client.container_id).catch(() => { })
         await docker.deleteClientContainer(client.container_id, null) // keep volume
@@ -568,7 +568,7 @@ app.put('/api/clients/:id/info', auth.requireAuth, async (req, res) => {
         db.addLog('client_info_updated', client.id, `Name: ${updateName}, WhatsApp: ${whatsapp}, Renewal: ${renewalDate}`)
 
         // Extract original password hash to recreate container seamlessly for new env vars
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
         await docker.stopContainer(client.container_id).catch(() => { })
         await docker.deleteClientContainer(client.container_id, null) // keep volume
 
@@ -607,7 +607,7 @@ app.put('/api/clients/:id/bandwidth', auth.requireAuth, async (req, res) => {
         db.addLog('client_bandwidth_updated', client.id, `Bandwidth Limit (Mbps): ${strictLimit}`)
 
         // Extract original password hash to recreate container seamlessly for new env vars
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
         await docker.stopContainer(client.container_id).catch(() => { })
         await docker.deleteClientContainer(client.container_id, null) // keep volume
 
@@ -645,9 +645,8 @@ app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
             if (!client.container_id) continue;
 
             try {
-                // Read original hash
-                const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null)
-                if (!passwordHash) { failed++; continue; }
+                // Read original hash or generate from db if container is missing
+                const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
 
                 // Stop & Remove matching exact existing schema logic
                 await docker.stopContainer(client.container_id).catch(() => { })
@@ -894,7 +893,7 @@ app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
         db.addLog('client_storage_updated', client.id, `Storage: ${storage_gb}GB`);
 
         // Extract original password hash to recreate container seamlessly
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id)
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
 
         // Recreate container for limits (even though storage is volume-bound, we restart to be clean)
         await docker.stopContainer(client.container_id).catch(() => { })
@@ -924,22 +923,15 @@ app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
 });
 
 // ── Per-Client: real disk usage from hybrid storage ───────
-app.get('/api/clients/:id/disk-usage', auth.requireAuth, (req, res) => {
+app.get('/api/clients/:id/disk-usage', auth.requireAuth, async (req, res) => {
     const client = db.getClientById.get(req.params.id)
     if (!client) return res.status(404).json({ error: 'Client not found' })
-
-    // In Hybrid Storage, heavy data is either on SSD or a custom path
-    const primaryBase = `/opt/qaff-data/client_${client.id}`
-    const heavyPath = (!client.storage_path || client.storage_path === 'local')
-        ? primaryBase
-        : client.storage_path
 
     const fs = require('fs')
     const path = require('path')
 
-    // Sum up the sizes of the 3 heavy directories
-    const subDirs = ['videos', 'upload', 'download']
     let totalBytes = 0
+    let checkPath = ''
 
     function getDirSize(dir) {
         let total = 0
@@ -957,9 +949,26 @@ app.get('/api/clients/:id/disk-usage', auth.requireAuth, (req, res) => {
         return total
     }
 
-    subDirs.forEach(sub => {
-        totalBytes += getDirSize(path.join(heavyPath, sub))
-    })
+    // Check if client is still on legacy volume
+    if (client.volume_name && (!client.storage_path || client.storage_path === 'local')) {
+        const volInspect = await docker.getDocker().getVolume(client.volume_name).inspect().catch(() => null);
+        checkPath = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/${client.volume_name}/_data`;
+        
+        // Sum up heavy dirs inside volume
+        ['videos', 'upload', 'download'].forEach(sub => {
+            totalBytes += getDirSize(path.join(checkPath, sub))
+        })
+    } else {
+        // In Hybrid Storage, heavy data is either on SSD or a custom path
+        const primaryBase = `/opt/qaff-data/client_${client.id}`
+        checkPath = (!client.storage_path || client.storage_path === 'local')
+            ? primaryBase
+            : client.storage_path
+
+        ['videos', 'upload', 'download'].forEach(sub => {
+            totalBytes += getDirSize(path.join(checkPath, sub))
+        })
+    }
 
     function fmt(bytes) {
         if (bytes === 0) return '0 B'
@@ -1123,7 +1132,7 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
         }
         require('child_process').execSync(`chown -R 1000:1000 "${primaryBase}"`);
 
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password);
         await docker.deleteClientContainer(client.container_id, null);
 
         const { containerId, containerName, volumeName, storagePath } = await docker.createClientContainer({
@@ -1193,7 +1202,7 @@ app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
         db.addLog('rollback_started', client.id, `Restoring from ${client.backup_path}`);
         require('child_process').execSync(`rsync -acv "${client.backup_path}/" "${destDir}"`);
 
-        const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null);
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password);
         await docker.deleteClientContainer(client.container_id, null);
 
         const { containerId, containerName, volumeName, storagePath } = await docker.createClientContainer({
@@ -1276,8 +1285,7 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
             for (const client of clients) {
                 if (!client.container_id) continue
                 try {
-                    const passwordHash = await docker.getContainerPasswordHash(client.container_id).catch(() => null)
-                    if (!passwordHash) { failed++; continue }
+                    const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
                     await docker.stopContainer(client.container_id).catch(() => { })
                     await docker.deleteClientContainer(client.container_id, null)
                     const { containerId } = await docker.createClientContainer({
