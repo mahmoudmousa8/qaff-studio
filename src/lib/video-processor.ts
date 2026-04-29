@@ -389,3 +389,32 @@ export function cancelTranscode(jobId: string): boolean {
     }
     return false
 }
+
+// -----------------------------------------------------------------------------
+// Auto-Cleanup on Server Startup
+// -----------------------------------------------------------------------------
+// This runs once when the video-processor module is first imported by the Node.js server.
+// It ensures that any leftover files from previous crashed transcodes are deleted.
+if (typeof window === 'undefined') {
+    try {
+        const { VIDEOS_DIR } = require('./paths')
+        const processingDir = path.join(VIDEOS_DIR, '.processing')
+        if (existsSync(processingDir)) {
+            const files = require('fs').readdirSync(processingDir)
+            if (files.length > 0) {
+                console.log(`[transcode] Server startup: Cleaning up ${files.length} orphaned files in .processing...`)
+                for (const file of files) {
+                    try {
+                        unlinkSync(path.join(processingDir, file))
+                    } catch (e) {
+                        // ignore
+                    }
+                }
+            }
+        } else {
+            require('fs').mkdirSync(processingDir, { recursive: true })
+        }
+    } catch (e) {
+        console.warn(`[transcode] Failed to run startup cleanup:`, e)
+    }
+}
