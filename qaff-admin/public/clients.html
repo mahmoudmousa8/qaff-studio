@@ -395,6 +395,14 @@
             flex-direction: column;
             gap: 4px;
         }
+        .actions-dropdown-content.drop-up {
+            top: auto;
+            bottom: 100%;
+            margin-bottom: 4px;
+        }
+        .actions-dropdown-content:not(.drop-up) {
+            margin-top: 4px;
+        }
         .actions-dropdown:hover .actions-dropdown-content {
             display: flex;
         }
@@ -1052,10 +1060,11 @@
                 
                 menuBtns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${safeName}')">🗑 حذف نهائي</button>`)
 
+                const isLastRows = data.clients.length > 2 && index >= data.clients.length - 2;
                 const dropdownHtml = `
                     <div class="actions-dropdown">
                         <button class="btn-sm btn-slots">⚙️ خيارات ▼</button>
-                        <div class="actions-dropdown-content">
+                        <div class="actions-dropdown-content ${isLastRows ? 'drop-up' : ''}">
                             ${menuBtns.join('')}
                         </div>
                     </div>
