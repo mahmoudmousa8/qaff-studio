@@ -1093,19 +1093,40 @@
             const btn = document.getElementById('createBtn')
             btn.innerHTML = '<span class="spinner"></span> يتم الإنشاء...'
             btn.disabled = true
-            const res = await fetch('/api/clients', {
-                method: 'POST', headers: H(true),
-                body: JSON.stringify({ name, slots, storage_gb: storage, bandwidth_limit: bandwidthLimit, password: pass, whatsapp: wa, renewalDate: ren, reset_answer: reset, storage_path: storagePool })
-            })
-            const d = await res.json()
-            btn.disabled = false; btn.textContent = 'إنشاء'
-            if (d.success) {
-                const urlBox = document.getElementById('created-url')
-                urlBox.textContent = `✅ تم الإنشاء! الرابط: ${d.url}`
-                urlBox.style.display = 'block'
-                loadClients()
-                setTimeout(closeCreate, 4000)
-            } else showToast(d.error || 'فشل الإنشاء', true)
+
+            // 90 second timeout — Docker container creation can take time
+            const controller = new AbortController()
+            const timeoutId = setTimeout(() => controller.abort(), 90000)
+
+            try {
+                const res = await fetch('/api/clients', {
+                    method: 'POST',
+                    headers: H(true),
+                    body: JSON.stringify({ name, slots, storage_gb: storage, bandwidth_limit: bandwidthLimit, password: pass, whatsapp: wa, renewalDate: ren, reset_answer: reset, storage_path: storagePool }),
+                    signal: controller.signal
+                })
+                clearTimeout(timeoutId)
+                const d = await res.json()
+                if (d.success) {
+                    const urlBox = document.getElementById('created-url')
+                    urlBox.textContent = `✅ تم الإنشاء! الرابط: ${d.url}`
+                    urlBox.style.display = 'block'
+                    loadClients()
+                    setTimeout(closeCreate, 5000)
+                } else {
+                    showToast(d.error || 'فشل الإنشاء', true)
+                }
+            } catch (err) {
+                clearTimeout(timeoutId)
+                if (err.name === 'AbortError') {
+                    showToast('⏱ انتهت مهلة الإنشاء (90 ثانية) — تحقق من حالة السيرفر', true)
+                } else {
+                    showToast('خطأ في الاتصال: ' + err.message, true)
+                }
+            } finally {
+                btn.disabled = false
+                btn.textContent = 'إنشاء'
+            }
         }
 
         function openPassModal(id, pass) {

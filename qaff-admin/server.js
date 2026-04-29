@@ -224,48 +224,63 @@ app.get('/api/dashboard', auth.requireAuth, async (req, res) => {
     })
 })
 
-// Global tracking for per-client live Mbps outbound speed
+// Global tracking for per-client live stats
 const clientNetCache = new Map()
+const clientStatsCache = new Map()
+
+// Background loop to poll docker stats ONE BY ONE to prevent overloading the socket
+setInterval(async () => {
+    try {
+        const clients = db.getAllClients.all()
+        for (const c of clients) {
+            if (!c.container_id) {
+                clientStatsCache.set(c.id, { docker: { status: 'no_container', running: false }, active_streams: 0, live_mbps_out: '0.00' })
+                continue
+            }
+            
+            try {
+                const dockerStatus = await docker.getContainerStatus(c.container_id)
+                let activeStreams = 0
+                let mbpsOut = '0.00'
+
+                if (dockerStatus.running) {
+                    activeStreams = await docker.getContainerActiveStreams(c.container_id)
+                    const txBytes = await docker.getContainerNetTx(c.container_id)
+                    const now = Date.now()
+                    const last = clientNetCache.get(c.container_id)
+
+                    if (last && now > last.time) {
+                        const diffBytes = txBytes - last.tx
+                        const diffSecs = (now - last.time) / 1000
+                        if (diffBytes > 0 && diffSecs > 0) {
+                            mbpsOut = ((diffBytes * 8) / (1024 * 1024) / diffSecs).toFixed(2)
+                        }
+                    }
+                    clientNetCache.set(c.container_id, { tx: txBytes, time: now, mbps: mbpsOut })
+                    if (last && (now - last.time) < 2000) mbpsOut = last.mbps
+                } else {
+                    clientNetCache.delete(c.container_id)
+                }
+
+                clientStatsCache.set(c.id, { docker: dockerStatus, active_streams: activeStreams, live_mbps_out: mbpsOut })
+            } catch (err) {
+                // Ignore individual container errors to prevent loop crash
+            }
+        }
+    } catch (e) {
+        console.error('Background stats loop error:', e)
+    }
+}, 5000)
 
 // ── Clients: list ─────────────────────────────────────────
 app.get('/api/clients', auth.requireAuth, async (req, res) => {
     const clients = db.getAllClients.all()
 
-    // Enrich with live Docker status + active stream count + live mbps out
-    const enriched = await Promise.all(clients.map(async (c) => {
-        const dockerStatus = c.container_id
-            ? await docker.getContainerStatus(c.container_id)
-            : { status: 'no_container', running: false }
-
-        let activeStreams = 0
-        let mbpsOut = '0.00'
-
-        if (c.container_id && dockerStatus.running) {
-            // Get active streams
-            activeStreams = await docker.getContainerActiveStreams(c.container_id)
-
-            // Calculate live outbound Mbps over the polling interval
-            const txBytes = await docker.getContainerNetTx(c.container_id)
-            const now = Date.now()
-            const last = clientNetCache.get(c.container_id)
-
-            if (last && now > last.time) {
-                const diffBytes = txBytes - last.tx
-                const diffSecs = (now - last.time) / 1000
-                if (diffBytes > 0 && diffSecs > 0) {
-                    mbpsOut = ((diffBytes * 8) / (1024 * 1024) / diffSecs).toFixed(2)
-                }
-            }
-            // Update cache for next polling cycle
-            clientNetCache.set(c.container_id, { tx: txBytes, time: now, mbps: mbpsOut })
-            // If the poll happened too quickly (e.g. user refreshed immediately), return the last calculated value
-            if (last && (now - last.time) < 2000) mbpsOut = last.mbps
-        } else {
-            clientNetCache.delete(c.container_id)
-        }
-
-        return { ...c, docker: dockerStatus, active_streams: activeStreams, live_mbps_out: mbpsOut }
-    }))
+    // Map over clients and attach instantly from cache
+    const enriched = clients.map(c => {
+        const cached = clientStatsCache.get(c.id) || { docker: { status: 'loading', running: false }, active_streams: 0, live_mbps_out: '0.00' }
+        return { ...c, ...cached }
+    })
 
     res.json({ clients: enriched })
 })

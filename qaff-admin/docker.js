@@ -37,13 +37,16 @@ async function imageExists() {
  */
 async function createClientContainer({ clientId, name, port, slots, storageGb, bandwidthLimit = 0, passwordHash, isSuspended = false, renewalDate = '', storagePath = 'local', volumeName }) {
     const containerName = `${CONTAINER_PREFIX}${clientId}`
-    
+    const fs = require('fs')
+    const { exec } = require('child_process')
+    const { promisify } = require('util')
+    const execAsync = promisify(exec)
+
     // Core directory on Primary SSD (Always)
     const primaryBase = `/opt/qaff-data/client_${clientId}`
-    const fs = require('fs')
     if (!fs.existsSync(primaryBase)) {
         fs.mkdirSync(primaryBase, { recursive: true })
-        try { require('child_process').execSync(`chown -R 1000:1000 "${primaryBase}"`); } catch(e) {}
+        try { await execAsync(`chown -R 1000:1000 "${primaryBase}"`); } catch(e) {}
     }
 
     let binds = []
@@ -59,16 +62,16 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, b
         // If storagePath is not 'local', these points are redirected to the secondary drive
         const dataRoot = (!storagePath || storagePath === 'local') ? primaryBase : storagePath;
         
-        // Ensure data directories exist on target drive
-        ['videos', 'upload', 'download'].forEach(sub => {
+        // Ensure data directories exist on target drive (async to not block event loop)
+        for (const sub of ['videos', 'upload', 'download']) {
             const fullPath = require('path').join(dataRoot, sub)
             if (!fs.existsSync(fullPath)) {
                 fs.mkdirSync(fullPath, { recursive: true })
-                try { require('child_process').execSync(`chown -R 1000:1000 "${fullPath}"`); } catch(e) {}
+                try { await execAsync(`chown -R 1000:1000 "${fullPath}"`); } catch(e) {}
             }
             // Nested bind: /app/data/sub maps to the selected drive
             binds.push(`${fullPath}:/app/data/${sub}`)
-        })
+        }
     }
 
     // Create the container
