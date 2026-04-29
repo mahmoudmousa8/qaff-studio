@@ -252,31 +252,37 @@ let globalTask = {
     message: ''
 }
 
-// Background loop to poll docker stats ONE BY ONE to prevent overloading the socket
+// ── Two-tier background polling ────────────────────────────────────────────────
+// FAST loop  (every 6s): container status + network speed via c.inspect() + c.stats()
+// SLOW loop  (every 90s): active stream count via docker exec (expensive, one at a time)
+//
+// Separating these prevents docker exec calls from blocking the inspect/stats calls
+// which was the root cause of the dashboard freezing.
+
+const activeStreamsCache = new Map()   // clientId → stream count (populated by slow loop)
 let isPolling = false
+let isSlowPolling = false
+
+// FAST loop — lightweight status + network speed
 setInterval(async () => {
-    if (dockerBusy || isPolling) return  // Pause during bulk update/rebuild or if previous loop is still running
+    if (dockerBusy || isPolling) return
     isPolling = true
     try {
         const clients = db.getAllClients.all()
         for (const c of clients) {
-            if (dockerBusy) break  // Stop mid-loop if bulk op just started
+            if (dockerBusy) break
             if (!c.container_id) {
                 clientStatsCache.set(c.id, { docker: { status: 'no_container', running: false }, active_streams: 0, live_mbps_out: '0.00' })
                 continue
             }
-            
             try {
                 const dockerStatus = await docker.getContainerStatus(c.container_id)
-                let activeStreams = 0
                 let mbpsOut = '0.00'
 
                 if (dockerStatus.running) {
-                    activeStreams = await docker.getContainerActiveStreams(c.container_id)
                     const txBytes = await docker.getContainerNetTx(c.container_id)
                     const now = Date.now()
                     const last = clientNetCache.get(c.container_id)
-
                     if (last && now > last.time) {
                         const diffBytes = txBytes - last.tx
                         const diffSecs = (now - last.time) / 1000
@@ -290,17 +296,45 @@ setInterval(async () => {
                     clientNetCache.delete(c.container_id)
                 }
 
-                clientStatsCache.set(c.id, { docker: dockerStatus, active_streams: activeStreams, live_mbps_out: mbpsOut })
-            } catch (err) {
-                // Ignore individual container errors to prevent loop crash
-            }
+                // Merge with cached active_streams from slow loop
+                const cachedStreams = activeStreamsCache.get(c.id) || 0
+                clientStatsCache.set(c.id, { docker: dockerStatus, active_streams: cachedStreams, live_mbps_out: mbpsOut })
+            } catch (err) { /* ignore per-container errors */ }
         }
     } catch (e) {
-        console.error('Background stats loop error:', e)
+        console.error('[fast-poll] error:', e)
     } finally {
         isPolling = false
     }
-}, 5000)
+}, 6000)
+
+// SLOW loop — docker exec per container to count active streams (runs every 90s, one at a time)
+setInterval(async () => {
+    if (dockerBusy || isSlowPolling) return
+    isSlowPolling = true
+    try {
+        const clients = db.getAllClients.all()
+        for (const c of clients) {
+            if (dockerBusy) break
+            if (!c.container_id) continue
+            try {
+                const cached = clientStatsCache.get(c.id)
+                if (!cached || !cached.docker || !cached.docker.running) continue
+                const streams = await docker.getContainerActiveStreams(c.container_id)
+                activeStreamsCache.set(c.id, streams)
+                // Update the main cache entry immediately
+                const current = clientStatsCache.get(c.id)
+                if (current) clientStatsCache.set(c.id, { ...current, active_streams: streams })
+            } catch (err) { /* ignore per-container errors */ }
+            // 1s pause between each docker exec to prevent socket saturation
+            await new Promise(r => setTimeout(r, 1000))
+        }
+    } catch (e) {
+        console.error('[slow-poll] error:', e)
+    } finally {
+        isSlowPolling = false
+    }
+}, 90000)
 
 // ── Clients: list ─────────────────────────────────────────
 app.get('/api/clients', auth.requireAuth, async (req, res) => {
@@ -333,17 +367,18 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
     const existing = db.getAllClients.all().find(c => c.name === name)
     if (existing) return res.status(409).json({ error: 'Client name already exists' })
 
-    // Check disk space
+    // Check disk space using native df command (no external packages needed)
     try {
-        const diskusage = require('diskusage');
         const checkPath = (!storage_path || storage_path === 'local') ? '/' : storage_path;
-        const info = diskusage.checkSync(checkPath);
-        const usagePercent = ((info.total - info.free) / info.total) * 100;
-        if (usagePercent >= 90) {
-            return res.status(507).json({ error: 'Storage Pool is over 90% full. Cannot create new clients here.'});
+        const { execSync } = require('child_process');
+        const out = execSync(`df -B1 "${checkPath}" | tail -1`).toString().trim().split(/\s+/);
+        const total = parseInt(out[1], 10);
+        const used = parseInt(out[2], 10);
+        if (total > 0 && (used / total) >= 0.90) {
+            return res.status(507).json({ error: 'مساحة التخزين امتلأت بنسبة 90%+ — لا يمكن إنشاء عملاء جدد هنا.' });
         }
     } catch (err) {
-        console.error('Disk check error:', err);
+        console.error('[create_client] disk check error (non-fatal):', err.message);
     }
 
     // Check Docker image
