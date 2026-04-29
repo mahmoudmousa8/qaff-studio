@@ -235,15 +235,22 @@ async function getContainerActiveStreams(containerId) {
         // Call the stream-manager /health endpoint which returns { activeStreams: N }
         // Use wget to fetch JSON, then parse the activeStreams number field
         const exec = await c.exec({
-            Cmd: ['sh', '-c', 'wget -qO- http://127.0.0.1:3002/health 2>/dev/null | grep -o \'"activeStreams":[0-9]*\' | grep -o \'[0-9]*$\''],
+            Cmd: ['sh', '-c', 'wget -T 2 -qO- http://127.0.0.1:3002/health 2>/dev/null | grep -o \'"activeStreams":[0-9]*\' | grep -o \'[0-9]*$\''],
             AttachStdout: true, AttachStderr: true
         })
         const stream = await exec.start({ Detached: false })
 
         return new Promise((resolve) => {
             let output = ''
+            
+            // Safety timeout to prevent hanging the entire dashboard
+            const timeout = setTimeout(() => {
+                resolve(0);
+            }, 2500);
+
             stream.on('data', chunk => output += chunk.toString())
             stream.on('end', () => {
+                clearTimeout(timeout);
                 // Strip any Docker multiplexing header bytes and parse the number
                 const cleaned = output.replace(/[^\d]/g, '').trim()
                 const count = parseInt(cleaned)
