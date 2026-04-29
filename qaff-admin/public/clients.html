@@ -962,8 +962,14 @@
                 return
             }
             tbody.innerHTML = data.clients.map((c, index) => {
-                const statusLabel = { running: 'نشط', stopped: 'موقوف', suspended: 'معلق' }[c.status] || c.status
-                const statusClass = { running: 'status-running', stopped: 'status-stopped', suspended: 'status-suspended' }[c.status] || ''
+                let statusLabel = { running: 'نشط', stopped: 'موقوف', suspended: 'معلق' }[c.status] || c.status
+                let statusClass = { running: 'status-running', stopped: 'status-stopped', suspended: 'status-suspended' }[c.status] || ''
+
+                // ── SAFETY CHECK OVERRIDE ────────
+                if (c.storage_offline) {
+                    statusLabel = '⚠️ Storage Offline';
+                    statusClass = 'status-suspended';
+                }
                 const url = `http://${ip}:${c.port}`
 
                 const wa = c.whatsapp ? `<a href="https://wa.me/${c.whatsapp.replace(/[^0-9]/g, '')}" target="_blank" style="color:#4ade80;text-decoration:none;font-weight:700" dir="ltr">${c.whatsapp}</a>` : '<span style="color:#64748b">—</span>'
@@ -991,6 +997,9 @@
                 btns.push(`<button class="btn-sm btn-slots" onclick="openStorageModal(${c.id},${c.storage_gb})">✏️ المساحة</button>`)
                 btns.push(`<button class="btn-sm btn-slots" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})">✏️ السرعة</button>`)
 
+                if (c.storage_offline || (c.storage_path && c.storage_path !== 'local')) {
+                    btns.push(`<button class="btn-sm" style="background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.2);" onclick="migratePrimary(${c.id}, '${c.name}')">💾 نقل للأساسي</button>`)
+                }
                 // Escape simple quotes for name when passing to openInfoModal
                 const safeNameForInfo = (c.name || '').replace(/'/g, "\\'")
                 btns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${safeNameForInfo}','${c.whatsapp || ''}','${c.renewal_date || ''}')">✏️ بيانات</button>`)
@@ -1122,6 +1131,23 @@
         async function deleteClient(id, name) {
             if (!confirm(`هل أنت متأكد من حذف العميل "${name}" بالكامل؟\nسيتم حذف كل بياناته.`)) return
             action(id, 'delete')
+        }
+
+        async function migratePrimary(id, name) {
+            if (!confirm(`⚠️ تحذير: هل أنت متأكد من نقل العميل "${name}" إلى القرص الأساسي (Primary)؟\nإذا كان الهارد الثانوي مفصولاً، سيبدأ العميل كأنه جديد. لا يمكن التراجع.`)) return;
+            showToast('جاري نقل العميل للقرص الأساسي، يرجى الانتظار...');
+            try {
+                const res = await fetch(`/api/clients/${id}/migrate-primary`, { method: 'POST', headers: H() })
+                const data = await res.json()
+                if (data.success) {
+                    showToast('✅ ' + data.message)
+                    loadClients()
+                } else {
+                    showToast('❌ خطأ: ' + (data.error || 'فشل النقل'), true)
+                }
+            } catch (e) {
+                showToast('❌ خطأ في الاتصال', true)
+            }
         }
 
         function openCreateModal() {

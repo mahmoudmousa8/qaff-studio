@@ -311,7 +311,23 @@ setInterval(async () => {
 
                 // Merge with cached active_streams from slow loop
                 const cachedStreams = activeStreamsCache.get(c.id) || 0
-                clientStatsCache.set(c.id, { docker: dockerStatus, active_streams: cachedStreams, live_mbps_out: mbpsOut })
+
+                // ── SAFETY CHECK: Detect Offline Secondary Storage ────────
+                let storageOffline = false;
+                if (c.storage_path && c.storage_path !== 'local' && c.storage_path.startsWith('/mnt/storage')) {
+                    const mountBase = c.storage_path.split('/').slice(0, 3).join('/'); // /mnt/storage
+                    const markerFile = require('path').join(mountBase, '.qaff_storage_mounted');
+                    if (!require('fs').existsSync(markerFile)) {
+                        storageOffline = true;
+                    }
+                }
+
+                clientStatsCache.set(c.id, { 
+                    docker: dockerStatus, 
+                    active_streams: cachedStreams, 
+                    live_mbps_out: mbpsOut,
+                    storage_offline: storageOffline
+                })
             } catch (err) { /* ignore per-container errors */ }
         }
     } catch (e) {
@@ -385,13 +401,12 @@ app.post('/api/clients', auth.requireAuth, async (req, res) => {
         const checkPath = (!storage_path || storage_path === 'local') ? '/' : storage_path;
         const { execSync } = require('child_process');
 
-        // ── SAFETY CHECK: Verify secondary disk is genuinely mounted ──────────────
+        // ── SAFETY CHECK: Verify secondary disk is genuinely mounted via Marker File ──────────────
         if (checkPath !== '/') {
              const mountBase = checkPath.split('/').slice(0, 3).join('/') // e.g. /mnt/storage
-             try {
-                 execSync(`mountpoint -q "${mountBase}"`)
-             } catch {
-                 return res.status(500).json({ error: `⛔ القرص الثانوي (${mountBase}) غير مُركَّب حالياً. يُرجى التحقق من تركيب القرص قبل إنشاء عملاء عليه.` })
+             const markerFile = require('path').join(mountBase, '.qaff_storage_mounted')
+             if (!require('fs').existsSync(markerFile)) {
+                 return res.status(500).json({ error: `⛔ القرص الثانوي (${mountBase}) غير مُركَّب أو يفتقد لملف العلامة (.qaff_storage_mounted). يُرجى التحقق من تركيب القرص قبل إنشاء عملاء عليه.` })
              }
         }
 
@@ -734,6 +749,42 @@ app.put('/api/clients/:id/bandwidth', auth.requireAuth, async (req, res) => {
         res.json({ success: true, bandwidth_limit: strictLimit })
     } catch (e) {
         console.error('[update_bandwidth] error:', e)
+        res.status(500).json({ error: e.message })
+    }
+})
+
+// ── Client: Migrate offline client to Primary Disk ──────────
+app.post('/api/clients/:id/migrate-primary', auth.requireAuth, async (req, res) => {
+    const client = db.getClientById.get(req.params.id)
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+
+    try {
+        db.updateClientStoragePath.run('local', client.id)
+        db.addLog('client_storage_migrated', client.id, `Migrated from offline secondary disk to Primary Disk`)
+
+        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
+        await docker.stopContainer(client.container_id).catch(() => { })
+        await docker.deleteClientContainer(client.container_id, null)
+
+        const { containerId } = await docker.createClientContainer({
+            clientId: client.id,
+            name: client.name,
+            port: client.port,
+            slots: client.slots,
+            storageGb: client.storage_gb,
+            bandwidthLimit: client.bandwidth_limit || 0,
+            passwordHash,
+            renewalDate: client.renewal_date || '',
+            isSuspended: client.status === 'suspended',
+            storagePath: 'local', // Forced to local primary
+            volumeName: client.volume_name
+        })
+        db.updateClientContainer.run(containerId, client.id)
+        db.updateClientStatus.run(client.status, client.id)
+
+        res.json({ success: true, message: 'تم النقل للقرص الأساسي بنجاح' })
+    } catch (e) {
+        console.error('[migrate_primary] error:', e)
         res.status(500).json({ error: e.message })
     }
 })

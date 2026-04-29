@@ -66,6 +66,20 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, b
             ? primaryBase
             : path.join(storagePath, `client_${clientId}`)
 
+        // ── SAFETY CHECK: Verify secondary disk is genuinely mounted via Marker File ────────
+        // Without this check, if /mnt/storage exists as an empty dir but is NOT mounted,
+        // we would silently fill the primary disk instead of the secondary one.
+        if (storagePath && storagePath !== 'local') {
+            const mountBase = storagePath.split('/').slice(0, 3).join('/') // e.g. /mnt/storage
+            const markerFile = path.join(mountBase, '.qaff_storage_mounted')
+            if (!fs.existsSync(markerFile)) {
+                throw new Error(
+                    `⛔ القرص الثانوي (${mountBase}) غير مُركَّب أو يفتقد لملف العلامة (.qaff_storage_mounted). ` +
+                    `النظام يرفض التشغيل لحماية القرص الأساسي من الكتابة العشوائية.`
+                )
+            }
+        }
+
         // Ensure per-client data directories exist on target drive
         for (const sub of ['videos', 'upload', 'download']) {
             const fullPath = path.join(dataRoot, sub)
