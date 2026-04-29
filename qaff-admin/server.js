@@ -813,7 +813,7 @@ async function getSystemStats() {
             globalActiveStreams = streamResults.reduce((a, b) => a + b, 0)
         } catch (e) { console.error('Failed to parse streams:', e) }
 
-        res.json({
+        return {
             success: true,
             ram: { total: totalMem, used: usedMem, free: freeMem },
             disk: { total: diskTotal, used: diskUsed, free: diskTotal - diskUsed },
@@ -825,11 +825,8 @@ async function getSystemStats() {
                 totalRxBytes: totalRxBytes
             },
             streams: { active: globalActiveStreams }
-        })
-    } catch (e) {
-        res.status(500).json({ error: e.message })
-    }
-})
+        };
+}
 
 // ── Helper: get server IP ────────────────────────────────
 function getServerIp() {
