@@ -55,21 +55,25 @@ async function createClientContainer({ clientId, name, port, slots, storageGb, b
     if (volumeName && (!storagePath || storagePath === 'local')) {
         binds.push(`${volumeName}:/app/data`)
     } else {
-        // Base mount for config, db, logs on SSD
+        // Base mount for config, db, logs on Primary SSD (always)
         binds.push(`${primaryBase}:/app/data`)
 
         // Heavy data mounts (videos, upload, download)
-        // If storagePath is not 'local', these points are redirected to the secondary drive
-        const dataRoot = (!storagePath || storagePath === 'local') ? primaryBase : storagePath;
-        
-        // Ensure data directories exist on target drive (async to not block event loop)
+        // CRITICAL: each client gets their own isolated sub-folder on the secondary disk
+        // e.g.  /mnt/storage/qaff-data/client_5/videos  (NOT /mnt/storage/qaff-data/videos shared by all)
+        const path = require('path')
+        const dataRoot = (!storagePath || storagePath === 'local')
+            ? primaryBase
+            : path.join(storagePath, `client_${clientId}`)
+
+        // Ensure per-client data directories exist on target drive
         for (const sub of ['videos', 'upload', 'download']) {
-            const fullPath = require('path').join(dataRoot, sub)
+            const fullPath = path.join(dataRoot, sub)
             if (!fs.existsSync(fullPath)) {
                 fs.mkdirSync(fullPath, { recursive: true })
                 try { await execAsync(`chown -R 1000:1000 "${fullPath}"`); } catch(e) {}
             }
-            // Nested bind: /app/data/sub maps to the selected drive
+            // Nested bind: /app/data/sub → isolated client folder on chosen drive
             binds.push(`${fullPath}:/app/data/${sub}`)
         }
     }
