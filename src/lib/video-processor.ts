@@ -318,13 +318,13 @@ function processNextJob() {
 
     const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', '2', ...ffmpegArgs])
 
-    const job = jobStore.get(jobId)
-    if (job) {
-        job.killFn = () => {
+    const currentJob = jobStore.get(jobId)
+    if (currentJob) {
+        currentJob.killFn = () => {
             console.log(`[transcode] Killing process for job ${jobId}`)
             ffmpegProc.kill('SIGKILL')
         }
-        jobStore.set(jobId, job)
+        jobStore.set(jobId, currentJob)
     }
 
     ffmpegProc.on('error', (err) => {
