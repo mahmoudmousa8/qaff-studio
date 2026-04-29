@@ -673,6 +673,7 @@ app.post('/api/clients/update-all', auth.requireAuth, async (req, res) => {
 
     res.json({ success: true, message: 'بدأ تحديث جميع اللوحات في الخلفية. ستستغرق العملية بضع دقائق.' })
     
+    // Wait 1.5 seconds before starting the heavy background task to ensure the HTTP response is fully flushed to the client and Nginx doesn't hang.
     setTimeout(async () => {
         dockerBusy = true  // Pause background stats loop
         try {
@@ -1046,13 +1047,21 @@ app.get('/api/clients/:id/disk-usage', auth.requireAuth, async (req, res) => {
 function getPoolInfo(name, pathStr, isPrimary) {
     try {
         const fs = require('fs');
-        // Use native statfsSync (Node 18+) — no external package required
-        const stat = fs.statfsSync(pathStr);
-        const blockSize = Number(stat.bsize);
-        const total = Number(stat.blocks) * blockSize;
-        const free  = Number(stat.bfree)  * blockSize;
-        const available = Number(stat.bavail) * blockSize;
-        const used  = total - free;
+        let total, free, available, used;
+        if (typeof fs.statfsSync === 'function') {
+            const stat = fs.statfsSync(pathStr);
+            const blockSize = Number(stat.bsize);
+            total = Number(stat.blocks) * blockSize;
+            free  = Number(stat.bfree)  * blockSize;
+            available = Number(stat.bavail) * blockSize;
+            used  = total - free;
+        } else {
+            const out = require('child_process').execSync(`df -B1 "${pathStr}" | tail -1`).toString().trim().split(/\s+/);
+            total = parseInt(out[1], 10);
+            used = parseInt(out[2], 10);
+            available = parseInt(out[3], 10);
+            free = available; // Approximation since df doesn't provide bfree
+        }
         return {
             name,
             path: pathStr,
@@ -1086,10 +1095,18 @@ app.get('/api/system/storage-pools', auth.requireAuth, (req, res) => {
             try { fs.mkdirSync(secondaryData, { recursive: true }); } catch (_) {}
         }
         // Only add if it's a real separate filesystem (different device from /)
-        const rootStat  = fs.statfsSync('/');
-        const mntStat   = fs.statfsSync(secondaryRoot);
-        // If blocks or fsid differ, it's a separate mount
-        if (Number(mntStat.blocks) !== Number(rootStat.blocks)) {
+        let isSeparate = false;
+        if (typeof fs.statfsSync === 'function') {
+            const rootStat  = fs.statfsSync('/');
+            const mntStat   = fs.statfsSync(secondaryRoot);
+            isSeparate = Number(mntStat.blocks) !== Number(rootStat.blocks);
+        } else {
+            const rootOut = require('child_process').execSync(`df -B1 "/" | tail -1`).toString().trim().split(/\s+/);
+            const mntOut = require('child_process').execSync(`df -B1 "${secondaryRoot}" | tail -1`).toString().trim().split(/\s+/);
+            isSeparate = rootOut[1] !== mntOut[1] || rootOut[0] !== mntOut[0];
+        }
+
+        if (isSeparate) {
             const p2 = getPoolInfo('Secondary Disk (/mnt/storage)', secondaryData, false);
             if (p2) pools.push(p2);
         }
