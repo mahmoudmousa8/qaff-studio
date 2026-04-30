@@ -1,4 +1,4 @@
-﻿import { spawn, execSync } from 'child_process'
+import { spawn, execSync } from 'child_process'
 import { renameSync, unlinkSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
@@ -151,10 +151,10 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
         return { allowed: false, reason: `مرفوض: الدقة أعلى من 1080p (${probe.width}x${probe.height}) | Rejected: Resolution exceeds 1080p (${probe.width}x${probe.height})` }
     }
 
-    // Bitrate range check (approx 2000k, allow up to 3000k)
+    // Bitrate range check (approx 2000k, allow up to 2500k)
     const bitrateK = probe.bitrate / 1000
-    if (bitrateK < 1500 || bitrateK > 3000) {
-        return { allowed: false, reason: `مرفوض: معدل البت (${Math.round(bitrateK)}k) خارج النطاق 1500-3000k | Rejected: Bitrate (${Math.round(bitrateK)}k) out of allowed 1500-3000k` }
+    if (bitrateK < 1500 || bitrateK > 2500) {
+        return { allowed: false, reason: `مرفوض: معدل البت (${Math.round(bitrateK)}k) خارج النطاق 1500-2500k | Rejected: Bitrate (${Math.round(bitrateK)}k) out of allowed 1500-2500k` }
     }
 
     // GOP Check
