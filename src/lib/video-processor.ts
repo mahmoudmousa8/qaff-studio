@@ -323,7 +323,7 @@ function processNextJob() {
         '-keyint_min', '60',
         '-sc_threshold', '0',
         '-c:a', 'aac',
-        '-b:a', '96k',
+        '-b:a', '128k',
         '-ar', '44100',
         '-ac', '2',
         tempOutputPath
