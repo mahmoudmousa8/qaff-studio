@@ -1020,10 +1020,7 @@
                     menuBtns.push(`<button class="btn-sm" style="background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.2);" onclick="migratePrimary(${c.id}, '${safeName}')">💾 استعادة للأساسي</button>`)
                 }
 
-                if (c.backup_path) {
-                    menuBtns.push(`<button class="btn-sm" style="background:#f59e0b;color:#fff;" onclick="action(${c.id},'rollback')">🔄 استرجاع Backup</button>`);
-                    menuBtns.push(`<button class="btn-sm" style="background:#dc2626;color:#fff;" onclick="action(${c.id},'backup')">🗑 حذف Backup</button>`);
-                }
+                // Removed legacy Backup buttons
                 
                 menuBtns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${safeName}')">🗑 حذف نهائي</button>`)
 
@@ -1097,10 +1094,7 @@
         }
 
         async function action(id, act) {
-            if (act === 'rollback' && !confirm('سيتم إيقاف العميل وإعادة تثبيت البيانات من النسخة الاحتياطية (Backup). هل أنت متأكد؟')) return;
-            if (act === 'backup' && !confirm('هل أنت متأكد من مسح النسخة الاحتياطية نهائياً؟ لا يمكن التراجع عن هذا.')) return;
-            
-            const method = (act === 'delete' || act === 'backup') ? 'DELETE' : 'POST'
+            const method = (act === 'delete') ? 'DELETE' : 'POST'
             let url = `/api/clients/${id}/${act}`;
             if (act === 'delete') url = `/api/clients/${id}`;
             const res = await fetch(url, { method, headers: H() })

@@ -1329,8 +1329,8 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
 
         const runRsync = (src, dest) => new Promise((resolve, reject) => {
             fs.mkdirSync(dest, { recursive: true });
-            // --remove-source-files moves files instead of copying, saving double disk usage
-            const proc = spawn('rsync', ['-a', '--remove-source-files', '--info=progress2', `${src}/`, `${dest}/`]);
+            // --remove-source-files removed to ensure atomic transfer (all-or-nothing)
+            const proc = spawn('rsync', ['-a', '--info=progress2', `${src}/`, `${dest}/`]);
             proc.on('close', code => code === 0 ? resolve() : reject(new Error(`rsync exited with code ${code}`)));
             proc.on('error', reject);
         });
@@ -1361,16 +1361,13 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
 
             // Move heavy dirs to target
             const heavyDirs = ['videos', 'upload', 'download'];
-            const backupPaths = {};
             for (const dir of heavyDirs) {
                 const srcDir = path.join(client.volume_name ? primaryBase : currentPath, dir);
                 const destDir = path.join(targetDataRoot, dir);
                 if (srcDir !== destDir && fs.existsSync(srcDir)) {
                     await runRsync(srcDir, destDir);
-                    // Rename leftover (now empty) source dir as backup marker
-                    const backupPath = srcDir + '.backup_' + Date.now();
-                    try { fs.renameSync(srcDir, backupPath); } catch (_) {}
-                    backupPaths[dir] = backupPath;
+                    // Atomic success: delete the source immediately, no backup
+                    try { fs.rmSync(srcDir, { recursive: true, force: true }); } catch (_) {}
                 }
             }
 
@@ -1392,14 +1389,17 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
                 volumeName: null
             });
 
-            const firstBackup = Object.values(backupPaths)[0] || null;
             db.updateClientContainer.run(containerId, client.id);
-            db.updateClientStoragePath.run(storagePath, volumeName, firstBackup, client.id);
-            db.addLog('client_migrated', client.id, `نجح النقل إلى ${targetPool}. النسخة الاحتياطية: ${firstBackup}`);
+            // No backup path stored
+            db.updateClientStoragePath.run(storagePath, volumeName, null, client.id);
+            db.addLog('client_migrated', client.id, `نجح النقل إلى ${targetPool}. وتم مسح الملفات القديمة لتحرير المساحة.`);
 
         } catch (err) {
             console.error('[migrate] Background error:', err.message);
-            db.addLog('migration_failed', client.id, err.message);
+            // Atomic failure: delete the incomplete destination data, keep source safe
+            const targetDataRoot = targetPool === 'local' ? `/opt/qaff-data/client_${client.id}` : `${targetPool}/client_${client.id}`;
+            try { fs.rmSync(targetDataRoot, { recursive: true, force: true }); } catch (_) {}
+            db.addLog('migration_failed', client.id, `فشل النقل. تم التراجع وحذف الملفات غير المكتملة: ${err.message}`);
         } finally {
             globalTask = { active: false, type: null, progress: 0, total: 0, message: '' };
         }
@@ -1571,48 +1571,74 @@ app.post('/api/system/rebuild', auth.requireAuth, async (req, res) => {
     }, 100)
 })
 
-// ── Automated Backup Cleanup Daemon ─────────────────────────
-// Runs every 10 minutes to clean up backups strictly older than 30 minutes
-setInterval(async () => {
+// ── Automated Server Cleanup Daemon ─────────────────────────
+// Runs every 12 hours to clean orphaned clients, backups, and containers
+function runAutoCleanup() {
     try {
+        console.log('[Cleanup] Starting automated server cleanup...');
+        const fs = require('fs');
+        const { execSync } = require('child_process');
+        
         const clients = db.getAllClients.all();
-        const now = Date.now();
-        const MAX_AGE_MS = 30 * 60 * 1000; // 30 mins
+        const validClientIds = new Set(clients.map(c => c.id.toString()));
 
-        for (const client of clients) {
-            if (!client.backup_path) continue;
-
-            const backupSuffixMatch = client.backup_path.match(/\.backup_(\d+)/);
-            if (!backupSuffixMatch) continue;
-
-            const backupTimestamp = parseInt(backupSuffixMatch[1], 10);
-            if (isNaN(backupTimestamp)) continue;
-
-            if (now - backupTimestamp > MAX_AGE_MS) {
-                try {
-                    let actualBackupPath = client.backup_path;
-                    if (actualBackupPath.startsWith('/var/lib/docker/')) {
-                        await docker.getDocker().createVolume({ Name: `qaff_vol_${client.id}` }).catch(() => { });
-                        const volInspect = await docker.getDocker().getVolume(`qaff_vol_${client.id}`).inspect().catch(() => null);
-                        let localVolumeMountpoint = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/qaff_vol_${client.id}/_data`;
-                        if (localVolumeMountpoint.startsWith('/var/lib/docker/')) {
-                            localVolumeMountpoint = localVolumeMountpoint.replace('/var/lib/docker/', '/mnt/storage/docker/');
-                        }
-                        actualBackupPath = localVolumeMountpoint.replace(/\/$/, '') + backupSuffixMatch[0];
+        // 1. Scan storage pools for orphaned directories
+        const pools = ['/opt/qaff-data', '/mnt/storage/qaff-data'];
+        for (const pool of pools) {
+            if (fs.existsSync(pool)) {
+                const items = fs.readdirSync(pool);
+                for (const item of items) {
+                    const itemPath = require('path').join(pool, item);
+                    
+                    // Delete old backups (legacy or broken migrations)
+                    if (item.includes('.backup_')) {
+                        console.log(`[Cleanup] Deleting old backup: ${itemPath}`);
+                        try { fs.rmSync(itemPath, { recursive: true, force: true }); } catch (_) {}
+                        continue;
                     }
 
-                    require('child_process').execSync(`rm -rf "${actualBackupPath}"`);
-                    db.updateClientBackupPath.run(null, client.id);
-                    db.addLog('backup_deleted_auto', client.id, `Auto-cleaned expired backup after 30 mins: ${actualBackupPath}`);
-                } catch (err) {
-                    console.error(`[cleanup] Failed to auto-delete backup for client ${client.id}:`, err.message);
+                    // Delete orphaned client directories
+                    const clientMatch = item.match(/^client_(\d+)$/);
+                    if (clientMatch) {
+                        const clientId = clientMatch[1];
+                        if (!validClientIds.has(clientId)) {
+                            console.log(`[Cleanup] Deleting orphaned client directory: ${itemPath}`);
+                            try { fs.rmSync(itemPath, { recursive: true, force: true }); } catch (_) {}
+                        }
+                    }
                 }
             }
         }
+
+        // 2. Scan Docker for orphaned qaff-client containers
+        try {
+            const dockerPs = execSync("docker ps -a --format '{{.Names}}'").toString().split('\n').filter(Boolean);
+            for (const containerName of dockerPs) {
+                const match = containerName.match(/^qaff-client-(\d+)$/);
+                if (match) {
+                    const clientId = match[1];
+                    if (!validClientIds.has(clientId)) {
+                        console.log(`[Cleanup] Removing orphaned container: ${containerName}`);
+                        try { execSync(`docker rm -f ${containerName}`); } catch (_) {}
+                    }
+                }
+            }
+            
+            // Optional: prune unused docker networks and dangling volumes
+            try { execSync('docker system prune -f'); } catch (_) {}
+        } catch (err) {
+            console.error('[Cleanup] Failed to query Docker:', err.message);
+        }
+
+        console.log('[Cleanup] Automated cleanup completed.');
     } catch (err) {
-        console.error('[cleanup] Daemon failure:', err);
+        console.error('[Cleanup] Daemon failure:', err);
     }
-}, 10 * 60 * 1000); // Check every 10 mins
+}
+
+// Run once immediately on startup, then every 12 hours
+setTimeout(runAutoCleanup, 10000);
+setInterval(runAutoCleanup, 12 * 60 * 60 * 1000);
 
 // ── Start ──────────────────────────────────────────────────
 async function start() {

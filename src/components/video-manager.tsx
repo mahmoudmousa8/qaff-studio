@@ -863,15 +863,11 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
           <span className="hidden sm:inline">{t('downloadFromUrl')}</span>
         </Button>
         <Button size="sm" variant="outline" onClick={() => downloadDialog ? null : fileInputRef.current?.click()} title={t('uploadVideo')}>
-          {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Upload className="w-4 h-4 mr-1" />}
-          <span className="hidden sm:inline">
-            {uploading
-              ? `${t('uploading')} (${transfers.filter(t => t.status === 'active' || t.status === 'processing').length})`
-              : t('uploadVideo')}
-          </span>
+          <Upload className="w-4 h-4 mr-1" />
+          <span className="hidden sm:inline">{t('uploadVideo')}</span>
         </Button>
         <Button size="sm" variant="outline" onClick={() => downloadDialog ? null : folderInputRef.current?.click()} title={t('uploadFolder')}>
-          {uploading ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <FolderPlus className="w-4 h-4 mr-1" />}
+          <FolderPlus className="w-4 h-4 mr-1" />
           <span className="hidden sm:inline">{t('uploadFolder')}</span>
         </Button>
 
