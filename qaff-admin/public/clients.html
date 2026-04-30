@@ -1165,9 +1165,13 @@
 
         function openClientOptions(id, name) {
             const btnsHtml = window.clientOptionsMap ? window.clientOptionsMap[id] : null;
-            if (!btnsHtml) { showToast('⚠️ لم يتم العثور على خيارات هذا العميل. يرجى تحديث الصفحة.', true); return; }
+            if (!btnsHtml) { showToast('⚠️ يرجى تحديث الصفحة أولاً.', true); return; }
             document.getElementById('options-title').textContent = `خيارات اللوحة: ${name}`;
             document.getElementById('options-container').innerHTML = btnsHtml;
+            // Auto-close when any action button inside is clicked
+            document.getElementById('options-container').querySelectorAll('button').forEach(btn => {
+                btn.addEventListener('click', () => closeClientOptions(), { once: true });
+            });
             document.getElementById('optionsModal').classList.add('show');
         }
         function closeClientOptions() {
