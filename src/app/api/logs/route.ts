@@ -3,13 +3,19 @@ import { db } from '@/lib/db'
 
 const LOG_LIMIT = 500
 
-// TTL cleanup function - delete logs older than 12 hours
+// Internal lock prefix used by the scheduler — never shown to users
+const INTERNAL_PREFIX = '__scheduler_last_run__'
+
+// TTL cleanup function - delete logs older than 12 hours + always purge internal lock messages
 async function cleanupOldLogs() {
   try {
     const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
     await db.systemLog.deleteMany({
       where: {
-        timestamp: { lt: twelveHoursAgo }
+        OR: [
+          { timestamp: { lt: twelveHoursAgo } },
+          { message: { startsWith: INTERNAL_PREFIX } }
+        ]
       }
     })
   } catch (error) {
@@ -36,13 +42,17 @@ export async function GET(request: NextRequest) {
         take: 100,
         orderBy: { timestamp: 'desc' },
         where: {
-          message: { startsWith: slotPrefix }
+          message: { startsWith: slotPrefix },
+          NOT: { message: { startsWith: INTERNAL_PREFIX } }
         }
       })
     } else {
       logs = await db.systemLog.findMany({
         take: LOG_LIMIT,
-        orderBy: { timestamp: 'desc' }
+        orderBy: { timestamp: 'desc' },
+        where: {
+          NOT: { message: { startsWith: INTERNAL_PREFIX } }
+        }
       })
     }
 
@@ -77,11 +87,19 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE - Cleanup old logs manually
-export async function DELETE() {
+// DELETE - Clear all logs manually
+export async function DELETE(request: NextRequest) {
   try {
-    await cleanupOldLogs()
-    return NextResponse.json({ success: true, message: 'Old logs cleaned up' })
+    const url = new URL(request.url);
+    const clearAll = url.searchParams.get('all') === 'true';
+
+    if (clearAll) {
+      await db.systemLog.deleteMany({})
+      return NextResponse.json({ success: true, message: 'All logs cleared' })
+    } else {
+      await cleanupOldLogs()
+      return NextResponse.json({ success: true, message: 'Old logs cleaned up' })
+    }
   } catch (error) {
     console.error('Error cleaning up logs:', error)
     return NextResponse.json({ error: 'Failed to cleanup logs' }, { status: 500 })

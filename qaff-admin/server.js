@@ -999,6 +999,14 @@ setInterval(async () => {
     } catch (err) {
         console.error('[Cron] Error running auto-suspension loop:', err);
     }
+
+    // ── Auto-purge admin logs older than 7 days ──────────
+    try {
+        db.deleteOldLogs.run('-7');
+        console.log('[Cron] Old admin logs purged (>7 days)');
+    } catch (err) {
+        console.error('[Cron] Log purge failed:', err);
+    }
 }, 1000 * 60 * 60); // Check every 60 minutes
 
 // ── Client: admin override security code ──────────────────
@@ -1082,7 +1090,28 @@ app.post('/api/internal/change-password', async (req, res) => {
     }
 })
 
-// ── Logs ──────────────────────────────────────────────────
+// ── Logs API ──────────────────────────────────────────────
+// GET /api/logs - fetch recent admin logs
+app.get('/api/logs', auth.requireAuth, (req, res) => {
+    try {
+        const logs = db.getLogs.all()
+        res.json({ success: true, logs })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
+})
+
+// DELETE /api/logs - clear all admin logs manually
+app.delete('/api/logs', auth.requireAuth, (req, res) => {
+    try {
+        db.deleteAllLogs.run()
+        db.addLog('admin_logs_cleared', null, 'All admin logs cleared manually')
+        res.json({ success: true, message: 'All logs cleared' })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
+})
+
 // Update Client Storage
 app.put('/api/clients/:id/storage', auth.requireAuth, async (req, res) => {
     const { storage_gb } = req.body;

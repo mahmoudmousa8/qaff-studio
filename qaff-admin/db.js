@@ -144,6 +144,8 @@ const insertLog = db.prepare(`
   INSERT INTO logs (action, client_id, details) VALUES (?, ?, ?)
 `)
 const getLogs = db.prepare('SELECT * FROM logs ORDER BY id DESC LIMIT 100')
+const deleteOldLogs = db.prepare(`DELETE FROM logs WHERE timestamp < datetime('now', ? || ' days')`)
+const deleteAllLogs = db.prepare('DELETE FROM logs')
 
 function addLog(action, clientId, details) {
   insertLog.run(action, clientId || null, details || null)
@@ -169,6 +171,6 @@ module.exports = {
   updateClientSlots, updateClientInfo, updateClientSecurity, updateClientPassword,
   updateClientResetAnswer, updateClientStorage, updateClientStoragePath, updateClientFullPaths, updateClientBackupPath, updateClientBandwidth, updateClientLockout, deleteClient,
   getNextAvailablePort,
-  addLog, getLogs,
+  addLog, getLogs, deleteOldLogs, deleteAllLogs,
   getSettingValue, upsertSetting,
 }

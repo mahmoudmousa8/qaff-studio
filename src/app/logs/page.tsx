@@ -53,7 +53,7 @@ export default function LogsPage() {
 
     const clearLogs = async () => {
         try {
-            const res = await fetch('/api/logs', { method: 'DELETE' })
+            const res = await fetch('/api/logs?all=true', { method: 'DELETE' })
             if (res.status === 401) { window.location.href = '/login'; return }
             await fetchLogs()
         } catch (err) {
