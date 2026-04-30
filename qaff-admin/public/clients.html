@@ -1163,6 +1163,17 @@
             }
         }
 
+        function openClientOptions(id, name) {
+            const btnsHtml = window.clientOptionsMap ? window.clientOptionsMap[id] : null;
+            if (!btnsHtml) { showToast('⚠️ لم يتم العثور على خيارات هذا العميل. يرجى تحديث الصفحة.', true); return; }
+            document.getElementById('options-title').textContent = `خيارات اللوحة: ${name}`;
+            document.getElementById('options-container').innerHTML = btnsHtml;
+            document.getElementById('optionsModal').classList.add('show');
+        }
+        function closeClientOptions() {
+            document.getElementById('optionsModal').classList.remove('show');
+        }
+
         function openCreateModal() {
             document.getElementById('createModal').classList.add('show')
             document.getElementById('created-url').style.display = 'none'
