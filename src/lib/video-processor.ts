@@ -1,5 +1,5 @@
-import { spawn, execSync } from 'child_process'
-import { renameSync, unlinkSync, existsSync } from 'fs'
+﻿import { spawn, execSync } from 'child_process'
+import { renameSync, unlinkSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
 
@@ -210,7 +210,7 @@ export function getJobStatus(jobId: string): JobStatus | undefined {
 
 // Queue for sequential processing
 const jobQueue: string[] = []
-let isProcessing = false
+const activeProcessingClients = new Set<string>()
 
 export function transcodeVideo(inputPath: string, outputPath: string, originalFilename: string, folder?: string): string {
     const jobId = randomUUID()
@@ -233,24 +233,35 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
 }
 
 function processNextJob() {
-    if (isProcessing || jobQueue.length === 0) return
+    if (jobQueue.length === 0) return
 
-    const jobId = jobQueue.shift()
-    if (!jobId) return
+    // Find first job whose client is NOT already being processed (per-client parallelism)
+    const index = jobQueue.findIndex(jobId => {
+        const job = jobStore.get(jobId)
+        if (!job) return true
+        const clientKey = job.folder || 'global'
+        return !activeProcessingClients.has(clientKey)
+    })
 
+    if (index === -1) return // All queued jobs belong to clients already processing
+
+    const jobId = jobQueue.splice(index, 1)[0]
     const job = jobStore.get(jobId)
+
     if (!job || job.state === 'cancelled') {
         processNextJob()
         return
     }
 
-    isProcessing = true
+    const clientKey = job.folder || 'global'
+    activeProcessingClients.add(clientKey)
+
     job.state = 'processing'
     jobStore.set(jobId, job)
 
     const { inputPath, outputPath } = job
     if (!inputPath || !outputPath) {
-        isProcessing = false
+        activeProcessingClients.delete(clientKey)
         processNextJob()
         return
     }
@@ -319,6 +330,7 @@ function processNextJob() {
     ]
 
     const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', '2', ...ffmpegArgs])
+    let errorLog = ''
 
     const currentJob = jobStore.get(jobId)
     if (currentJob) {
@@ -373,7 +385,7 @@ function processNextJob() {
             // Move temp output to final output path
             try { if (existsSync(tempOutputPath)) renameSync(tempOutputPath, outputPath); } catch (e) {
                 console.error(`[transcode] Failed to move transcoded file for job ${jobId}:`, e);
-                job.error = e.message;
+                job.error = (e as Error).message;
                 job.state = 'error';
             }
             // Cleanup input file
@@ -392,7 +404,8 @@ function processNextJob() {
             jobStore.delete(jobId)
         }, 5 * 60 * 1000)
 
-        isProcessing = false
+        const clientKey2 = job.folder || 'global'
+        activeProcessingClients.delete(clientKey2)
         processNextJob()
     })
 }
