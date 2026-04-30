@@ -52,6 +52,8 @@ export async function POST(request: NextRequest) {
         const { valid, sessionToken } = await validateLogin(password)
 
         if (!valid) {
+            // Anti-brute-force delay: Wait 2 seconds before returning error
+            await new Promise(r => setTimeout(r, 2000))
             return NextResponse.json({ error: 'كلمة المرور غير صحيحة' }, { status: 401 })
         }
 

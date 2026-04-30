@@ -57,7 +57,11 @@ app.post('/api/login', async (req, res) => {
     if (!admin) return res.status(500).json({ error: 'Admin not initialized' })
 
     const valid = await auth.verifyPassword(password, admin.password_hash)
-    if (!valid) return res.status(401).json({ error: 'Invalid password' })
+    if (!valid) {
+        // Anti-brute-force delay: Wait 2 seconds before returning error
+        await new Promise(resolve => setTimeout(resolve, 2000))
+        return res.status(401).json({ error: 'Invalid password' })
+    }
 
     const token = auth.generateToken()
     db.addLog('admin_login', null, 'Admin logged in')
@@ -1403,8 +1407,17 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
             globalTask.progress = 3;
             globalTask.message = 'جاري إعادة إنشاء الحاوية...';
 
-            // Ownership fix
-            try { require('child_process').execSync(`chown -R 1000:1000 "${targetDataRoot}" "${primaryBase}"`); } catch (_) {}
+            // Ownership fix: the container runs as root by default, but to be completely safe against
+            // strict disk mounting rules (e.g., ext4 vs NTFS vs sshfs), we ensure files are owned by root
+            // and readable/writable by the container process.
+            try { 
+                require('child_process').execSync(`chown -R root:root "${targetDataRoot}" 2>/dev/null || true`);
+                require('child_process').execSync(`chmod -R 775 "${targetDataRoot}" 2>/dev/null || true`);
+                if (targetDataRoot !== primaryBase) {
+                    require('child_process').execSync(`chown -R root:root "${primaryBase}" 2>/dev/null || true`);
+                    require('child_process').execSync(`chmod -R 775 "${primaryBase}" 2>/dev/null || true`);
+                }
+            } catch (_) {}
 
             const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password);
             await docker.deleteClientContainer(client.container_id, null);

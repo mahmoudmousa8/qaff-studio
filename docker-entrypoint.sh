@@ -117,7 +117,13 @@ else
     echo "Using Container Timezone: $TZ"
   fi
 
-  NODE_ENV=production tsx /app/mini-services/stream-manager/index.ts &
+  (
+    while true; do
+      NODE_ENV=production tsx /app/mini-services/stream-manager/index.ts
+      echo "Stream Manager exited. Restarting in 2 seconds..."
+      sleep 2
+    done
+  ) &
   
   # Apply egress bandwidth throttling if a limit is set
   if [ -n "$BANDWIDTH_LIMIT_MBPS" ] && [ "$BANDWIDTH_LIMIT_MBPS" -gt 0 ] 2>/dev/null; then
