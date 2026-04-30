@@ -617,6 +617,45 @@
                 transform: rotate(360deg);
             }
         }
+        .btn-menu-item {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 12px;
+            color: #e2e8f0;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: right;
+            font-family: 'Cairo', sans-serif;
+        }
+        .btn-menu-item:hover {
+            background: rgba(139, 92, 246, 0.1);
+            border-color: rgba(139, 92, 246, 0.3);
+            color: #fff;
+            transform: translateX(-4px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .btn-menu-item i {
+            font-size: 16px;
+            width: 24px;
+            text-align: center;
+        }
+        .btn-menu-item.danger {
+            color: #fca5a5;
+            background: rgba(239, 68, 68, 0.03);
+            border-color: rgba(239, 68, 68, 0.1);
+        }
+        .btn-menu-item.danger:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: #f87171;
+        }
     </style>
 </head>
 
@@ -1021,27 +1060,21 @@
                 primaryBtns.push(`<button class="btn-sm btn-slots" style="background:linear-gradient(135deg,#3b82f6,#2563eb);color:#fff;" onclick="copyClientInfo('${url}','${safePass}','${c.reset_answer || ''}','${c.slots}','${c.storage_gb}','${safeRen}','${c.bandwidth_limit || 0}')">📋 نسخ البيانات</button>`)
 
                 // Dropdown Menu Actions
-                if (c.status === 'running') menuBtns.push(`<button class="btn-sm btn-suspend" onclick="action(${c.id},'suspend')">🚫 تعليق</button>`)
-                if (c.status === 'suspended') menuBtns.push(`<button class="btn-sm btn-resume" onclick="action(${c.id},'resume')">▶ استئناف</button>`)
-                menuBtns.push(`<button class="btn-sm btn-pass" onclick="openPassModal(${c.id},'${safePass}')">🔑 كلمة السر</button>`)
-                menuBtns.push(`<button class="btn-sm btn-code" onclick="openCodeModal(${c.id},'${c.reset_answer || ''}')">🛡️ رمز الأمان</button>`)
-                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openSlotsModal(${c.id},${c.slots})">✏️ عدد البثوث</button>`)
-                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openStorageModal(${c.id},${c.storage_gb})">✏️ المساحة</button>`)
-                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})">✏️ السرعة</button>`)
-                menuBtns.push(`<button class="btn-sm btn-slots" onclick="openInfoModal(${c.id},'${safeName}','${safeWa}','${safeRen}')">✏️ بيانات</button>`)
-                menuBtns.push(`<button class="btn-sm" style="background:#0ea5e9;color:#fff;border-color:transparent;" onclick="openMigrateModal(${c.id},'${currentPathForMigrate}')">🚚 نقل الهارد</button>`)
-
-                // Rescue feature
+                if (c.status === 'running') menuBtns.push(`<button class="btn-menu-item" onclick="action(${c.id},'suspend')"><span>🚫</span> تعليق اللوحة</button>`)
+                if (c.status === 'suspended') menuBtns.push(`<button class="btn-menu-item" onclick="action(${c.id},'resume')"><span>▶</span> استئناف اللوحة</button>`)
+                menuBtns.push(`<button class="btn-menu-item" onclick="openPassModal(${c.id},'${safePass}')"><span>🔑</span> كلمة مرور الدخول</button>`)
+                menuBtns.push(`<button class="btn-menu-item" onclick="openCodeModal(${c.id},'${c.reset_answer || '}')"><span>🛡️</span> رمز أمان الاستعادة</button>`)
+                menuBtns.push(`<button class="btn-menu-item" onclick="openSlotsModal(${c.id},${c.slots})"><span>✏️</span> تعديل عدد البثوث</button>`)
+                menuBtns.push(`<button class="btn-menu-item" onclick="openStorageModal(${c.id},${c.storage_gb})"><span>✏️</span> تعديل مساحة الهارد</button>`)
+                menuBtns.push(`<button class="btn-menu-item" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})"><span>✏️</span> تعديل سرعة الاتصال</button>`)
+                menuBtns.push(`<button class="btn-menu-item" onclick="openInfoModal(${c.id},'${safeName}','${safeWa}','${safeRen}')"><span>✏️</span> تعديل بيانات العميل</button>`)
+                menuBtns.push(`<button class="btn-menu-item" style="border-color:rgba(14,165,233,0.2);background:rgba(14,165,233,0.05);" onclick="openMigrateModal(${c.id},'${currentPathForMigrate}')"><span>🚚</span> نقل بيانات الهارد</button>`)
                 if (c.storage_offline || currentPathForMigrate !== 'local') {
-                    menuBtns.push(`<button class="btn-sm" style="background:rgba(234,179,8,0.15);color:#eab308;border:1px solid rgba(234,179,8,0.2);" onclick="migratePrimary(${c.id}, '${safeName}')">💾 استعادة للأساسي</button>`)
+                    menuBtns.push(`<button class="btn-menu-item" style="border-color:rgba(234,179,8,0.2);background:rgba(234,179,8,0.05);" onclick="migratePrimary(${c.id}, '${safeName}')"><span>💾</span> استعادة للقرص الأساسي</button>`)
                 }
-
-                // Removed legacy Backup buttons
-                
-                menuBtns.push(`<button class="btn-sm btn-delete" onclick="deleteClient(${c.id},'${safeName}')">🗑 حذف نهائي</button>`)
-
+                menuBtns.push(`<button class="btn-menu-item danger" onclick="deleteClient(${c.id},'${safeName}')"><span>🗑</span> حذف العميل نهائياً</button>`)
                 window.clientOptionsMap[c.id] = menuBtns.join('');
-                const dropdownHtml = `<button class="btn-sm btn-slots" style="background:#475569;color:#fff;" onclick="openClientOptions(${c.id}, '${safeName}')">⚙️ خيارات</button>`;
+                const dropdownHtml = `<button class="btn-sm" style="background:linear-gradient(135deg,#475569,#334155);color:#fff;border:none;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,0.15);" onclick="openClientOptions(${c.id}, '${safeName}')">⚙️ خيارات</button>`;
 
                 return `<tr>
         <td style="text-align:center; vertical-align:middle;">
@@ -1052,7 +1085,7 @@
             </div>
         </td>
         <td>${wa}</td>
-        <td style="font-size:12px;color:#475569">${c.created_at?.slice(0, 16) || '—'}</td>
+        <td style="font-size:12px;color:#e2e8f0">${c.created_at?.slice(0, 16) || '—'}</td>
         <td>
             <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
                 <span class="port" style="width:fit-content; font-size:12px; padding:2px 8px;">${c.port}</span>
@@ -1071,7 +1104,7 @@
             <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
                 <span style="font-weight:700">${c.storage_gb} GB</span>
                 ${(c.storage_path && c.storage_path !== 'local' && !c.storage_path.startsWith('/opt/qaff-data')) || ((!c.storage_path || c.storage_path === 'local') && c.volume_name) ? '<span style="font-size:9px;color:#0ea5e9;background:rgba(14,165,233,0.1);padding:2px 4px;border-radius:4px;">Secondary</span>' : '<span style="font-size:9px;color:#10b981;background:rgba(16,185,129,0.1);padding:2px 4px;border-radius:4px;">Primary</span>'}
-                <span id="du-${c.id}" style="font-size:9px;color:#94a3b8;">...</span>
+                <span id="du-${c.id}" style="font-size:12px;color:#f1f5f9;font-weight:700;margin-top:2px;"></span>
             </div>
         </td>
         <td>
@@ -1647,6 +1680,12 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+        // Close modals when clicking outside
+        window.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-bg')) {
+                e.target.classList.remove('show');
+            }
+        });
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/ar.js"></script>
 </body>
 
