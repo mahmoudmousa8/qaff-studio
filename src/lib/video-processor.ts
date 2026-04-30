@@ -314,7 +314,7 @@ function processNextJob() {
         '-i', inputPath,
         '-vf', 'scale=min(1920\\,iw):-2',
         '-c:v', 'libx264',
-        '-preset', 'faster',
+        '-preset', 'medium',
         '-r', '30',
         '-b:v', `${targetBitrateK}k`,
         '-maxrate', `${targetMaxrateK}k`,
@@ -323,7 +323,7 @@ function processNextJob() {
         '-keyint_min', '60',
         '-sc_threshold', '0',
         '-c:a', 'aac',
-        '-b:a', '128k',
+        '-b:a', '96k',
         '-ar', '44100',
         '-ac', '2',
         tempOutputPath
@@ -515,7 +515,7 @@ export function getJobsByFolder(folder: string = ''): JobStatus[] {
     const jobs: JobStatus[] = []
     for (const job of jobStore.values()) {
         const jobFolder = job.folder || ''
-        if (jobFolder === folder) {
+        if (jobFolder === folder || folder === '__ALL__') {
             jobs.push(job)
         }
     }

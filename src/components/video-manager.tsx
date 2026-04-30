@@ -259,21 +259,19 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
         const dataD = await resD.json()
         if (dataD.downloads && Array.isArray(dataD.downloads)) {
           dataD.downloads.forEach((dl: any) => {
-            // Only show downloads relevant to the current folder or root
-            if (dl.folder === (folder || 'root') || !folder) {
-              upsertTransfer(dl.id, {
-                type: 'download',
-                name: dl.filename || 'تحميل رابط',
-                status: dl.status === 'downloading' ? 'active' : dl.status,
-                progress: dl.percent || 0,
-                downloadId: dl.id,
-                error: dl.error,
-                speedFormatted: dl.speedFormatted || '',
-                etaSec: dl.etaSec,
-                loaded: dl.bytesDownloaded,
-                total: dl.totalBytes
-              })
-            }
+            // Show all downloads globally regardless of folder
+            upsertTransfer(dl.id, {
+              type: 'download',
+              name: dl.filename || 'تحميل رابط',
+              status: dl.status === 'downloading' ? 'active' : dl.status,
+              progress: dl.percent || 0,
+              downloadId: dl.id,
+              error: dl.error,
+              speedFormatted: dl.speedFormatted || '',
+              etaSec: dl.etaSec,
+              loaded: dl.bytesDownloaded,
+              total: dl.totalBytes
+            })
           })
         }
       }

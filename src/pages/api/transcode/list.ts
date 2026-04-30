@@ -9,7 +9,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
     const { folder } = req.query
     const folderStr = typeof folder === 'string' ? folder : ''
 
-    const jobs = getJobsByFolder(folderStr)
+    const jobs = getJobsByFolder('__ALL__')
 
     res.status(200).json({
         success: true,
