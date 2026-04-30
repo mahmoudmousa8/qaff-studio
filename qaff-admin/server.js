@@ -773,7 +773,7 @@ app.post('/api/clients/:id/migrate-primary', auth.requireAuth, async (req, res) 
     if (!client) return res.status(404).json({ error: 'Client not found' })
 
     try {
-        db.updateClientStoragePath.run('local', client.id)
+        db.updateClientStoragePath.run('local', null, null, client.id)
         db.addLog('client_storage_migrated', client.id, `Migrated from offline secondary disk to Primary Disk`)
 
         const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password)
