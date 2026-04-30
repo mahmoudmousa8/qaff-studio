@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 
 <head>
@@ -1028,9 +1028,10 @@
                 const dropdownHtml = `<button class="btn-sm btn-slots" style="background:#475569;color:#fff;" onclick="openClientOptions(${c.id}, '${safeName}')">⚙️ خيارات</button>`;
 
                 return `<tr>
-        <td>
-            <div style="display:flex; flex-direction:column; gap:4px">
-                <span style="color:#475569;font-weight:700">#${index + 1} - ${c.name}</span>
+        <td style="text-align:center; vertical-align:middle;">
+            <div style="display:flex; flex-direction:column; gap:5px; align-items:center;">
+                <span style="color:#f1f5f9;font-weight:700;font-size:14px;">${c.name}</span>
+                <span style="color:#64748b;font-size:11px;">#${index + 1}</span>
                 <span class="status-badge ${statusClass}" style="width:fit-content">${statusLabel}</span>
             </div>
         </td>
