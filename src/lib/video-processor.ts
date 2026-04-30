@@ -202,15 +202,20 @@ export interface JobStatus {
 }
 
 // In-memory store for active transcoding jobs
-export const jobStore = new Map<string, JobStatus>()
+const g = globalThis as any
+if (!g.__qaffJobStore) {
+    g.__qaffJobStore = new Map<string, JobStatus>()
+    g.__qaffJobQueue = [] as string[]
+    g.__qaffActiveProcessingClients = new Set<string>()
+}
+
+export const jobStore = g.__qaffJobStore as Map<string, JobStatus>
+const jobQueue = g.__qaffJobQueue as string[]
+const activeProcessingClients = g.__qaffActiveProcessingClients as Set<string>
 
 export function getJobStatus(jobId: string): JobStatus | undefined {
     return jobStore.get(jobId)
 }
-
-// Queue for sequential processing
-const jobQueue: string[] = []
-const activeProcessingClients = new Set<string>()
 
 export function transcodeVideo(inputPath: string, outputPath: string, originalFilename: string, folder?: string): string {
     const jobId = randomUUID()
