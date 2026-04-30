@@ -893,18 +893,34 @@
     <div class="toast" id="toast"></div>
 
     <!-- Admin Password Change Modal -->
+    <!-- Admin Password Change Modal -->
     <div class="modal-bg" id="adminPassModal">
-        <div class="modal" style="max-width: 400px;">
-            <h3>تغيير كلمة مرور الأدمن</h3>
-            <p style="font-size: 13px; color: #94a3b8; margin-bottom: 16px;">مطلوب السيكيورتي كود لتتمكن من تغيير الكلمة، وستسجل الخروج من جميع الأجهزة.</p>
-            <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:6px">كود الأمان (السيكيورتي)</label>
-            <input type="password" id="adminSecurityCode" placeholder="••••••••">
-            <label style="font-size:12px;color:#94a3b8;display:block;margin-top:10px;margin-bottom:6px">كلمة المرور الجديدة</label>
-            <input type="password" id="adminNewPass" placeholder="6 أحرف على الأقل">
-            <p id="adminPassErr" style="color:#f87171;font-size:13px;margin:8px 0;display:none;"></p>
-            <div class="btns" style="margin-top:16px;">
-                <button class="btn-cancel" onclick="closeAdminPassModal()">إلغاء</button>
-                <button class="btn-primary" id="adminPassBtn" onclick="saveAdminPassword()">حفظ التغيير</button>
+        <div class="modal" style="max-width:420px; padding:0; overflow:hidden; border-radius:16px; border:1px solid rgba(239,68,68,0.2); background:linear-gradient(180deg,#1e1015 0%,#0f172a 100%);">
+            <div style="display:flex;align-items:center;gap:12px;padding:20px 24px;background:linear-gradient(135deg,rgba(239,68,68,0.12),rgba(239,68,68,0.04));border-bottom:1px solid rgba(239,68,68,0.15);">
+                <div style="width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#dc2626,#991b1b);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">&#x1F511;</div>
+                <div>
+                    <div style="font-size:11px;color:#f87171;font-weight:600;letter-spacing:0.5px;">&#x625;&#x639;&#x62F;&#x627;&#x62F;&#x627;&#x62A; &#x627;&#x644;&#x623;&#x645;&#x627;&#x646;</div>
+                    <h3 style="margin:0;font-size:16px;font-weight:700;color:#f1f5f9;">&#x62A;&#x63A;&#x64A;&#x64A;&#x631; &#x643;&#x644;&#x645;&#x629; &#x645;&#x631;&#x648;&#x631; &#x627;&#x644;&#x623;&#x62F;&#x645;&#x646;</h3>
+                </div>
+            </div>
+            <div style="padding:24px;">
+                <div style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.15);border-radius:10px;padding:12px 16px;margin-bottom:20px;display:flex;gap:10px;align-items:flex-start;">
+                    <span style="font-size:18px;flex-shrink:0;">&#x26A0;&#xFE0F;</span>
+                    <p style="font-size:13px;color:#fca5a5;margin:0;line-height:1.6;">&#x645;&#x637;&#x644;&#x648;&#x628; &#x627;&#x644;&#x633;&#x64A;&#x643;&#x64A;&#x648;&#x631;&#x62A;&#x64A; &#x643;&#x648;&#x62F; &#x644;&#x644;&#x62A;&#x645;&#x643;&#x646; &#x645;&#x646; &#x62A;&#x63A;&#x64A;&#x64A;&#x631; &#x627;&#x644;&#x643;&#x644;&#x645;&#x629;&#x60C; &#x648;&#x633;&#x62A;&#x633;&#x62C;&#x644; &#x627;&#x644;&#x62E;&#x631;&#x648;&#x62C; &#x645;&#x646; &#x62C;&#x645;&#x64A;&#x639; &#x627;&#x644;&#x623;&#x62C;&#x647;&#x632;&#x629;.</p>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:6px;font-weight:600;">&#x643;&#x648;&#x62F; &#x627;&#x644;&#x623;&#x645;&#x627;&#x646; (&#x627;&#x644;&#x633;&#x64A;&#x643;&#x64A;&#x648;&#x631;&#x62A;&#x64A;)</label>
+                    <input type="password" id="adminSecurityCode" placeholder="&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;&#x2022;" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#f1f5f9;border-radius:10px;padding:10px 14px;font-size:14px;outline:none;">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:12px;color:#94a3b8;display:block;margin-bottom:6px;font-weight:600;">&#x643;&#x644;&#x645;&#x629; &#x627;&#x644;&#x645;&#x631;&#x648;&#x631; &#x627;&#x644;&#x62C;&#x62F;&#x64A;&#x62F;&#x629;</label>
+                    <input type="password" id="adminNewPass" placeholder="6 &#x623;&#x62D;&#x631;&#x641; &#x639;&#x644;&#x649; &#x627;&#x644;&#x623;&#x642;&#x644;" style="width:100%;box-sizing:border-box;background:#1e293b;border:1px solid #334155;color:#f1f5f9;border-radius:10px;padding:10px 14px;font-size:14px;outline:none;">
+                </div>
+                <p id="adminPassErr" style="color:#f87171;font-size:13px;margin:0 0 12px;display:none;background:rgba(239,68,68,0.08);padding:8px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.2);"></p>
+                <div style="display:flex;gap:10px;">
+                    <button onclick="closeAdminPassModal()" style="flex:1;padding:11px;background:rgba(255,255,255,0.05);color:#94a3b8;border:1px solid rgba(255,255,255,0.08);border-radius:10px;font-size:14px;cursor:pointer;font-weight:600;">&#x625;&#x644;&#x63A;&#x627;&#x621;</button>
+                    <button id="adminPassBtn" onclick="saveAdminPassword()" style="flex:2;padding:11px;background:linear-gradient(135deg,#dc2626,#991b1b);color:#fff;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-weight:700;box-shadow:0 4px 12px rgba(239,68,68,0.3);">&#x1F511; &#x62D;&#x641;&#x638; &#x627;&#x644;&#x62A;&#x63A;&#x64A;&#x64A;&#x631;</button>
+                </div>
             </div>
         </div>
     </div>
@@ -1607,17 +1623,26 @@
     </script>
 
     <!-- Options Modal -->
+    <!-- Options Modal -->
     <div id="optionsModal" class="modal-bg">
-        <div class="modal" style="max-width: 320px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid #334155; padding-bottom:8px;">
-                <h3 id="options-title" style="margin:0; font-size:1.1rem; color:#fff;">خيارات اللوحة</h3>
-                <span class="close-modal" onclick="closeClientOptions()">×</span>
+        <div class="modal" style="max-width:360px; padding:0; overflow:hidden; border-radius:16px; border:1px solid rgba(139,92,246,0.2); background:linear-gradient(180deg,#1e1b2e 0%,#0f172a 100%);">
+            <!-- Header -->
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:16px 20px; background:linear-gradient(135deg,rgba(139,92,246,0.15),rgba(59,130,246,0.08)); border-bottom:1px solid rgba(139,92,246,0.2);">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:18px;">⚙️</div>
+                    <div>
+                        <div style="font-size:11px;color:#7c6fad;font-weight:600;letter-spacing:0.5px;">خيارات اللوحة</div>
+                        <h3 id="options-title" style="margin:0;font-size:15px;font-weight:700;color:#f1f5f9;"></h3>
+                    </div>
+                </div>
+                <span class="close-modal" onclick="closeClientOptions()" style="width:28px;height:28px;border-radius:8px;background:rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;color:#94a3b8;border:1px solid rgba(255,255,255,0.08);">×</span>
             </div>
-            <div id="options-container" style="display:flex; flex-direction:column; gap:8px;">
+            <!-- Buttons -->
+            <div id="options-container" style="display:flex; flex-direction:column; gap:6px; padding:16px 20px;">
                 <!-- buttons injected here -->
             </div>
-            <div class="modal-actions" style="margin-top: 1rem;">
-                <button class="btn-secondary" onclick="closeClientOptions()" style="width:100%">إغلاق القائمة</button>
+            <div style="padding:0 20px 16px;">
+                <button onclick="closeClientOptions()" style="width:100%;padding:10px;background:rgba(255,255,255,0.05);color:#94a3b8;border:1px solid rgba(255,255,255,0.08);border-radius:10px;font-size:13px;cursor:pointer;font-weight:600;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='rgba(255,255,255,0.05)'">✕ إغلاق القائمة</button>
             </div>
         </div>
     </div>
