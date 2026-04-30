@@ -151,10 +151,10 @@ export async function validateVideoFile(filepath: string): Promise<{ allowed: bo
         return { allowed: false, reason: `مرفوض: الدقة أعلى من 1080p (${probe.width}x${probe.height}) | Rejected: Resolution exceeds 1080p (${probe.width}x${probe.height})` }
     }
 
-    // Bitrate range check (approx 2000k, allow up to 2500k)
+    // Bitrate range check (allow up to 2500k, no minimum)
     const bitrateK = probe.bitrate / 1000
-    if (bitrateK < 1500 || bitrateK > 2500) {
-        return { allowed: false, reason: `مرفوض: معدل البت (${Math.round(bitrateK)}k) خارج النطاق 1500-2500k | Rejected: Bitrate (${Math.round(bitrateK)}k) out of allowed 1500-2500k` }
+    if (bitrateK > 2500) {
+        return { allowed: false, reason: `مرفوض: معدل البت (${Math.round(bitrateK)}k) أعلى من المسموح 2500k | Rejected: Bitrate (${Math.round(bitrateK)}k) exceeds allowed 2500k` }
     }
 
     // GOP Check
