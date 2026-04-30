@@ -650,8 +650,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
   }
 
   const pollDownload = (downloadId: string, filename: string) => {
-    const transferId = `dl_${downloadId}`
-    upsertTransfer(transferId, { type: 'download', name: filename, downloadId, status: 'active' })
+    upsertTransfer(downloadId, { type: 'download', name: filename, downloadId, status: 'active' })
   }
 
   // Format date in 24-hour style to avoid RTL/LTR flipping issues with Arabic AM/PM
@@ -769,7 +768,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                 </div>
                 {/* Progress bar */}
                 <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                  {(tr.status === 'active' && (tr.total === 0 || !tr.total)) ? (
+                  {(tr.status === 'active' && (tr.total <= 0 || !tr.total)) ? (
                     <div className="h-1.5 bg-primary rounded-full w-1/3 animate-indeterminate" />
                   ) : (
                     <div
@@ -790,7 +789,7 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
                   </div>
                 )}
                 {/* Bytes downloaded for indeterminate (Google Drive) */}
-                {tr.status === 'active' && (!tr.total || tr.total === 0) && (tr.loaded ?? 0) > 0 && (
+                {tr.status === 'active' && (!tr.total || tr.total <= 0) && (tr.loaded ?? 0) > 0 && (
                   <div className="text-[10px] text-muted-foreground mt-0.5 text-center">
                     {(tr.loaded / 1048576).toFixed(1)} MB downloaded…
                   </div>
