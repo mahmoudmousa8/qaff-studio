@@ -1290,7 +1290,10 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
     const client = db.getClientById.get(req.params.id);
     if (!client) return res.status(404).json({ error: 'Client not found' });
 
-    // Resolve 'local' to actual bind mount path
+    if (globalTask.active) {
+        return res.status(400).json({ error: 'هناك عملية قيد التنفيذ حالياً. يرجى الانتظار.' });
+    }
+
     const currentPath = (!client.storage_path || client.storage_path === 'local')
         ? `/opt/qaff-data/client_${client.id}`
         : client.storage_path;
@@ -1299,122 +1302,110 @@ app.post('/api/clients/:id/migrate', auth.requireAuth, async (req, res) => {
         return res.status(400).json({ error: 'Client is already on the target storage pool' });
     }
 
+    // ── Quick disk space check ────────────────────────────────
     try {
         const fs = require('fs');
         const checkPath = targetPool === 'local' ? '/' : targetPool;
-        const stat = fs.statfsSync(checkPath);
-        const used = (Number(stat.blocks) - Number(stat.bfree)) * Number(stat.bsize);
-        const total = Number(stat.blocks) * Number(stat.bsize);
-        const usagePercent = (used / total) * 100;
-        if (usagePercent >= 90) {
-            return res.status(507).json({ error: 'Target Storage Pool is over 90% full. Cannot migrate here.'});
+        if (typeof fs.statfsSync === 'function') {
+            const stat = fs.statfsSync(checkPath);
+            const used = (Number(stat.blocks) - Number(stat.bfree)) * Number(stat.bsize);
+            const total = Number(stat.blocks) * Number(stat.bsize);
+            if ((used / total) * 100 >= 90) {
+                return res.status(507).json({ error: 'Target storage is over 90% full. Cannot migrate here.' });
+            }
         }
-    } catch (err) {
-        console.error('Disk check error:', err);
-    }
+    } catch (err) { /* ignore */ }
 
-    try {
-        await docker.stopContainer(client.container_id).catch(() => { });
+    // ── Respond immediately — migration runs in background ────
+    res.json({ success: true, message: 'بدأ نقل البيانات في الخلفية. ستتغير حالة العميل تلقائياً عند الانتهاء.' });
 
+    // ── Background migration ───────────────────────────────────
+    globalTask = { active: true, type: 'migration', progress: 0, total: 3, message: `جاري نقل بيانات العميل ${client.name}...` };
+
+    setTimeout(async () => {
+        const { spawn } = require('child_process');
         const fs = require('fs');
         const path = require('path');
-        const primaryBase = `/opt/qaff-data/client_${client.id}`;
-        fs.mkdirSync(primaryBase, { recursive: true });
 
-        // Source resolution
-        let srcDataRoot = currentPath;
-        let fromVolume = false;
+        const runRsync = (src, dest) => new Promise((resolve, reject) => {
+            fs.mkdirSync(dest, { recursive: true });
+            // --remove-source-files moves files instead of copying, saving double disk usage
+            const proc = spawn('rsync', ['-a', '--remove-source-files', '--info=progress2', `${src}/`, `${dest}/`]);
+            proc.on('close', code => code === 0 ? resolve() : reject(new Error(`rsync exited with code ${code}`)));
+            proc.on('error', reject);
+        });
 
-        if (client.volume_name) {
-            fromVolume = true;
-            const volInspect = await docker.getDocker().getVolume(client.volume_name).inspect().catch(() => null);
-            srcDataRoot = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/${client.volume_name}/_data`;
-        }
+        try {
+            await docker.stopContainer(client.container_id).catch(() => {});
 
-        const targetDataRoot = `${targetPool}/client_${client.id}`;
-        if (targetPool !== 'local') {
-            fs.mkdirSync(targetDataRoot, { recursive: true });
-        }
+            const primaryBase = `/opt/qaff-data/client_${client.id}`;
+            const targetDataRoot = targetPool === 'local' ? primaryBase : `${targetPool}/client_${client.id}`;
+            fs.mkdirSync(primaryBase, { recursive: true });
+            if (targetPool !== 'local') fs.mkdirSync(targetDataRoot, { recursive: true });
 
-        db.addLog('migration_started', client.id, `From ${currentPath} to ${targetPool}`);
+            globalTask.message = 'جاري رصد المصدر...';
 
-        if (fromVolume) {
-            // Step 1: Move EVERYTHING from Volume to Primary SSD
-            require('child_process').execSync(`rsync -acv "${srcDataRoot}/" "${primaryBase}/"`);
-        }
-
-        // Step 2: Handle heavy folders (videos, upload, download)
-        const heavyDirs = ['videos', 'upload', 'download'];
-        heavyDirs.forEach(dir => {
-            const srcDir = path.join(fromVolume ? primaryBase : currentPath, dir);
-            const destDir = path.join(targetPool === 'local' ? primaryBase : targetDataRoot, dir);
-
-            if (srcDir !== destDir && fs.existsSync(srcDir)) {
-                fs.mkdirSync(path.dirname(destDir), { recursive: true });
-                require('child_process').execSync(`rsync -acv "${srcDir}/" "${destDir}/"`);
-                
-                // If moving SSD -> HDD or HDD -> HDD, we should move the original to a backup
-                const backupPath = srcDir + '.backup_' + Date.now();
-                require('child_process').execSync(`mv "${srcDir}" "${backupPath}"`);
+            // Source resolution
+            let srcDataRoot = currentPath;
+            if (client.volume_name) {
+                const volInspect = await docker.getDocker().getVolume(client.volume_name).inspect().catch(() => null);
+                srcDataRoot = volInspect ? volInspect.Mountpoint : `/mnt/storage/docker/volumes/${client.volume_name}/_data`;
+                // Move from volume -> primaryBase first
+                globalTask.progress = 1;
+                globalTask.message = 'جاري نقل الملفات من Volume إلى القرص...';
+                await runRsync(srcDataRoot, primaryBase);
             }
-        });
 
-        // Ensure correct ownership for target directories
-        if (targetPool !== 'local') {
-            require('child_process').execSync(`chown -R 1000:1000 "${targetDataRoot}"`);
-        }
-        require('child_process').execSync(`chown -R 1000:1000 "${primaryBase}"`);
+            globalTask.progress = 2;
+            globalTask.message = 'جاري نقل مجلدات الفيديوهات...';
 
-        const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password);
-        await docker.deleteClientContainer(client.container_id, null);
+            // Move heavy dirs to target
+            const heavyDirs = ['videos', 'upload', 'download'];
+            const backupPaths = {};
+            for (const dir of heavyDirs) {
+                const srcDir = path.join(client.volume_name ? primaryBase : currentPath, dir);
+                const destDir = path.join(targetDataRoot, dir);
+                if (srcDir !== destDir && fs.existsSync(srcDir)) {
+                    await runRsync(srcDir, destDir);
+                    // Rename leftover (now empty) source dir as backup marker
+                    const backupPath = srcDir + '.backup_' + Date.now();
+                    try { fs.renameSync(srcDir, backupPath); } catch (_) {}
+                    backupPaths[dir] = backupPath;
+                }
+            }
 
-        const { containerId, containerName, volumeName, storagePath } = await docker.createClientContainer({
-            clientId: client.id,
-            name: client.name,
-            port: client.port,
-            slots: client.slots,
-            storageGb: client.storage_gb,
-            bandwidthLimit: client.bandwidth_limit || 0,
-            passwordHash: passwordHash || '',
-            renewalDate: client.renewal_date || '',
-            isSuspended: client.status === 'suspended',
-            storagePath: targetPool === 'local' ? 'local' : targetDataRoot,
-            volumeName: null // Successfully migrated to Hybrid system
-        });
+            globalTask.progress = 3;
+            globalTask.message = 'جاري إعادة إنشاء الحاوية...';
 
-        // Health Check & Auto-Rollback
-        const checkContainer = await docker.getDocker().getContainer(containerId).inspect().catch(() => null);
-        if (!checkContainer || !checkContainer.State || !checkContainer.State.Running) {
-            db.addLog('migration_failed', client.id, `Container failed to start on new pool. Initiating auto-rollback...`);
-            await docker.deleteClientContainer(containerId, null).catch(() => {});
+            // Ownership fix
+            try { require('child_process').execSync(`chown -R 1000:1000 "${targetDataRoot}" "${primaryBase}"`); } catch (_) {}
 
-            // Recreate original dir and restore from backup
-            require('fs').mkdirSync(currentPath, { recursive: true });
-            require('child_process').execSync(`chown -R 1000:1000 "${currentPath}"`);
-            require('child_process').execSync(`rsync -acv "${backupPath}/" "${srcDir}"`);
+            const passwordHash = (await docker.getContainerPasswordHash(client.container_id).catch(() => null)) || await auth.hashPassword(client.password);
+            await docker.deleteClientContainer(client.container_id, null);
 
-            const orig = await docker.createClientContainer({
+            const { containerId, volumeName, storagePath } = await docker.createClientContainer({
                 clientId: client.id, name: client.name, port: client.port, slots: client.slots,
                 storageGb: client.storage_gb, bandwidthLimit: client.bandwidth_limit || 0,
                 passwordHash: passwordHash || '', renewalDate: client.renewal_date || '',
-                isSuspended: client.status === 'suspended', storagePath: currentPath, volumeName: null
+                isSuspended: client.status === 'suspended',
+                storagePath: targetPool === 'local' ? 'local' : targetDataRoot,
+                volumeName: null
             });
 
-            db.updateClientContainer.run(orig.containerId, client.id);
-            db.addLog('client_rolled_back', client.id, `Auto-rollback completed successfully after migration failure.`);
-            return res.status(500).json({ error: 'Migration failed. Container did not start correctly on the new storage. System auto-rolled back safely.'});
+            const firstBackup = Object.values(backupPaths)[0] || null;
+            db.updateClientContainer.run(containerId, client.id);
+            db.updateClientStoragePath.run(storagePath, volumeName, firstBackup, client.id);
+            db.addLog('client_migrated', client.id, `نجح النقل إلى ${targetPool}. النسخة الاحتياطية: ${firstBackup}`);
+
+        } catch (err) {
+            console.error('[migrate] Background error:', err.message);
+            db.addLog('migration_failed', client.id, err.message);
+        } finally {
+            globalTask = { active: false, type: null, progress: 0, total: 0, message: '' };
         }
-
-        db.updateClientContainer.run(containerId, client.id);
-        db.updateClientStoragePath.run(storagePath, volumeName, backupPath, client.id);
-        db.addLog('client_migrated', client.id, `Success. Old data backed up at ${backupPath}`);
-
-        res.json({ success: true, storagePath, backupPath });
-    } catch (err) {
-        db.addLog('migration_failed', client.id, err.message);
-        res.status(500).json({ error: err.message });
-    }
+    }, 500);
 });
+
 
 app.post('/api/clients/:id/rollback', auth.requireAuth, async (req, res) => {
     const client = db.getClientById.get(req.params.id);
