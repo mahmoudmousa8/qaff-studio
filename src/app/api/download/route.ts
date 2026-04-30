@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createWriteStream, existsSync, mkdirSync, unlinkSync, statSync } from 'fs'
+import { createWriteStream, existsSync, mkdirSync, unlinkSync, statSync, renameSync } from 'fs'
 import path from 'path'
 import https from 'https'
 import http from 'http'
@@ -310,12 +310,18 @@ export async function POST(request: NextRequest) {
           const processor = await import('@/lib/video-processor')
           const check = await processor.validateVideoFile(targetPath)
           if (!check.allowed) {
-            job.status = 'error'
-            job.error = check.reason || 'المقطع غير متوافق مع معايير المنصة'
-            job.completedAt = Date.now()
-            try { unlinkSync(targetPath) } catch { }
-            console.error(`[download] Rejected: ${targetFilename} — ${job.error}`)
-            return
+            console.log(`[download] File ${targetFilename} rejected by validation, triggering auto-transcode...`)
+            const processingDir = path.join(VIDEOS_DIR, '.processing')
+            if (!existsSync(processingDir)) {
+              mkdirSync(processingDir, { recursive: true })
+            }
+            const tempPath = path.join(processingDir, targetFilename)
+            try {
+              renameSync(targetPath, tempPath)
+              processor.transcodeVideo(tempPath, targetPath, targetFilename, folder)
+            } catch (e) {
+              console.error('[download] failed to start transcode:', e)
+            }
           }
         } catch (e) {
           console.error('[download] validation error:', e)
