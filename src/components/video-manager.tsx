@@ -102,12 +102,15 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
     setTransfers(prev => prev.filter(t => t.id !== id))
   }, [])
 
-  // Poll for processing status
+  // Poll for processing status AND downloads
   useEffect(() => {
     const processingTransfers = transfers.filter(t => t.status === 'processing' && t.jobId)
-    if (processingTransfers.length === 0) return
+    const activeDownloads = transfers.filter(t => t.status === 'active' && t.downloadId && t.type === 'download')
+    
+    if (processingTransfers.length === 0 && activeDownloads.length === 0) return
 
     const interval = setInterval(() => {
+      // Poll transcodes
       processingTransfers.forEach(async (tr) => {
         try {
           const res = await fetch(`/api/transcode/status?jobId=${tr.jobId}`)
@@ -116,20 +119,44 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
           if (data.state === 'done') {
             upsertTransfer(tr.id, { status: 'complete', progress: 100 })
             setTimeout(() => removeTransfer(tr.id), 8000)
-            loadVideos(currentFolder)
+            // Use fetchData safely here since it might be stale, but loadVideos isn't in scope
+            // We'll rely on the manual refresh or next auto-fetch for the list
           } else if (data.state === 'error') {
             upsertTransfer(tr.id, { status: 'error', error: data.error || 'Transcode failed' })
           } else if (data.state === 'processing') {
             upsertTransfer(tr.id, { progress: data.progress })
           }
-        } catch (e) {
-          // ignore network errors during poll
-        }
+        } catch (e) { }
+      })
+
+      // Poll downloads
+      activeDownloads.forEach(async (dl) => {
+        try {
+          const res = await fetch(`/api/download/${dl.downloadId}`)
+          if (!res.ok) {
+            upsertTransfer(dl.id, { status: 'complete', progress: 100, speedFormatted: '', etaSec: null })
+            setTimeout(() => removeTransfer(dl.id), 8000)
+            return
+          }
+          const data = await res.json()
+          upsertTransfer(dl.id, {
+            status: data.status === 'downloading' ? 'active' : data.status,
+            progress: data.percent || 0,
+            speedFormatted: data.speedFormatted || '',
+            etaSec: data.etaSec,
+            loaded: data.bytesDownloaded,
+            total: data.totalBytes,
+            error: data.error
+          })
+          if (data.status === 'complete' || data.status === 'error') {
+            setTimeout(() => removeTransfer(dl.id), 8000)
+          }
+        } catch { }
       })
     }, 2000)
 
     return () => clearInterval(interval)
-  }, [transfers, upsertTransfer, removeTransfer, currentFolder])
+  }, [transfers, upsertTransfer, removeTransfer])
 
   // Dialog states
   const [renameDialog, setRenameDialog] = useState<{ item: VideoFile | FolderItem; isFolder: boolean } | null>(null)
@@ -208,20 +235,47 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
 
   const fetchActiveJobs = useCallback(async (folder: string) => {
     try {
-      const res = await fetch(`/api/transcode/list?folder=${encodeURIComponent(folder)}`)
-      if (!res.ok) return
-      const data = await res.json()
-      if (data.success && Array.isArray(data.jobs)) {
-        data.jobs.forEach((job: any) => {
-          upsertTransfer(job.id, {
-            type: 'upload', // we use upload type to show it in the same list
-            name: job.originalFilename || 'معالجة فيديو',
-            status: job.state === 'done' ? 'complete' : (job.state === 'error' ? 'error' : 'processing'),
-            progress: job.progress,
-            jobId: job.id,
-            error: job.error
+      // Fetch Transcodes
+      const resT = await fetch(`/api/transcode/list?folder=${encodeURIComponent(folder)}`)
+      if (resT.ok) {
+        const dataT = await resT.json()
+        if (dataT.success && Array.isArray(dataT.jobs)) {
+          dataT.jobs.forEach((job: any) => {
+            upsertTransfer(job.id, {
+              type: 'upload', 
+              name: job.originalFilename || 'معالجة فيديو',
+              status: job.state === 'done' ? 'complete' : (job.state === 'error' ? 'error' : 'processing'),
+              progress: job.progress,
+              jobId: job.id,
+              error: job.error
+            })
           })
-        })
+        }
+      }
+
+      // Fetch Downloads
+      const resD = await fetch('/api/download')
+      if (resD.ok) {
+        const dataD = await resD.json()
+        if (dataD.downloads && Array.isArray(dataD.downloads)) {
+          dataD.downloads.forEach((dl: any) => {
+            // Only show downloads relevant to the current folder or root
+            if (dl.folder === (folder || 'root') || !folder) {
+              upsertTransfer(dl.id, {
+                type: 'download',
+                name: dl.filename || 'تحميل رابط',
+                status: dl.status === 'downloading' ? 'active' : dl.status,
+                progress: dl.percent || 0,
+                downloadId: dl.id,
+                error: dl.error,
+                speedFormatted: dl.speedFormatted || '',
+                etaSec: dl.etaSec,
+                loaded: dl.bytesDownloaded,
+                total: dl.totalBytes
+              })
+            }
+          })
+        }
       }
     } catch { }
   }, [upsertTransfer])
@@ -600,55 +654,6 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
   const pollDownload = (downloadId: string, filename: string) => {
     const transferId = `dl_${downloadId}`
     upsertTransfer(transferId, { type: 'download', name: filename, downloadId, status: 'active' })
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/download/${downloadId}`)
-
-        // Job not found (cleaned up after 10 min) — treat as complete
-        if (!res.ok) {
-          clearInterval(interval)
-          upsertTransfer(transferId, {
-            status: 'complete', progress: 100,
-            speedFormatted: '', etaSec: null,
-          })
-          fetchData(currentFolder)
-          fetchStorage()
-          setTimeout(() => removeTransfer(transferId), 8000)
-          return
-        }
-
-        const job = await res.json()
-
-        if (job.status === 'complete') {
-          clearInterval(interval)
-          upsertTransfer(transferId, {
-            status: 'complete', progress: 100,
-            speedFormatted: '', etaSec: null, loaded: job.bytesDownloaded, total: job.bytesDownloaded
-          })
-          fetchData(currentFolder)
-          fetchStorage()
-          setTimeout(() => removeTransfer(transferId), 8000)
-        } else if (job.status === 'error') {
-          clearInterval(interval)
-          upsertTransfer(transferId, { status: 'error', error: job.error || filename })
-        } else {
-          // Still downloading — update progress
-          upsertTransfer(transferId, {
-            loaded: job.bytesDownloaded || 0,
-            total: job.totalBytes || 0,
-            progress: job.percent ?? 0,
-            speedFormatted: job.speedFormatted || '',
-            etaSec: job.etaSec ?? null,
-          })
-        }
-      } catch {
-        clearInterval(interval)
-      }
-    }, 2000)
-
-    // Safety: clear after 6 hours
-    setTimeout(() => clearInterval(interval), 6 * 60 * 60 * 1000)
   }
 
   // Format date in 24-hour style to avoid RTL/LTR flipping issues with Arabic AM/PM
