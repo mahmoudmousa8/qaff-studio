@@ -305,20 +305,23 @@ export async function POST(request: NextRequest) {
     // Start download in background (don't await!)
     downloadFile(downloadUrl, targetPath, job)
       .then(async () => {
+        const finalPath = job.filePath
+        const finalFilename = job.filename
+
         // Validate video before keeping
         try {
           const processor = await import('@/lib/video-processor')
-          const check = await processor.validateVideoFile(targetPath)
+          const check = await processor.validateVideoFile(finalPath)
           if (!check.allowed) {
-            console.log(`[download] File ${targetFilename} rejected by validation, triggering auto-transcode...`)
+            console.log(`[download] File ${finalFilename} rejected by validation, triggering auto-transcode...`)
             const processingDir = path.join(VIDEOS_DIR, '.processing')
             if (!existsSync(processingDir)) {
               mkdirSync(processingDir, { recursive: true })
             }
-            const tempPath = path.join(processingDir, targetFilename)
+            const tempPath = path.join(processingDir, finalFilename)
             try {
-              renameSync(targetPath, tempPath)
-              processor.transcodeVideo(tempPath, targetPath, targetFilename, folder)
+              renameSync(finalPath, tempPath)
+              processor.transcodeVideo(tempPath, finalPath, finalFilename, folder)
             } catch (e) {
               console.error('[download] failed to start transcode:', e)
             }
@@ -331,10 +334,10 @@ export async function POST(request: NextRequest) {
         job.completedAt = Date.now()
         // Get final file size
         try {
-          const stat = statSync(targetPath)
+          const stat = statSync(finalPath)
           job.bytesDownloaded = stat.size
         } catch { }
-        console.log(`[download] Complete: ${targetFilename} (${(job.bytesDownloaded / 1024 / 1024).toFixed(1)} MB)`)
+        console.log(`[download] Complete: ${finalFilename} (${(job.bytesDownloaded / 1024 / 1024).toFixed(1)} MB)`)
       })
       .catch((err) => {
         job.status = 'error'
