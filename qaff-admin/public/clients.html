@@ -1063,7 +1063,7 @@
                 if (c.status === 'running') menuBtns.push(`<button class="btn-menu-item" onclick="action(${c.id},'suspend')"><span>🚫</span> تعليق اللوحة</button>`)
                 if (c.status === 'suspended') menuBtns.push(`<button class="btn-menu-item" onclick="action(${c.id},'resume')"><span>▶</span> استئناف اللوحة</button>`)
                 menuBtns.push(`<button class="btn-menu-item" onclick="openPassModal(${c.id},'${safePass}')"><span>🔑</span> كلمة مرور الدخول</button>`)
-                menuBtns.push(`<button class="btn-menu-item" onclick="openCodeModal(${c.id},'${c.reset_answer || '}')"><span>🛡️</span> رمز أمان الاستعادة</button>`)
+                menuBtns.push(`<button class="btn-menu-item" onclick="openCodeModal(${c.id},'${c.reset_answer || ''}')"><span>🛡️</span> رمز أمان الاستعادة</button>`)
                 menuBtns.push(`<button class="btn-menu-item" onclick="openSlotsModal(${c.id},${c.slots})"><span>✏️</span> تعديل عدد البثوث</button>`)
                 menuBtns.push(`<button class="btn-menu-item" onclick="openStorageModal(${c.id},${c.storage_gb})"><span>✏️</span> تعديل مساحة الهارد</button>`)
                 menuBtns.push(`<button class="btn-menu-item" onclick="openBandwidthModal(${c.id},${c.bandwidth_limit || 0})"><span>✏️</span> تعديل سرعة الاتصال</button>`)
