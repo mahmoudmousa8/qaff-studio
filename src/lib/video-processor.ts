@@ -247,26 +247,47 @@ function processNextJob() {
         return;
     }
 
-    // Find first job whose client is NOT already being processed (per-client parallelism)
-    const index = jobQueue.findIndex(jobId => {
-        const job = jobStore.get(jobId)
-        if (!job) return true
-        const clientKey = job.folder || 'global'
-        return !activeProcessingClients.has(clientKey)
-    })
+    // Find the first valid job in the queue
+    let index = -1;
+    for (let i = 0; i < jobQueue.length; i++) {
+        if (jobStore.has(jobQueue[i])) {
+            index = i;
+            break;
+        }
+    }
 
-    if (index === -1) return // All queued jobs belong to clients already processing
+    if (index === -1) {
+        jobQueue.length = 0; // Clear invalid jobs
+        return;
+    }
 
     const jobId = jobQueue.splice(index, 1)[0]
-    const job = jobStore.get(jobId)
+    const job = jobStore.get(jobId)!
 
-    if (!job || job.state === 'cancelled') {
+    if (job.state === 'cancelled') {
         processNextJob()
         return
     }
 
     const clientKey = job.folder || 'global'
     activeProcessingClients.add(clientKey)
+
+    // FAIRNESS SHUFFLE: Move all remaining jobs from THIS client to the back of the queue
+    const otherClientsJobs = [];
+    const thisClientJobs = [];
+    while (jobQueue.length > 0) {
+        const jId = jobQueue.shift()!;
+        const j = jobStore.get(jId);
+        if (!j || j.state === 'cancelled') continue;
+        const jClient = j.folder || 'global';
+        if (jClient === clientKey) {
+            thisClientJobs.push(jId);
+        } else {
+            otherClientsJobs.push(jId);
+        }
+    }
+    // Reconstruct queue: other clients first, then this client's remaining jobs at the end
+    jobQueue.push(...otherClientsJobs, ...thisClientJobs);
 
     job.state = 'processing'
     jobStore.set(jobId, job)
