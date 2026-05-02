@@ -338,38 +338,15 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
     }
   }
 
-  // Upload via XHR — fixes 'Unexpected end of form' for large files
+  // Upload via XHR — sequential queue per client (one file at a time)
   const handleUpload = (files: File[]) => {
-    // Track upload state for UI — but do NOT disable buttons so user can queue more
+    if (files.length === 0) return
     setUploading(true)
 
-    let completedCount = 0
-    let errorCount = 0
-
-    const checkAllDone = () => {
-      completedCount++
-      if (completedCount >= files.length) {
-        setUploading(false)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-        if (folderInputRef.current) folderInputRef.current.value = ''
-        fetchData(currentFolder)
-        fetchStorage()
-      }
-    }
-
-    files.forEach((file) => {
+    // Build transfer entries immediately so user sees all files in queue
+    const fileEntries: { id: string; file: File; targetFolder: string }[] = files.map((file) => {
       const id = `up_${Date.now()}_${Math.random().toString(36).substring(7)}`
-      const startTime = Date.now()
-      let lastLoaded = 0
-      let lastTime = startTime
 
-      upsertTransfer(id, { type: 'upload', name: file.name, total: file.size, status: 'active' })
-
-      const formData = new FormData()
-      formData.append('encodedName', encodeURIComponent(file.name))
-
-      // If a folder was uploaded, the path is available in webkitRelativePath
-      // Extract the target subfolder from the path, minus the actual filename
       const relPath = file.webkitRelativePath
       let targetFolder = currentFolder
       if (relPath && relPath.includes('/')) {
@@ -377,69 +354,110 @@ export function VideoManager({ onVideoSelect, onClose, mode = 'manage' }: VideoM
         targetFolder = targetFolder ? `${targetFolder}/${subfolder}` : subfolder
       }
 
-      if (targetFolder) formData.append('folder', targetFolder)
+      // Show all files in the queue immediately — first is 'active', rest are 'queued'
+      upsertTransfer(id, {
+        type: 'upload',
+        name: file.name,
+        total: file.size,
+        status: 'active',
+      })
 
-      // IMPORTANT: Append 'file' LAST so Busboy reads 'encodedName' and 'folder' fields first.
-      formData.append('file', file)
-
-      const xhr = new XMLHttpRequest()
-      upsertTransfer(id, { xhr })
-
-      xhr.upload.onprogress = (e) => {
-        if (!e.lengthComputable) return
-        const now = Date.now()
-        const dt = (now - lastTime) / 1000
-        const speedBps = dt > 0 ? (e.loaded - lastLoaded) / dt : 0
-        lastLoaded = e.loaded
-        lastTime = now
-        const remaining = speedBps > 0 ? (e.total - e.loaded) / speedBps : null
-        const speedFmt = speedBps > 0
-          ? speedBps > 1048576 ? `${(speedBps / 1048576).toFixed(1)} MB/s`
-            : `${(speedBps / 1024).toFixed(0)} KB/s`
-          : ''
-        upsertTransfer(id, {
-          loaded: e.loaded,
-          total: e.total,
-          progress: Math.round((e.loaded / e.total) * 100),
-          speedFormatted: speedFmt,
-          etaSec: remaining ? Math.round(remaining) : null,
-        })
-      }
-
-      xhr.onload = () => {
-        if (xhr.status === 200) {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            if (data.processing) {
-              upsertTransfer(id, { status: 'processing', progress: 0, jobId: data.jobId })
-            } else if (data.success) {
-              upsertTransfer(id, { status: 'complete', progress: 100 })
-              setTimeout(() => removeTransfer(id), 8000)
-            } else {
-              upsertTransfer(id, { status: 'error', error: data.error || 'Upload failed' })
-            }
-          } catch (err) {
-            upsertTransfer(id, { status: 'error', error: 'Upload failed' })
-          }
-        } else {
-          try {
-            const data = JSON.parse(xhr.responseText)
-            upsertTransfer(id, { status: 'error', error: data.error || `HTTP ${xhr.status}` })
-          } catch (err) {
-            upsertTransfer(id, { status: 'error', error: `HTTP ${xhr.status}` })
-          }
-        }
-        checkAllDone()
-      }
-
-      xhr.onerror = () => {
-        upsertTransfer(id, { status: 'error', error: 'Network error' })
-        checkAllDone()
-      }
-
-      xhr.open('POST', '/api/upload')
-      xhr.send(formData)
+      return { id, file, targetFolder }
     })
+
+    // Sequential upload: process one file at a time
+    const uploadNext = async (index: number) => {
+      if (index >= fileEntries.length) {
+        setUploading(false)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        if (folderInputRef.current) folderInputRef.current.value = ''
+        fetchData(currentFolder)
+        fetchStorage()
+        return
+      }
+
+      const { id, file, targetFolder } = fileEntries[index]
+      let lastLoaded = 0
+      let lastTime = Date.now()
+
+      // Mark current as active (in case it was shown as queued)
+      upsertTransfer(id, { status: 'active', loaded: 0, progress: 0 })
+
+      await new Promise<void>((resolve) => {
+        const formData = new FormData()
+        formData.append('encodedName', encodeURIComponent(file.name))
+        if (targetFolder) formData.append('folder', targetFolder)
+        formData.append('file', file)
+
+        const xhr = new XMLHttpRequest()
+        upsertTransfer(id, { xhr })
+
+        xhr.upload.onprogress = (e) => {
+          if (!e.lengthComputable) return
+          const now = Date.now()
+          const dt = (now - lastTime) / 1000
+          const speedBps = dt > 0 ? (e.loaded - lastLoaded) / dt : 0
+          lastLoaded = e.loaded
+          lastTime = now
+          const remaining = speedBps > 0 ? (e.total - e.loaded) / speedBps : null
+          const speedFmt = speedBps > 0
+            ? speedBps > 1048576 ? `${(speedBps / 1048576).toFixed(1)} MB/s`
+              : `${(speedBps / 1024).toFixed(0)} KB/s`
+            : ''
+          upsertTransfer(id, {
+            loaded: e.loaded,
+            total: e.total,
+            progress: Math.round((e.loaded / e.total) * 100),
+            speedFormatted: speedFmt,
+            etaSec: remaining ? Math.round(remaining) : null,
+          })
+        }
+
+        xhr.onload = () => {
+          if (xhr.status === 200) {
+            try {
+              const data = JSON.parse(xhr.responseText)
+              if (data.processing) {
+                upsertTransfer(id, { status: 'processing', progress: 0, jobId: data.jobId })
+              } else if (data.success) {
+                upsertTransfer(id, { status: 'complete', progress: 100 })
+                setTimeout(() => removeTransfer(id), 8000)
+              } else {
+                upsertTransfer(id, { status: 'error', error: data.error || 'Upload failed' })
+              }
+            } catch {
+              upsertTransfer(id, { status: 'error', error: 'Upload failed' })
+            }
+          } else {
+            try {
+              const data = JSON.parse(xhr.responseText)
+              upsertTransfer(id, { status: 'error', error: data.error || `HTTP ${xhr.status}` })
+            } catch {
+              upsertTransfer(id, { status: 'error', error: `HTTP ${xhr.status}` })
+            }
+          }
+          resolve()
+        }
+
+        xhr.onerror = () => {
+          upsertTransfer(id, { status: 'error', error: 'Network error' })
+          resolve()
+        }
+
+        xhr.onabort = () => {
+          upsertTransfer(id, { status: 'cancelled' })
+          resolve()
+        }
+
+        xhr.open('POST', '/api/upload')
+        xhr.send(formData)
+      })
+
+      // Move to next file in queue
+      uploadNext(index + 1)
+    }
+
+    uploadNext(0)
   }
 
   // Video select
