@@ -240,6 +240,13 @@ export function transcodeVideo(inputPath: string, outputPath: string, originalFi
 function processNextJob() {
     if (jobQueue.length === 0) return
 
+    // Strict global limit to prevent VPS CPU choking
+    const MAX_GLOBAL_CONCURRENCY = 1;
+    if (activeProcessingClients.size >= MAX_GLOBAL_CONCURRENCY) {
+        console.log(`[transcode] Global limit reached. Waiting for current job to finish.`);
+        return;
+    }
+
     // Find first job whose client is NOT already being processed (per-client parallelism)
     const index = jobQueue.findIndex(jobId => {
         const job = jobStore.get(jobId)
