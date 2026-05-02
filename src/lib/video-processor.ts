@@ -396,10 +396,14 @@ function processNextJob() {
             // Cleanup input file
             try { if (existsSync(inputPath)) unlinkSync(inputPath); } catch {}
         } else {
-            job.state = 'error';
-            job.error = errorLog || `FFmpeg exited with code ${code}`;
-            console.error(`[transcode] Job ${jobId} failed`);
-            // Cleanup output file on failure
+            if (job.state !== 'cancelled') {
+                job.state = 'error';
+                job.error = errorLog || `FFmpeg exited with code ${code}`;
+                console.error(`[transcode] Job ${jobId} failed`);
+            } else {
+                console.log(`[transcode] Job ${jobId} cancellation confirmed (FFmpeg exited).`);
+            }
+            // Cleanup output file on failure or cancellation
             try { if (existsSync(tempOutputPath)) unlinkSync(tempOutputPath) } catch {}
         }
         jobStore.set(jobId, job)
