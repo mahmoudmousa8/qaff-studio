@@ -11,9 +11,22 @@
 import { db } from '@/lib/db'
 import { STREAM_MANAGER_URL } from '@/lib/paths'
 
-// Tracks how many consecutive ticks each slot has been absent from stream-manager.
-// Requires 4 missed ticks before triggering auto-recovery to prevent spurious restarts.
+// Tracks consecutive missed ticks per slot
 const missCounters = new Map<string, number>()
+
+// Per-slot backoff state (survives between ticks via module-level Map)
+interface SlotRecoveryState {
+  crashCount: number     // total confirmed crashes
+  backoffLevel: number   // 0=5s,1=1m,2=3m,3=10m,4=failed
+  pendingUntil: number   // epoch ms — skip recovery until this time
+}
+// Use globalThis so state survives HMR reloads in dev
+const g = globalThis as any
+if (!g.__qaffRecoveryStates) g.__qaffRecoveryStates = new Map<string, SlotRecoveryState>()
+const recoveryStates: Map<string, SlotRecoveryState> = g.__qaffRecoveryStates
+
+const BACKOFF_DELAYS_MS = [5_000, 60_000, 180_000, 600_000]  // 5s, 1m, 3m, 10m
+const MAX_CRASH_COUNT = BACKOFF_DELAYS_MS.length  // after 4 crashes → failed
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -215,6 +228,8 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
   // 1) Fetch currently active streams from Stream Manager
   let activeInManager: Set<number> = new Set()
   let streamManagerResponded = false
+  let streamManagerUptimeMs = Infinity
+  let isManagerInStartupGrace = false
   try {
     const abortCtrl = new AbortController()
     const t = setTimeout(() => abortCtrl.abort(), 3000)
@@ -225,6 +240,10 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       const data = await res.json()
       if (Array.isArray(data.activeStreams)) {
         activeInManager = new Set(data.activeStreams)
+      }
+      if (typeof data.uptimeMs === 'number') {
+        streamManagerUptimeMs = data.uptimeMs
+        isManagerInStartupGrace = data.isInStartupGrace === true
       }
     } else {
       console.warn(`[Scheduler] stream-manager /status returned HTTP ${res.status}`)
@@ -259,61 +278,101 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
 
   for (const slot of slots) {
 
-    // ── Auto-Recovery ───────────────────────────────────────
+    // ── Smart Auto-Recovery (startup-aware + backoff) ───────────
     if (slot.isRunning && streamManagerResponded && !activeInManager.has(slot.slotIndex)) {
       const missKey = `miss_${slot.slotIndex}`
       const missCount = (missCounters.get(missKey) ?? 0) + 1
       missCounters.set(missKey, missCount)
 
-      if (missCount >= 4) {
-        missCounters.set(missKey, 0)
+      // 🛡️ STARTUP GRACE: stream-manager just started — it handles auto-resume itself.
+      // Don't interfere for the first 90 seconds after manager startup.
+      if (isManagerInStartupGrace) {
+        console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: In startup grace (${Math.round(streamManagerUptimeMs / 1000)}s uptime). Skipping recovery.`)
+        continue
+      }
 
-        // Skip recovery if stream ended naturally within 10 min of its schedStop
-        let skipRecovery = false
-        if (slot.schedStop && !slot.schedStop.startsWith('DUR')) {
-          const parsedStop = parseScheduleTime(slot.schedStop)
-          if (parsedStop) {
-            const stopDate = normalizeToNow(
-              new Date(now.getFullYear(), parsedStop.month - 1, parsedStop.day, parsedStop.hour, parsedStop.minute, 0),
-              now
-            )
-            const msSinceStop = now.getTime() - stopDate.getTime()
-            if (msSinceStop >= 0 && msSinceStop < 10 * 60 * 1000) {
-              skipRecovery = true
-              console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Skipping auto-recovery — ended naturally near schedStop`)
-            }
+      // Wait for 3 consecutive misses (~90 seconds) before confirming crash
+      if (missCount < 3) {
+        console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Not in manager — waiting for confirmation (miss ${missCount}/3)`)
+        continue
+      }
+
+      // ── Crash confirmed ──
+      missCounters.set(missKey, 0)
+
+      const stateKey = `state_${slot.slotIndex}`
+      const state: SlotRecoveryState = recoveryStates.get(stateKey) ?? {
+        crashCount: 0, backoffLevel: 0, pendingUntil: 0
+      }
+
+      // Skip recovery if still within backoff window
+      if (state.pendingUntil > Date.now()) {
+        const waitSec = Math.round((state.pendingUntil - Date.now()) / 1000)
+        console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Backoff active (${waitSec}s remaining). Skipping recovery.`)
+        continue
+      }
+
+      // Too many crashes → mark permanently failed
+      if (state.crashCount >= MAX_CRASH_COUNT) {
+        logs.push(`Slot ${slot.slotIndex + 1}: Permanently failed after ${state.crashCount} crashes. Manual intervention required.`)
+        continue
+      }
+
+      // Record crash and set next backoff window
+      state.crashCount++
+      const delay = BACKOFF_DELAYS_MS[Math.min(state.backoffLevel, BACKOFF_DELAYS_MS.length - 1)]
+      state.backoffLevel++
+      state.pendingUntil = Date.now() + delay
+      recoveryStates.set(stateKey, state)
+
+      // Skip recovery if stream ended naturally near its scheduled stop time
+      let skipRecovery = false
+      if (slot.schedStop && !slot.schedStop.startsWith('DUR')) {
+        const parsedStop = parseScheduleTime(slot.schedStop)
+        if (parsedStop) {
+          const stopDate = normalizeToNow(
+            new Date(now.getFullYear(), parsedStop.month - 1, parsedStop.day, parsedStop.hour, parsedStop.minute, 0),
+            now
+          )
+          const msSinceStop = now.getTime() - stopDate.getTime()
+          if (msSinceStop >= 0 && msSinceStop < 10 * 60 * 1000) {
+            skipRecovery = true
+            console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Skipping recovery — ended naturally near schedStop`)
           }
         }
+      }
 
-        if (!skipRecovery) {
-          try {
-            const ctrl = new AbortController()
-            const t = setTimeout(() => ctrl.abort(), 5000)
-            const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                slotIndex: slot.slotIndex,
-                outputType: slot.outputType,
-                rtmpServer: slot.rtmpServer,
-                streamKey: slot.streamKey,
-                filePath: slot.filePath
-              }),
-              signal: ctrl.signal
-            })
-            clearTimeout(t)
-            const data = await res.json()
-            if (res.ok && data.success) {
-              logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
-            } else {
-              logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || 'stream-manager rejected start'}`)
-            }
-          } catch (e: any) {
-            logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
-          }
+      if (skipRecovery) continue
+
+      logs.push(`Slot ${slot.slotIndex + 1}: Crash #${state.crashCount} confirmed. Recovering (backoff level ${state.backoffLevel - 1}, next wait ${Math.round(delay / 1000)}s)`)
+
+      try {
+        const ctrl = new AbortController()
+        const t = setTimeout(() => ctrl.abort(), 5000)
+        const res = await fetch(`${STREAM_MANAGER_URL}/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            slotIndex: slot.slotIndex,
+            outputType: slot.outputType,
+            rtmpServer: slot.rtmpServer,
+            streamKey: slot.streamKey,
+            filePath: slot.filePath
+          }),
+          signal: ctrl.signal
+        })
+        clearTimeout(t)
+        const data = await res.json()
+        if (res.ok && data.success) {
+          // Reset backoff on successful recovery
+          state.backoffLevel = Math.max(0, state.backoffLevel - 1)
+          recoveryStates.set(stateKey, state)
+          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovered crashed stream`)
+        } else {
+          logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${data.error || data.message || 'stream-manager rejected start'}`)
         }
-      } else {
-        console.log(`[Scheduler] Slot ${slot.slotIndex + 1} not in manager — waiting for confirmation (miss count: ${missCount}/4)`)
+      } catch (e: any) {
+        logs.push(`Slot ${slot.slotIndex + 1}: Auto-recovery failed: ${e.message || 'Network error'}`)
       }
     } else if (slot.isRunning && activeInManager.has(slot.slotIndex)) {
       missCounters.set(`miss_${slot.slotIndex}`, 0)

@@ -60,6 +60,8 @@ interface StreamInfo {
   profile: string
   bitrateMbps: number    // current outgoing bitrate
   bitrateRaw: string     // e.g. "4500.0kbits/s"
+  streamKey: string      // for duplicate detection
+  lastProgressAt: Date   // last FFmpeg progress timestamp
 }
 const activeStreams: Map<number, StreamInfo> = new Map()
 
@@ -191,10 +193,32 @@ async function processStaggerQueue() {
   isProcessingQueue = false
 }
 
+// ── Find orphan FFmpeg process by streamKey ─────────────────
+function findOrphanPid(streamKey: string): number | null {
+  if (!streamKey || streamKey.length < 4) return null
+  try {
+    const keySnippet = streamKey.substring(0, 20).replace(/[^a-zA-Z0-9]/g, '.')
+    const result = execSync(`pgrep -f "${keySnippet}"`, { encoding: 'utf-8', timeout: 2000 }).trim()
+    if (!result) return null
+    const pid = parseInt(result.split('\n')[0])
+    return isNaN(pid) ? null : pid
+  } catch { return null }
+}
+
 // ── Start a stream immediately ───────────────────────────────
 function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: string, filePath: string): { success: boolean; message: string } {
   if (activeStreams.has(slotIndex)) {
     return { success: false, message: `Slot ${slotIndex + 1} is already streaming` }
+  }
+
+  // Duplicate prevention: if same streamKey is already active on another slot, reconcile
+  if (streamKey) {
+    for (const [existingSlot, info] of activeStreams) {
+      if (info.streamKey === streamKey && existingSlot !== slotIndex) {
+        log(`Slot ${slotIndex + 1}: Duplicate streamKey found on slot ${existingSlot + 1}. Skipping spawn.`)
+        return { success: false, message: `Duplicate stream (slot ${existingSlot + 1} has same key). Reconciled.` }
+      }
+    }
   }
 
   if (activeStreams.size >= MAX_CONCURRENT) {
@@ -232,7 +256,9 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
       startTime: new Date(),
       profile,
       bitrateMbps: 0,
-      bitrateRaw: '0kbits/s'
+      bitrateRaw: '0kbits/s',
+      streamKey,
+      lastProgressAt: new Date()
     }
     activeStreams.set(slotIndex, streamInfo)
 
@@ -250,6 +276,7 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
           const info = activeStreams.get(slotIndex)!
           info.bitrateMbps = mbps
           info.bitrateRaw = line.match(/bitrate=\s*(\d+(?:\.\d+)?kbits\/s)/)?.[1] || info.bitrateRaw
+          info.lastProgressAt = new Date()  // track last progress
         }
 
         // Log errors (but never the raw RTMP URL with key)
@@ -314,17 +341,21 @@ function stopStream(slotIndex: number): { success: boolean; message: string } {
 }
 
 // ── Get stream status ────────────────────────────────────────
-function getStreamStatus(slotIndex: number): { isRunning: boolean; startTime?: string; duration?: number; profile?: string; bitrateMbps?: number } {
+function getStreamStatus(slotIndex: number): object {
   const stream = activeStreams.get(slotIndex)
   if (!stream) return { isRunning: false }
 
   const duration = Math.floor((Date.now() - stream.startTime.getTime()) / 1000)
+  const msSinceProgress = Date.now() - stream.lastProgressAt.getTime()
   return {
     isRunning: true,
     startTime: stream.startTime.toISOString(),
     duration,
     profile: stream.profile,
-    bitrateMbps: stream.bitrateMbps
+    bitrateMbps: stream.bitrateMbps,
+    lastProgressAt: stream.lastProgressAt.toISOString(),
+    msSinceProgress,
+    isProgressStale: msSinceProgress > 20_000
   }
 }
 
@@ -464,9 +495,38 @@ const server = createServer(async (req, res) => {
         res.end(JSON.stringify(status))
       } else {
         const active = listActiveStreams()
+        const uptimeMs = Date.now() - STARTUP_TIME
         res.writeHead(200, { 'Content-Type': 'application/json' })
-        res.end(JSON.stringify({ activeStreams: active, count: active.length, queueLength: staggerQueue.length }))
+        res.end(JSON.stringify({
+          activeStreams: active,
+          count: active.length,
+          queueLength: staggerQueue.length,
+          uptimeMs,
+          isInStartupGrace: uptimeMs < 90_000
+        }))
       }
+      return
+    }
+
+    // GET /reconcile — detailed stream info for smart recovery
+    if (pathname === '/reconcile' && req.method === 'GET') {
+      const uptimeMs = Date.now() - STARTUP_TIME
+      const streams = []
+      for (const [slotIndex, info] of activeStreams) {
+        const msSinceProgress = Date.now() - info.lastProgressAt.getTime()
+        streams.push({
+          slotIndex,
+          streamKey: info.streamKey,
+          startTime: info.startTime.toISOString(),
+          lastProgressAt: info.lastProgressAt.toISOString(),
+          msSinceProgress,
+          isProgressStale: msSinceProgress > 20_000,
+          profile: info.profile,
+          bitrateMbps: info.bitrateMbps
+        })
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ uptimeMs, isInStartupGrace: uptimeMs < 90_000, streams }))
       return
     }
 
@@ -551,7 +611,18 @@ async function startServer() {
           log(`Found ${activeSlots.length} active stream(s) to auto-resume...`)
           for (const slot of activeSlots) {
             const finalRtmp = buildRtmpUrl(slot.outputType, slot.rtmpServer, slot.streamKey)
-            // Add to the stagger queue just like a normal '/start' request
+
+            // Orphan detection: kill any stale FFmpeg with same streamKey before restarting
+            const orphanPid = findOrphanPid(slot.streamKey)
+            if (orphanPid) {
+              log(`Slot ${slot.slotIndex + 1}: Found orphan FFmpeg (PID ${orphanPid}). Terminating before restart...`)
+              try {
+                process.kill(orphanPid, 'SIGTERM')
+                await new Promise(r => setTimeout(r, 500))
+                try { process.kill(orphanPid, 'SIGKILL') } catch { }
+              } catch { }
+            }
+
             staggerQueue.push({
               slotIndex: slot.slotIndex,
               rtmpUrl: finalRtmp,
