@@ -2,6 +2,7 @@ import { spawn, execSync } from 'child_process'
 import { renameSync, unlinkSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 import { randomUUID } from 'crypto'
+import os from 'os'
 
 // Helper to find tool paths
 function findTool(name: string): string {
@@ -362,7 +363,11 @@ function processNextJob() {
         tempOutputPath
     ]
 
-    const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', '2', ...ffmpegArgs])
+    // Limit FFmpeg CPU usage to a maximum of 50% of available cores (minimum 1)
+    const totalCores = os.cpus().length || 1
+    const allowedThreads = Math.max(1, Math.floor(totalCores / 2))
+
+    const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', allowedThreads.toString(), ...ffmpegArgs])
     let errorLog = ''
 
     const currentJob = jobStore.get(jobId)
