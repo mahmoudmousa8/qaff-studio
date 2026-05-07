@@ -243,7 +243,8 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       }
       if (typeof data.uptimeMs === 'number') {
         streamManagerUptimeMs = data.uptimeMs
-        isManagerInStartupGrace = data.isInStartupGrace === true
+        // Startup grace reduced to 5s to avoid complete race conditions, but effectively boots instantly
+        isManagerInStartupGrace = data.isInStartupGrace === true && data.uptimeMs < 5000
       }
     } else {
       console.warn(`[Scheduler] stream-manager /status returned HTTP ${res.status}`)
@@ -285,19 +286,14 @@ export async function runSchedulerTick(): Promise<SchedulerResult> {
       missCounters.set(missKey, missCount)
 
       // 🛡️ STARTUP GRACE: stream-manager just started — it handles auto-resume itself.
-      // Don't interfere for the first 90 seconds after manager startup.
+      // Reduced to 5 seconds per user request for immediate booting.
       if (isManagerInStartupGrace) {
         console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: In startup grace (${Math.round(streamManagerUptimeMs / 1000)}s uptime). Skipping recovery.`)
         continue
       }
 
-      // Wait for 3 consecutive misses (~90 seconds) before confirming crash
-      if (missCount < 3) {
-        console.log(`[Scheduler] Slot ${slot.slotIndex + 1}: Not in manager — waiting for confirmation (miss ${missCount}/3)`)
-        continue
-      }
-
-      // ── Crash confirmed ──
+      // No confirmation delay: immediately recover on the first missed tick.
+      // Crash confirmed immediately ──
       missCounters.set(missKey, 0)
 
       const stateKey = `state_${slot.slotIndex}`
