@@ -128,7 +128,6 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
     return {
       profile: 'copy',
       args: [
-        '-4',                          // Force IPv4 to avoid unstable IPv6 in Docker bridge
         '-re',
         '-stream_loop', '-1',
         '-fflags', '+genpts',

@@ -110,6 +110,13 @@ if [ "$QAFF_SUSPENDED" = "true" ]; then
     }).listen(3000, () => console.log('Suspension server running on 3000'));
   "
 else
+  # ── Force IPv4 preference system-wide via gai.conf ───────────────────────
+  # Docker bridge networking is unstable with IPv6 (NAT overhead, routing issues).
+  # This makes ALL network connections (FFmpeg RTMP, Next.js, etc.) prefer IPv4.
+  # The line sets IPv4-mapped addresses (::ffff:0:0/96) to highest precedence (100).
+  echo "precedence ::ffff:0:0/96  100" > /etc/gai.conf
+  echo "IPv4 preference applied via /etc/gai.conf"
+
   echo "Booting Stream Manager Daemon (Port 3002) in background..."
   
   if [ -f "/app/data/timezone.txt" ]; then
