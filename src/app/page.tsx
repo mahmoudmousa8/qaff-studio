@@ -632,9 +632,13 @@ export default function Home() {
   }
 
   // Build final RTMP URL for display / copying
+  // Matches stream-manager buildRtmpUrl: even slots → a.rtmp, odd slots → b.rtmp
   const getFinalRtmpUrl = (slot: StreamSlot): string => {
     const outputType = slot.outputType || 'youtube'
-    if (outputType === 'youtube') return `rtmp://a.rtmp.youtube.com/live2/${slot.streamKey}`
+    if (outputType === 'youtube') {
+      const endpoint = (slot.slotIndex ?? 0) % 2 === 0 ? 'a' : 'b'
+      return `rtmp://${endpoint}.rtmp.youtube.com/live2/${slot.streamKey}`
+    }
     if (outputType === 'facebook') return `rtmps://live-api-s.facebook.com:443/rtmp/${slot.streamKey}`
     // TikTok / Custom: server + key
     const srv = slot.rtmpServer?.trim() || ''
