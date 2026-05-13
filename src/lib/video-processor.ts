@@ -363,9 +363,9 @@ function processNextJob() {
         tempOutputPath
     ]
 
-    // Limit FFmpeg CPU usage to a maximum of 50% of available cores (minimum 1)
+    // Limit FFmpeg CPU usage to a maximum of 25% of available cores (minimum 1)
     const totalCores = os.cpus().length || 1
-    const allowedThreads = Math.max(1, Math.floor(totalCores / 2))
+    const allowedThreads = Math.max(1, Math.floor(totalCores / 4))
 
     const ffmpegProc = spawn(FFMPEG_PATH, ['-threads', allowedThreads.toString(), ...ffmpegArgs])
     let errorLog = ''
