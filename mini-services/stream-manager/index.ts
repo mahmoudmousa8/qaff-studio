@@ -128,6 +128,7 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
     return {
       profile: 'copy',
       args: [
+        '-4',                          // Force IPv4 to avoid unstable IPv6 in Docker bridge
         '-re',
         '-stream_loop', '-1',
         '-fflags', '+genpts',
@@ -147,10 +148,16 @@ function buildFfmpegArgs(filePath: string, rtmpUrl: string): { args: string[]; p
 }
 
 // ── Build final RTMP URL from outputType + server + key ─────
-function buildRtmpUrl(outputType: string, rtmpServer: string, streamKey: string): string {
+// slotIndex is used to round-robin YouTube RTMP endpoints:
+//   even slots → a.rtmp.youtube.com
+//   odd  slots → b.rtmp.youtube.com
+function buildRtmpUrl(outputType: string, rtmpServer: string, streamKey: string, slotIndex: number = 0): string {
   switch (outputType) {
-    case 'youtube':
-      return `rtmp://a.rtmp.youtube.com/live2/${streamKey}`
+    case 'youtube': {
+      // Round-robin: distribute load across YouTube's two ingest endpoints
+      const endpoint = slotIndex % 2 === 0 ? 'a' : 'b'
+      return `rtmp://${endpoint}.rtmp.youtube.com/live2/${streamKey}`
+    }
     case 'facebook':
       return `rtmps://live-api-s.facebook.com:443/rtmp/${streamKey}`
     case 'tiktok':
@@ -444,8 +451,8 @@ const server = createServer(async (req, res) => {
       const body = await readBody(req)
       const { slotIndex, outputType, rtmpServer, streamKey, filePath } = JSON.parse(body)
 
-      // Build final RTMP URL from outputType
-      const rtmpUrl = buildRtmpUrl(outputType || 'custom', rtmpServer || '', streamKey || '')
+      // Build final RTMP URL from outputType — slotIndex selects a/b endpoint (round-robin)
+      const rtmpUrl = buildRtmpUrl(outputType || 'custom', rtmpServer || '', streamKey || '', slotIndex ?? 0)
 
       const result = startStream(slotIndex, rtmpUrl, streamKey || '', filePath)
       res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -457,7 +464,7 @@ const server = createServer(async (req, res) => {
     if (pathname === '/start-immediate' && req.method === 'POST') {
       const body = await readBody(req)
       const { slotIndex, outputType, rtmpServer, streamKey, filePath } = JSON.parse(body)
-      const rtmpUrl = buildRtmpUrl(outputType || 'custom', rtmpServer || '', streamKey || '')
+      const rtmpUrl = buildRtmpUrl(outputType || 'custom', rtmpServer || '', streamKey || '', slotIndex ?? 0)
       const result = startStreamImmediate(slotIndex, rtmpUrl, streamKey || '', filePath)
       res.writeHead(200, { 'Content-Type': 'application/json' })
       res.end(JSON.stringify(result))
@@ -610,7 +617,7 @@ async function startServer() {
         if (activeSlots.length > 0) {
           log(`Found ${activeSlots.length} active stream(s) to auto-resume...`)
           for (const slot of activeSlots) {
-            const finalRtmp = buildRtmpUrl(slot.outputType, slot.rtmpServer, slot.streamKey)
+            const finalRtmp = buildRtmpUrl(slot.outputType, slot.rtmpServer, slot.streamKey, slot.slotIndex)
 
             // Orphan detection: kill any stale FFmpeg with same streamKey before restarting
             const orphanPid = findOrphanPid(slot.streamKey)
