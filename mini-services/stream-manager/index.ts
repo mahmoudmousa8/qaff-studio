@@ -318,8 +318,8 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
         currentRestartCount = 0
       }
 
-      if (info && !info.isStopping && currentRestartCount < 5) {
-        log(`[WATCHDOG] Slot ${slotIndex + 1} crashed/stopped unexpectedly. Restarting in 500ms... (Attempt ${currentRestartCount + 1}/5)`)
+      if (info && !info.isStopping && currentRestartCount < 30) {
+        log(`[WATCHDOG] Slot ${slotIndex + 1} crashed/stopped unexpectedly. Restarting in 500ms... (Attempt ${currentRestartCount + 1}/30)`)
         
         activeStreams.delete(slotIndex) // Clear current before restart
         
@@ -335,8 +335,8 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
         }, 500)
       } else {
         activeStreams.delete(slotIndex)
-        if (info && !info.isStopping && currentRestartCount >= 5) {
-          log(`[WATCHDOG] Slot ${slotIndex + 1} reached max consecutive restart attempts (5). Giving up.`)
+        if (info && !info.isStopping && currentRestartCount >= 30) {
+          log(`[WATCHDOG] Slot ${slotIndex + 1} reached max consecutive restart attempts (30). Giving up.`)
         }
       }
     })
