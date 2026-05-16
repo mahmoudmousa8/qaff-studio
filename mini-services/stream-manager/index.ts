@@ -312,10 +312,14 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
       }
 
       // ── WATCHDOG / AUTO-RESTART LOGIC ───────────────────────
-      // If not manually stopped AND (exit code != 0 OR it was running for < 5 mins)
-      // we attempt an immediate restart to keep YouTube alive.
-      if (info && !info.isStopping && info.restartCount < 5) {
-        log(`[WATCHDOG] Slot ${slotIndex + 1} crashed/stopped unexpectedly. Restarting in 500ms... (Attempt ${info.restartCount + 1}/5)`)
+      // If the stream ran stably for more than 60 seconds, reset the restart counter
+      let currentRestartCount = info?.restartCount || 0
+      if (info && (Date.now() - info.startTime.getTime() > 60000)) {
+        currentRestartCount = 0
+      }
+
+      if (info && !info.isStopping && currentRestartCount < 5) {
+        log(`[WATCHDOG] Slot ${slotIndex + 1} crashed/stopped unexpectedly. Restarting in 500ms... (Attempt ${currentRestartCount + 1}/5)`)
         
         activeStreams.delete(slotIndex) // Clear current before restart
         
@@ -323,7 +327,7 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
           const result = startStreamImmediate(slotIndex, info.rtmpUrl, info.streamKey, info.filePath)
           if (result.success) {
              const newInfo = activeStreams.get(slotIndex)
-             if (newInfo) newInfo.restartCount = info.restartCount + 1
+             if (newInfo) newInfo.restartCount = currentRestartCount + 1
              log(`[WATCHDOG] Slot ${slotIndex + 1} successfully restarted.`)
           } else {
              log(`[WATCHDOG] Slot ${slotIndex + 1} failed to restart: ${result.message}`)
@@ -331,8 +335,8 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
         }, 500)
       } else {
         activeStreams.delete(slotIndex)
-        if (info && info.restartCount >= 5) {
-          log(`[WATCHDOG] Slot ${slotIndex + 1} reached max restart attempts. Giving up.`)
+        if (info && !info.isStopping && currentRestartCount >= 5) {
+          log(`[WATCHDOG] Slot ${slotIndex + 1} reached max consecutive restart attempts (5). Giving up.`)
         }
       }
     })
