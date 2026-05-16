@@ -62,6 +62,10 @@ interface StreamInfo {
   bitrateRaw: string     // e.g. "4500.0kbits/s"
   streamKey: string      // for duplicate detection
   lastProgressAt: Date   // last FFmpeg progress timestamp
+  rtmpUrl: string        // needed for auto-restart
+  filePath: string       // needed for auto-restart
+  isStopping: boolean    // true if stopped by user
+  restartCount: number   // to prevent infinite fast-restart loops
 }
 const activeStreams: Map<number, StreamInfo> = new Map()
 
@@ -264,7 +268,11 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
       bitrateMbps: 0,
       bitrateRaw: '0kbits/s',
       streamKey,
-      lastProgressAt: new Date()
+      lastProgressAt: new Date(),
+      rtmpUrl,
+      filePath,
+      isStopping: false,
+      restartCount: 0
     }
     activeStreams.set(slotIndex, streamInfo)
 
@@ -294,13 +302,39 @@ function startStreamImmediate(slotIndex: number, rtmpUrl: string, streamKey: str
     })
 
     ffmpegProcess.on('close', (code) => {
+      const info = activeStreams.get(slotIndex)
       log(`Slot ${slotIndex + 1} stream ended with code ${code}`)
+      
       if (code !== 0 && stderrBuffer) {
         const lastLines = stderrBuffer.trim().split('\n').slice(-3).join(' | ')
         const sanitized = streamKey ? lastLines.replace(streamKey, '****') : lastLines
         log(`  Last stderr: ${sanitized.substring(0, 300)}`)
       }
-      activeStreams.delete(slotIndex)
+
+      // ── WATCHDOG / AUTO-RESTART LOGIC ───────────────────────
+      // If not manually stopped AND (exit code != 0 OR it was running for < 5 mins)
+      // we attempt an immediate restart to keep YouTube alive.
+      if (info && !info.isStopping && info.restartCount < 5) {
+        log(`[WATCHDOG] Slot ${slotIndex + 1} crashed/stopped unexpectedly. Restarting in 500ms... (Attempt ${info.restartCount + 1}/5)`)
+        
+        activeStreams.delete(slotIndex) // Clear current before restart
+        
+        setTimeout(() => {
+          const result = startStreamImmediate(slotIndex, info.rtmpUrl, info.streamKey, info.filePath)
+          if (result.success) {
+             const newInfo = activeStreams.get(slotIndex)
+             if (newInfo) newInfo.restartCount = info.restartCount + 1
+             log(`[WATCHDOG] Slot ${slotIndex + 1} successfully restarted.`)
+          } else {
+             log(`[WATCHDOG] Slot ${slotIndex + 1} failed to restart: ${result.message}`)
+          }
+        }, 500)
+      } else {
+        activeStreams.delete(slotIndex)
+        if (info && info.restartCount >= 5) {
+          log(`[WATCHDOG] Slot ${slotIndex + 1} reached max restart attempts. Giving up.`)
+        }
+      }
     })
 
     ffmpegProcess.on('error', (err) => {
@@ -335,6 +369,7 @@ function stopStream(slotIndex: number): { success: boolean; message: string } {
   }
 
   try {
+    stream.isStopping = true // Tell watchdog to NOT restart
     stream.process.kill('SIGTERM')
     setTimeout(() => { try { stream.process.kill('SIGKILL') } catch { } }, 3000)
     activeStreams.delete(slotIndex)
