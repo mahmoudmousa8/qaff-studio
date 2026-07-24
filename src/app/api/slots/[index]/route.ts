@@ -11,6 +11,18 @@ export async function PUT(
     const slotIndex = parseInt(index)
     const updates = await request.json()
 
+    // Auto-populate filePath from playlistConfig if filePath is missing/empty
+    if (updates.playlistConfig && (!updates.filePath || updates.filePath.trim() === '')) {
+      try {
+        const playlist = JSON.parse(updates.playlistConfig)
+        if (Array.isArray(playlist) && playlist.length > 0 && playlist[0]?.videoPath) {
+          updates.filePath = playlist[0].videoPath
+        }
+      } catch (e) {
+        console.error('Failed to parse playlistConfig in PUT slot:', e)
+      }
+    }
+
     const slot = await db.streamSlot.update({
       where: { slotIndex },
       data: updates

@@ -23,7 +23,19 @@ export async function POST(
       return NextResponse.json({ error: 'Slot not found' }, { status: 404 })
     }
 
-    if (!slot.filePath) {
+    let finalFilePath = slot.filePath
+    if ((!finalFilePath || finalFilePath.trim() === '') && slot.playlistConfig) {
+      try {
+        const playlist = JSON.parse(slot.playlistConfig)
+        if (Array.isArray(playlist) && playlist.length > 0 && playlist[0]?.videoPath) {
+          finalFilePath = playlist[0].videoPath
+        }
+      } catch (e) {
+        console.error('Failed to parse playlistConfig in start route:', e)
+      }
+    }
+
+    if (!finalFilePath) {
       return NextResponse.json({ error: 'fileNotFound' }, { status: 400 })
     }
 
@@ -111,7 +123,7 @@ export async function POST(
           outputType,
           rtmpServer: slot.rtmpServer,
           streamKey: slot.streamKey,
-          filePath: slot.filePath
+          filePath: finalFilePath
         })
       })
 
